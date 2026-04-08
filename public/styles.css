@@ -629,7 +629,73 @@ button.danger {
 }
 
 .hidden {
-  display: none;
+  display: none !important;
+}
+
+.loginScreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a2942 0%, #0b1220 100%);
+  padding: 20px;
+  z-index: 1000;
+}
+
+.loginBox {
+  background: #0f1a2c;
+  border-radius: 16px;
+  padding: 48px 40px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  border: 1px solid rgba(230, 238, 252, 0.14);
+}
+
+.loginBox h1 {
+  margin: 0 0 12px 0;
+  font-size: 28px;
+  color: #e6eefc;
+  letter-spacing: -0.02em;
+}
+
+.loginBox .loginMeta {
+  margin: 0 0 32px 0;
+  color: #a8b6d3;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.loginBox button {
+  width: 100%;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 500;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.loginBox .primary {
+  background: #60a5fa;
+  color: #0b1220;
+  box-shadow: 0 4px 12px rgba(96, 165, 250, 0.2);
+}
+
+.loginBox .primary:hover {
+  background: #93c5fd;
+  box-shadow: 0 6px 16px rgba(96, 165, 250, 0.3);
+  transform: translateY(-2px);
+}
+
+.loginBox .primary:active {
+  transform: translateY(0);
 }
 
 @media (max-width: 980px) {

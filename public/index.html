@@ -3,51 +3,68 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Onboarding Automation</title>
+    <title>Microsoft OAS</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="container">
-      <div class="topbar">
-        <div>
-          <h1>Onboarding Tasks</h1>
-          <p class="meta">Webhook -> Task -> Review -> Approve</p>
-        </div>
-        <div class="topbarRight">
-          <div class="toolbarGroup">
-            <div class="toolbarLabel">Theme</div>
-            <button id="themeBtn" class="iconBtn" type="button" aria-label="Toggle theme" title="Toggle theme">
-              <span class="icon sun" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z" />
-                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-                </svg>
-              </span>
-              <span class="icon moon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8Z" />
-                </svg>
-              </span>
-            </button>
-          </div>
-        </div>
+    <div id="loginScreen" class="loginScreen hidden">
+      <div class="loginBox">
+        <h1>Microsoft<br>Onboarding Automation System</h1>
+        <p class="loginMeta">Sign in with your Microsoft account to continue</p>
+        <button id="microsoftLoginBtn" class="primary" type="button">
+          Sign in with Microsoft
+        </button>
       </div>
+    </div>
 
-      <div class="layout">
-        <section class="panel">
-          <div class="panelHeader">
-            <h2>Tasks</h2>
-            <button id="refreshBtn" class="ghost">Refresh</button>
+    <div id="appScreen" class="appScreen hidden">
+      <div class="container">
+        <div class="topbar">
+          <div>
+            <h1>Onboarding Tasks</h1>
+            <p class="meta">Webhook -> Task -> Review -> Approve</p>
           </div>
-          <ul id="taskList"></ul>
-        </section>
+          <div class="topbarRight">
+            <div class="toolbarGroup">
+              <div class="toolbarLabel" id="userEmail">-</div>
+            </div>
+            <div class="toolbarGroup">
+              <div class="toolbarLabel">Theme</div>
+              <button id="themeBtn" class="iconBtn" type="button" aria-label="Toggle theme" title="Toggle theme">
+                <span class="icon sun" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z" />
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                  </svg>
+                </span>
+                <span class="icon moon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8Z" />
+                  </svg>
+                </span>
+              </button>
+            </div>
+            <div class="toolbarGroup">
+              <button id="logoutBtn" class="ghost" type="button">Logout</button>
+            </div>
+          </div>
+        </div>
 
-        <section class="panel details">
-          <h2>Task Details</h2>
-          <div class="meta">ID: <span id="taskId">-</span></div>
+        <div class="layout">
+          <section class="panel">
+            <div class="panelHeader">
+              <h2>Tasks</h2>
+              <button id="refreshBtn" class="ghost">Refresh</button>
+            </div>
+            <ul id="taskList"></ul>
+          </section>
 
-          <div class="sectionCard">
-            <div class="sectionHeader">
+          <section class="panel details">
+            <h2>Task Details</h2>
+            <div class="meta">ID: <span id="taskId">-</span></div>
+
+            <div class="sectionCard">
+              <div class="sectionHeader">
               <h3>New employee</h3>
               <p class="metaSmall">Identity and basic profile</p>
             </div>
@@ -219,6 +236,7 @@
         </div>
         <div id="managerUserList" class="managerList"></div>
         <p id="managerModalError" class="meta"></p>
+      </div>
       </div>
     </div>
     <script src="/app.js"></script>

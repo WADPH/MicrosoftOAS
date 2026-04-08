@@ -4,11 +4,106 @@ const state = {
   companyDomains: ["eilink.az", "researchlab.digital", "ei-g.com"],
   companyCodes: ["EILINK", "DRL", "EIG"],
   availableManagers: [],
+  currentUser: null,
   userEditedLicenseSubject: false,
   userEditedLicenseBody: false,
   userEditedAssetsSubject: false,
   userEditedAssetsBody: false
 };
+
+function serverLog(message, level = "INFO") {
+  console.log(`[${level}] ${message}`);
+  // Also send to server for debugging
+  fetch("/debug/log", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, level })
+  }).catch(() => {});
+}
+
+async function checkAuthStatus() {
+  try {
+    serverLog("Checking auth status...");
+    const response = await fetch("/auth/user");
+    const data = await response.json();
+    serverLog(`Auth status: ${JSON.stringify(data)}`);
+    return data;
+  } catch (error) {
+    serverLog(`Status check failed: ${error.message}`, "ERROR");
+    return { authenticated: false };
+  }
+}
+
+function showLoginScreen() {
+  serverLog("Showing login screen");
+  el("loginScreen")?.classList.remove("hidden");
+  el("appScreen")?.classList.add("hidden");
+}
+
+function showAppScreen() {
+  serverLog("Showing app screen");
+  el("loginScreen")?.classList.add("hidden");
+  el("appScreen")?.classList.remove("hidden");
+}
+
+function initAuth() {
+  serverLog("Initializing auth handlers");
+  try {
+    const loginBtn = el("microsoftLoginBtn");
+    const logoutBtn = el("logoutBtn");
+
+    serverLog(`loginBtn exists? ${!!loginBtn}`);
+    serverLog(`logoutBtn exists? ${!!logoutBtn}`);
+
+    if (loginBtn) {
+      serverLog("Found login button, attaching handler");
+      loginBtn.addEventListener("click", (e) => {
+        serverLog("Login button CLICKED!");
+        e.preventDefault();
+        serverLog("Redirecting to /auth/login");
+        window.location.href = "/auth/login";
+      });
+      serverLog("Login button handler attached successfully");
+    } else {
+      serverLog("Login button NOT FOUND", "WARN");
+    }
+
+    if (logoutBtn) {
+      serverLog("Found logout button, attaching handler");
+      logoutBtn.addEventListener("click", (e) => {
+        serverLog("Logout button CLICKED!");
+        e.preventDefault();
+        window.location.href = "/auth/logout";
+      });
+      serverLog("Logout button handler attached successfully");
+    }
+  } catch (error) {
+    serverLog(`initAuth() error: ${error.message}`, "ERROR");
+  }
+}
+
+async function initApp() {
+  serverLog("initApp() started");
+  const status = await checkAuthStatus();
+
+  if (!status.authenticated) {
+    serverLog("Not authenticated, showing login");
+    showLoginScreen();
+    return;
+  }
+
+  serverLog("Authenticated, showing app");
+  state.currentUser = status.user;
+  if (el("userEmail")) {
+    el("userEmail").textContent = state.currentUser.email || "User";
+  }
+
+  showAppScreen();
+  await loadMeta();
+  await loadTasks();
+  initTheme();
+  setupActions();
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -557,14 +652,6 @@ function setupActions() {
 }
 
 (async function main() {
-  setupActions();
-  initTheme();
-  try {
-    await loadMeta();
-    await loadLicenseAvailability();
-    await loadTasks();
-    el("status").textContent = "Ready";
-  } catch (error) {
-    el("status").textContent = `Init failed: ${error.message}`;
-  }
+  initAuth();
+  await initApp();
 })();

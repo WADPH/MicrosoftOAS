@@ -1,4 +1,4 @@
-# Onboarding Automation MVP
+# Microsoft Onboarding Automation System
 
 Node.js + Express + JSON storage + Microsoft Graph.
 
