@@ -183,27 +183,6 @@ function normalizeCompanyKey(company) {
     .replace(/[^a-z0-9]/g, "");
 }
 
-const DEFAULT_COMPANY_MATCHERS = [
-  {
-    key: "EILINK",
-    patterns: ["eilink", "eilinkllc"],
-    domain: "eilink.az",
-    code: "EILINK"
-  },
-  {
-    key: "DRL",
-    patterns: ["digitalresearchlab", "drl", "drlllc"],
-    domain: "researchlab.digital",
-    code: "DRL"
-  },
-  {
-    key: "EIG",
-    patterns: ["eigroup", "eigroupllc", "eig", "eigcom", "eigllc"],
-    domain: "ei-g.com",
-    code: "EIG"
-  }
-];
-
 function parseEnvList(value) {
   return String(value || "")
     .split(",")
@@ -221,7 +200,7 @@ function loadCompanyMatcherKeys() {
 function buildCompanyMatchers() {
   const keys = loadCompanyMatcherKeys();
   if (keys.length === 0) {
-    return DEFAULT_COMPANY_MATCHERS;
+    return [];
   }
 
   return keys
@@ -234,11 +213,10 @@ function buildCompanyMatchers() {
     .filter((matcher) => matcher.patterns.length > 0);
 }
 
-const COMPANY_MATCHERS = buildCompanyMatchers();
-
 function findCompanyMatcher(company) {
   const normalized = normalizeCompanyKey(company);
-  return COMPANY_MATCHERS.find((matcher) =>
+  const matchers = buildCompanyMatchers();
+  return matchers.find((matcher) =>
     matcher.patterns.some((pattern) => normalized.includes(pattern))
   );
 }
@@ -255,12 +233,13 @@ function inferCompanyInfo(company) {
 }
 
 function getCompanyMatcherOptions() {
+  const matchers = buildCompanyMatchers();
   const seenDomains = new Set();
   const seenCodes = new Set();
   const domains = [];
   const codes = [];
 
-  for (const matcher of COMPANY_MATCHERS) {
+  for (const matcher of matchers) {
     const domain = String(matcher.domain || "").trim();
     const code = String(matcher.code || "").trim();
     if (domain && !seenDomains.has(domain)) {

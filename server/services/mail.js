@@ -59,7 +59,7 @@ function buildLicenseMail(task) {
     subject: String(task.licenseMail?.subject || "License request for new employee"),
     body: String(
       task.licenseMail?.body ||
-        `Hello,\nWe need 1 Microsoft Business Premium licence with monthly payment on ${task.company} balance.`
+        `Hello,\nWe need 1 Microsoft Business Premium licence with monthly payment on ${task.company} balance.\n\nBest regards,\nIT Team`
     )
   };
 }
@@ -97,7 +97,7 @@ function buildAssetsMail(task) {
     to: normalizeRecipients(task.assetsMail?.to).length ? normalizeRecipients(task.assetsMail?.to) : recipients.to,
     cc: normalizeRecipients(task.assetsMail?.cc).length ? normalizeRecipients(task.assetsMail?.cc) : recipients.cc,
     subject: String(task.assetsMail?.subject || `Assets request: ${task.fullName}`),
-    body: String(task.assetsMail?.body || `Hello,\nWe need ${assetsSentence} for our new employee ${task.fullName}. From ${task.company} balance.`)
+    body: String(task.assetsMail?.body || `Hello,\nWe need ${assetsSentence} for our new employee ${task.fullName}. From ${task.company} balance.\n\nBest regards,\nIT Team`)
   };
 }
 

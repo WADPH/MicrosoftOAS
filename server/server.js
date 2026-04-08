@@ -4,6 +4,7 @@ const path = require("path");
 const session = require("express-session");
 
 const authRouter = require("./routes/auth");
+const settingsRouter = require("./routes/settings");
 const tasksRouter = require("./routes/tasks");
 const webhookRouter = require("./routes/webhook");
 const requireAuth = require("./middleware/requireAuth");
@@ -41,6 +42,7 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/auth", authRouter);
+app.use("/settings", requireAuth, settingsRouter);
 app.use("/tasks", requireAuth, tasksRouter);
 app.use("/webhook", webhookRouter);
 

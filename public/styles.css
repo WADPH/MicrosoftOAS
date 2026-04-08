@@ -146,6 +146,12 @@ h3 {
   height: 16px;
 }
 
+.iconBtn .icon.active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 body:not([data-theme="dark"]) .iconBtn .sun {
   display: flex;
   align-items: center;
@@ -455,6 +461,125 @@ body[data-theme="dark"] .iconBtn .moon {
   border-radius: 12px;
   background: var(--input);
   color: var(--muted);
+}
+
+.settingsModalContent {
+  width: min(860px, 100%);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent;
+}
+
+.settingsSection {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: var(--input);
+}
+
+.settingsSection > h3 {
+  margin: 0 0 8px;
+}
+
+.settingsSectionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.settingsSubsection {
+  margin-top: 8px;
+}
+
+.settingsSubsection h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.settingsList {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.settingsRestricted {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--danger) 5%, var(--card));
+}
+
+.restrictedTitle {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.settingsModalContent::-webkit-scrollbar {
+  width: 10px;
+}
+
+.settingsModalContent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settingsModalContent::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+.settingsModalContent::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted) 36%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.companyMatcherList {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.companyMatcherCard {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--card);
+}
+
+.companyMatcherHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.companyMatcherHeader h4 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.companyMatcherErrors {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--danger);
+  display: grid;
+  gap: 4px;
+}
+
+.companyMatcherEmpty {
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  background: var(--card);
 }
 
 .pill {

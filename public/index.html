@@ -39,6 +39,14 @@
                   </svg>
                 </span>
               </button>
+              <button id="settingsBtn" class="iconBtn" type="button" aria-label="Open settings" title="Open settings">
+                <span class="icon gear active" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M10.33 3.32a1 1 0 0 1 1.34-.45l.86.4a1 1 0 0 0 .86 0l.86-.4a1 1 0 0 1 1.34.45l.58 1.01a1 1 0 0 0 .75.5l1.15.16a1 1 0 0 1 .84.99v1.17a1 1 0 0 0 .43.82l.94.68a1 1 0 0 1 .23 1.39l-.69.94a1 1 0 0 0-.17.9l.29 1.11a1 1 0 0 1-.74 1.22l-1.13.27a1 1 0 0 0-.66.62l-.45 1.06a1 1 0 0 1-1.27.56l-1.08-.39a1 1 0 0 0-.91.1l-.95.64a1 1 0 0 1-1.38-.28l-.64-.95a1 1 0 0 0-.8-.43H9.82a1 1 0 0 1-.99-.83l-.17-1.15a1 1 0 0 0-.51-.75l-1.02-.58a1 1 0 0 1-.44-1.34l.4-.86a1 1 0 0 0 0-.86l-.4-.86a1 1 0 0 1 .44-1.34l1.02-.58a1 1 0 0 0 .51-.75l.17-1.15a1 1 0 0 1 .99-.83h1.17a1 1 0 0 0 .8-.43Z" />
+                    <circle cx="12" cy="12" r="3.1" />
+                  </svg>
+                </span>
+              </button>
             </div>
             <div class="toolbarGroup userGroup">
               <div class="toolbarLabel" id="userEmail">-</div>
@@ -223,6 +231,95 @@
       </div>
     </div>
 
+    <div id="settingsModal" class="modal hidden" aria-hidden="true">
+      <div id="settingsModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent settingsModalContent" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="settingsModalTitle">Settings</h3>
+            <p class="metaSmall">Manage editable application configuration safely.</p>
+          </div>
+          <button id="settingsModalClose" type="button" aria-label="Close">×</button>
+        </div>
+
+        <div class="settingsSection">
+          <h3>Main</h3>
+          <p class="metaSmall">For security reasons, these values can only be configured directly in <code>.env</code>.</p>
+          <ul class="settingsList">
+            <li><code>PORT — Server Port</code></li>
+            <li><code>TEAMS_OUTGOING_WEBHOOK_SECRET — Webhook provides this secret</code></li>
+            <li><code>TENANT_ID — From Entra ID application</code></li>
+            <li><code>CLIENT_ID — From Entra ID application</code></li>
+            <li><code>CLIENT_SECRET — From Entra ID application</code></li>
+            <li><code>DEFAULT_USAGE_LOCATION — For example 'EN'</code></li>
+          </ul>
+        </div>
+
+        <div class="settingsSection">
+          <h3>SSO</h3>
+          <div class="grid2">
+            <div class="field">
+              <label for="settingRedirectUri" title="REDIRECT_URI">SSO Callback URL (Entra ID APP)</label>
+              <input id="settingRedirectUri" type="url" title="REDIRECT_URI" placeholder="https://your-domain/auth/callback" />
+            </div>
+            <div class="field">
+              <label for="settingAllowedEmail" title="ALLOWED_EMAILS">Allowed Email(s)</label>
+              <input id="settingAllowedEmail" type="text" title="ALLOWED_EMAILS" placeholder="user@example.com,admin@example.com" />
+            </div>
+          </div>
+          <div class="settingsRestricted">
+            <div class="restrictedTitle" title="SESSION_SECRET">Session Secret (Create One)</div>
+            <p class="metaSmall">This value must be set manually in <code>.env</code> for security reasons.</p>
+          </div>
+        </div>
+
+        <div class="settingsSection">
+          <h3>Email Configurations</h3>
+          <div class="settingsSubsection">
+            <h4>License</h4>
+            <div class="grid2">
+              <div class="field">
+                <label for="settingLicenseTo" title="LICENSE_REQUEST_TO">License Request To</label>
+                <input id="settingLicenseTo" type="text" title="LICENSE_REQUEST_TO" placeholder="one@example.com,two@example.com" />
+              </div>
+              <div class="field">
+                <label for="settingLicenseCc" title="LICENSE_REQUEST_CC">License Request CC</label>
+                <input id="settingLicenseCc" type="text" title="LICENSE_REQUEST_CC" placeholder="cc@example.com" />
+              </div>
+            </div>
+          </div>
+          <div class="settingsSubsection">
+            <h4>Assets</h4>
+            <div class="grid2">
+              <div class="field">
+                <label for="settingAssetsTo" title="ASSETS_REQUEST_TO">Assets Request To</label>
+                <input id="settingAssetsTo" type="text" title="ASSETS_REQUEST_TO" placeholder="assets@example.com" />
+              </div>
+              <div class="field">
+                <label for="settingAssetsCc" title="ASSETS_REQUEST_CC">Assets Request CC</label>
+                <input id="settingAssetsCc" type="text" title="ASSETS_REQUEST_CC" placeholder="cc@example.com" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settingsSection">
+          <div class="settingsSectionRow">
+            <h3>Company Matcher</h3>
+            <button id="addCompanyMatcherBtn" type="button" class="ghost small">Add New Company</button>
+          </div>
+          <p class="metaSmall">Dynamic mapping from <code>COMPANY_MATCHER_KEYS</code> to patterns, domain and code.</p>
+          <div id="companyMatcherList" class="companyMatcherList"></div>
+        </div>
+
+        <div class="actions">
+          <button id="settingsSaveBtn" class="primary" type="button">Save Settings</button>
+          <button id="settingsCancelBtn" class="ghost" type="button">Cancel</button>
+        </div>
+        <p id="settingsStatus" class="meta"></p>
+      </div>
+    </div>
+
     <div id="managerModal" class="modal hidden" aria-hidden="true">
       <div id="managerModalOverlay" class="modalOverlay"></div>
       <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="managerModalTitle">
@@ -239,7 +336,6 @@
         </div>
         <div id="managerUserList" class="managerList"></div>
         <p id="managerModalError" class="meta"></p>
-      </div>
       </div>
     </div>
     <script src="/app.js"></script>

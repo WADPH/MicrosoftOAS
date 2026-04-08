@@ -21,12 +21,14 @@ const msalConfig = {
 
 const cca = new msal.ConfidentialClientApplication(msalConfig);
 
-const REDIRECT_URI = process.env.REDIRECT_URI || "http://localhost:3000/auth/callback";
+function getRedirectUri() {
+  return process.env.REDIRECT_URI || "http://localhost:3000/auth/callback";
+}
 
 async function getAuthCodeUrl(req) {
   const authCodeUrlParameters = {
     scopes: ["openid", "profile", "email"],
-    redirectUri: REDIRECT_URI,
+    redirectUri: getRedirectUri(),
     state: req.sessionID
   };
 
@@ -37,7 +39,7 @@ async function handleAuthCallback(code) {
   const tokenRequest = {
     code,
     scopes: ["openid", "profile", "email"],
-    redirectUri: REDIRECT_URI
+    redirectUri: getRedirectUri()
   };
 
   try {
@@ -62,7 +64,8 @@ function parseUserFromToken(tokenResponse) {
 }
 
 function isUserAllowed(user) {
-  const allowedEmails = String(process.env.ALLOWED_EMAILS || "")
+  const source = process.env.ALLOWED_EMAILS || process.env.ALLOWED_EMAIL || "";
+  const allowedEmails = String(source)
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);

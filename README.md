@@ -20,6 +20,8 @@ Node.js + Express + JSON storage + Microsoft Graph.
 - `PATCH /tasks/:id`
 - `DELETE /tasks/:id`
 - `POST /tasks/:id/approve`
+- `GET /settings`
+- `PATCH /settings`
 - `GET /health`
 
 ## Sample webhook call
