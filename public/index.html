@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Onboarding Automation</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="topbar">
+        <div>
+          <h1>Onboarding Tasks</h1>
+          <p class="meta">Webhook -> Task -> Review -> Approve</p>
+        </div>
+        <div class="topbarRight">
+          <div class="toolbarGroup">
+            <div class="toolbarLabel">Theme</div>
+            <button id="themeBtn" class="iconBtn" type="button" aria-label="Toggle theme" title="Toggle theme">
+              <span class="icon sun" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z" />
+                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                </svg>
+              </span>
+              <span class="icon moon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8Z" />
+                </svg>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="layout">
+        <section class="panel">
+          <div class="panelHeader">
+            <h2>Tasks</h2>
+            <button id="refreshBtn" class="ghost">Refresh</button>
+          </div>
+          <ul id="taskList"></ul>
+        </section>
+
+        <section class="panel details">
+          <h2>Task Details</h2>
+          <div class="meta">ID: <span id="taskId">-</span></div>
+
+          <div class="sectionCard">
+            <div class="sectionHeader">
+              <h3>New employee</h3>
+              <p class="metaSmall">Identity and basic profile</p>
+            </div>
+            <div class="grid2">
+              <div class="field">
+                <label for="fullName">Name Surname</label>
+                <input id="fullName" type="text" />
+              </div>
+              <div class="field">
+                <label for="startDate">Start Date</label>
+                <input id="startDate" type="text" placeholder="YYYY-MM-DD" />
+              </div>
+
+              <div class="field">
+                <label for="firstName">First Name</label>
+                <input id="firstName" type="text" />
+              </div>
+              <div class="field">
+                <label for="lastName">Last Name</label>
+                <input id="lastName" type="text" />
+              </div>
+
+              <div class="field">
+                <label for="email">UPN / Email</label>
+                <input id="email" type="text" />
+              </div>
+              <div class="field">
+                <label for="companyDomain">Company Domain</label>
+                <select id="companyDomain"></select>
+              </div>
+
+              <div class="field">
+                <label for="company">Company (balance source)</label>
+                <select id="company"></select>
+              </div>
+              <div class="field">
+                <label for="position">Position</label>
+                <input id="position" type="text" />
+              </div>
+
+              <div class="field">
+                <label for="phone">Phone</label>
+                <input id="phone" type="text" />
+              </div>
+              <div class="field">
+                <label for="manager">Line Manager</label>
+                <div class="managerRow">
+                  <input id="manager" type="text" />
+                  <button id="changeManagerBtn" type="button" class="ghost small">Change</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sectionCard">
+            <div class="sectionHeader">
+              <h3>License</h3>
+              <p class="metaSmall">Assign from tenant or request via email</p>
+            </div>
+
+            <div class="field">
+              <div class="rowBetween">
+                <label class="switch">
+                  <input id="licenseRequired" type="checkbox" />
+                  <span class="switchTrack" aria-hidden="true"><span class="switchThumb"></span></span>
+                  <span class="switchText">Request license by email (SIP)</span>
+                </label>
+              </div>
+              <div class="inlineRow">
+                <div class="pill">
+                  Business Premium free seats:
+                  <strong id="premiumSeats">-</strong>
+                </div>
+                <button id="refreshLicensesBtn" type="button" class="ghost small">Refresh</button>
+              </div>
+              <p class="hint">
+                If checked: only send the license request email (no assign from tenant). If unchecked: try to assign
+                Microsoft Business Premium from available seats.
+              </p>
+            </div>
+
+            <div id="licenseMailSection">
+              <h3>License Email Preview / Edit</h3>
+              <div class="grid2">
+                <div class="field">
+                  <label for="licenseTo">To (comma separated)</label>
+                  <input id="licenseTo" type="text" />
+                </div>
+                <div class="field">
+                  <label for="licenseCc">CC (comma separated)</label>
+                  <input id="licenseCc" type="text" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="licenseSubject">Subject</label>
+                <input id="licenseSubject" type="text" />
+              </div>
+              <div class="field">
+                <label for="licenseBody">Body</label>
+                <textarea id="licenseBody" rows="4"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="sectionCard">
+            <div class="sectionHeader">
+              <h3>Assets</h3>
+              <p class="metaSmall">Select equipment and send a single request email</p>
+            </div>
+
+            <div class="field">
+              <label>Assets</label>
+              <div class="assets">
+                <label class="checkTile"><input id="assetLaptop" type="checkbox" /><span class="checkMark" aria-hidden="true"></span><span class="checkText">Laptop</span></label>
+                <label class="checkTile"><input id="assetKeyboard" type="checkbox" /><span class="checkMark" aria-hidden="true"></span><span class="checkText">Keyboard</span></label>
+                <label class="checkTile"><input id="assetMouse" type="checkbox" /><span class="checkMark" aria-hidden="true"></span><span class="checkText">Mouse</span></label>
+                <label class="checkTile"><input id="assetHeadphones" type="checkbox" /><span class="checkMark" aria-hidden="true"></span><span class="checkText">Headphones</span></label>
+                <label class="checkTile"><input id="assetMonitor" type="checkbox" /><span class="checkMark" aria-hidden="true"></span><span class="checkText">Monitor</span></label>
+              </div>
+            </div>
+
+            <div id="assetsMailSection">
+              <h3>Assets Email Preview / Edit</h3>
+              <div class="grid2">
+                <div class="field">
+                  <label for="assetsTo">To (comma separated)</label>
+                  <input id="assetsTo" type="text" />
+                </div>
+                <div class="field">
+                  <label for="assetsCc">CC (comma separated)</label>
+                  <input id="assetsCc" type="text" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="assetsSubject">Subject</label>
+                <input id="assetsSubject" type="text" />
+              </div>
+              <div class="field">
+                <label for="assetsBody">Body</label>
+                <textarea id="assetsBody" rows="4"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="saveBtn">Save</button>
+            <button id="approveBtn" class="primary">Approve</button>
+            <button id="deleteBtn" class="danger">Delete Task</button>
+          </div>
+
+          <p id="status" class="meta"></p>
+        </section>
+      </div>
+    </div>
+
+    <div id="managerModal" class="modal hidden" aria-hidden="true">
+      <div id="managerModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="managerModalTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="managerModalTitle">Choose Line Manager</h3>
+            <p class="metaSmall">Search tenant users and choose the correct manager.</p>
+          </div>
+          <button id="managerModalClose" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="field">
+          <label for="managerSearch">Search users</label>
+          <input id="managerSearch" type="search" placeholder="Type name, surname, or email" />
+        </div>
+        <div id="managerUserList" class="managerList"></div>
+        <p id="managerModalError" class="meta"></p>
+      </div>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>

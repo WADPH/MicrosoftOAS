@@ -1,0 +1,318 @@
+const GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
+
+let tokenCache = {
+  accessToken: null,
+  expiresAt: 0
+};
+
+function requiredEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required env variable: ${name}`);
+  }
+  return value;
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry(fn, attempts = 3) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const status = error.status || 0;
+      const retriable = status >= 500 || status === 429 || status === 0;
+
+      if (!retriable || attempt === attempts) break;
+
+      const backoffMs = 300 * attempt;
+      console.warn(`[graph] Retry ${attempt}/${attempts} in ${backoffMs}ms`);
+      await delay(backoffMs);
+    }
+  }
+
+  throw lastError;
+}
+
+async function getAccessToken() {
+  if (tokenCache.accessToken && Date.now() < tokenCache.expiresAt - 60_000) {
+    return tokenCache.accessToken;
+  }
+
+  const tenantId = requiredEnv("TENANT_ID");
+  const clientId = requiredEnv("CLIENT_ID");
+  const clientSecret = requiredEnv("CLIENT_SECRET");
+
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: "client_credentials",
+    scope: "https://graph.microsoft.com/.default"
+  });
+
+  const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
+
+  if (!response.ok) {
+    const txt = await response.text();
+    throw new Error(`Failed to get Graph token: ${response.status} ${txt}`);
+  }
+
+  const data = await response.json();
+  tokenCache = {
+    accessToken: data.access_token,
+    expiresAt: Date.now() + (data.expires_in || 3600) * 1000
+  };
+
+  return tokenCache.accessToken;
+}
+
+async function graphRequest(method, path, body) {
+  return withRetry(async () => {
+    const token = await getAccessToken();
+
+    const response = await fetch(`${GRAPH_BASE_URL}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      const error = new Error(`Graph request failed ${method} ${path}: ${response.status} ${errText}`);
+      error.status = response.status;
+      throw error;
+    }
+
+    if (response.status === 204) return null;
+
+    const raw = await response.text();
+    if (!raw || !raw.trim()) return null;
+    return JSON.parse(raw);
+  });
+}
+
+async function getUserByEmail(email) {
+  try {
+    return await graphRequest("GET", `/users/${encodeURIComponent(email)}`);
+  } catch (error) {
+    if (error.status === 404) return null;
+    throw error;
+  }
+}
+
+async function listUsers(search = "", limit = 200) {
+  const normalized = String(search || "").trim().replace(/'/g, "''");
+  const cappedLimit = Math.min(Math.max(Number(limit) || 1, 1), 999);
+  const queryParts = [`$select=displayName,givenName,surname,mail,id`, `$top=${cappedLimit}`];
+
+  if (normalized) {
+    const pieces = normalized.split(/\s+/).filter(Boolean);
+    let filter = `startswith(displayName,'${normalized}') or startswith(givenName,'${pieces[0]}') or startswith(surname,'${pieces[pieces.length - 1]}')`;
+    if (pieces.length >= 2) {
+      const first = pieces[0];
+      const last = pieces[pieces.length - 1];
+      filter = `startswith(displayName,'${normalized}') or startswith(displayName,'${last} ${first}') or (startswith(givenName,'${first}') and startswith(surname,'${last}'))`;
+    }
+    queryParts.push(`$filter=${encodeURIComponent(filter)}`);
+  }
+
+  const path = `/users?${queryParts.join("&")}`;
+  const result = await graphRequest("GET", path);
+  return Array.isArray(result?.value) ? result.value : [];
+}
+
+async function findUserByDisplayName(displayName) {
+  const raw = String(displayName || "").trim();
+  if (!raw) return null;
+
+  const users = await listUsers(raw, 50);
+  const normalized = raw.toLowerCase();
+
+  const exact = users.find((user) => String(user.displayName || "").toLowerCase() === normalized);
+  if (exact) return exact;
+
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    const first = parts[0].toLowerCase();
+    const last = parts[parts.length - 1].toLowerCase();
+    const byName = users.find(
+      (user) =>
+        String(user.givenName || "").toLowerCase() === first &&
+        String(user.surname || "").toLowerCase() === last
+    );
+    if (byName) return byName;
+  }
+
+  return users[0] || null;
+}
+
+async function assignManager(userIdentifier, managerDisplayName) {
+  try {
+    const manager = await findUserByDisplayName(managerDisplayName);
+    if (!manager || !manager.id) {
+      console.log(`[graph] Manager not found for: ${managerDisplayName}`);
+      return { success: false, reason: `Manager not found: ${managerDisplayName}` };
+    }
+
+    const managerId = manager.id;
+    const path = `/users/${encodeURIComponent(userIdentifier)}/manager/$ref`;
+    const body = {
+      "@odata.id": `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(managerId)}`
+    };
+
+    await graphRequest("PUT", path, body);
+    console.log(`[graph] Manager assigned: ${userIdentifier} -> ${managerDisplayName}`);
+    return { success: true, reason: "Manager assigned", manager: { displayName: manager.displayName, mail: manager.mail } };
+  } catch (error) {
+    console.error(`[graph] Failed to assign manager to ${userIdentifier}: ${error.message}`);
+    return { success: false, reason: error.message };
+  }
+}
+
+function buildMailNickname(email) {
+  return String(email || "")
+    .split("@")[0]
+    .replace(/[^a-zA-Z0-9._-]/g, "");
+}
+
+function generateInitialPassword() {
+  const stamp = Date.now().toString(36).slice(-6);
+  return `Temp#${stamp}Aa1!`;
+}
+
+async function createUser(task) {
+  const usageLocation = String(process.env.DEFAULT_USAGE_LOCATION || "AZ").trim().toUpperCase();
+  const payload = {
+    accountEnabled: true,
+    displayName: task.fullName,
+    mailNickname: buildMailNickname(task.email),
+    userPrincipalName: task.email,
+    givenName: task.firstName || undefined,
+    surname: task.lastName || undefined,
+    companyName: task.company || undefined,
+    usageLocation,
+    jobTitle: task.position || undefined,
+    mobilePhone: task.phone || undefined,
+    passwordProfile: {
+      forceChangePasswordNextSignIn: true,
+      password: generateInitialPassword()
+    }
+  };
+
+  return graphRequest("POST", "/users", payload);
+}
+
+async function updateUserUsageLocation(email, usageLocation) {
+  return graphRequest("PATCH", `/users/${encodeURIComponent(email)}`, {
+    usageLocation: String(usageLocation || "").trim().toUpperCase()
+  });
+}
+
+/**
+ * After createUser Graph can briefly return 404 on subsequent operations.
+ * Polls /users/{email} until it is visible (or we give up).
+ */
+async function waitForUserProvisioning(email, attempts = 5) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const user = await getUserByEmail(email);
+      if (user) return user;
+      lastError = new Error("User still not found");
+    } catch (error) {
+      lastError = error;
+    }
+
+    const waitMs = 700 * attempt;
+    console.warn(`[graph] waitForUserProvisioning: user not visible yet, retry ${attempt}/${attempts} in ${waitMs}ms`);
+    await delay(waitMs);
+  }
+
+  throw lastError || new Error("User not visible after provisioning retries");
+}
+
+async function getSubscribedSkus() {
+  const data = await graphRequest("GET", "/subscribedSkus");
+  return data?.value || [];
+}
+
+function findBusinessPremiumSku(skus) {
+  return skus.find((sku) => {
+    const key = String(sku.skuPartNumber || "").toLowerCase();
+    return (
+      key.includes("business_premium") ||
+      key === "spb" ||
+      key.includes("m365_business_premium") ||
+      key.includes("microsoft_365_business_premium")
+    );
+  }) || null;
+}
+
+function hasAvailableSeats(sku) {
+  if (!sku?.prepaidUnits) return false;
+
+  const enabled = Number(sku.prepaidUnits.enabled || 0);
+  const consumed = Number(sku.consumedUnits || 0);
+  return enabled - consumed > 0;
+}
+
+async function assignLicense(email, skuId) {
+  return graphRequest("POST", `/users/${encodeURIComponent(email)}/assignLicense`, {
+    addLicenses: [{ skuId }],
+    removeLicenses: []
+  });
+}
+
+/**
+ * Newly created users can briefly return 404 on assignLicense; retry a few times.
+ */
+async function assignLicenseWithRetry(email, skuId, attempts = 5) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await assignLicense(email, skuId);
+    } catch (error) {
+      lastError = error;
+      const status = error.status || 0;
+      if (status === 404 && attempt < attempts) {
+        const waitMs = 800 * attempt;
+        console.warn(`[graph] assignLicense 404, retry ${attempt}/${attempts} in ${waitMs}ms`);
+        await delay(waitMs);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw lastError;
+}
+
+module.exports = {
+  getUserByEmail,
+  listUsers,
+  findUserByDisplayName,
+  assignManager,
+  createUser,
+  updateUserUsageLocation,
+  waitForUserProvisioning,
+  getSubscribedSkus,
+  findBusinessPremiumSku,
+  hasAvailableSeats,
+  assignLicense,
+  assignLicenseWithRetry,
+  graphRequest
+};
