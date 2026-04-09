@@ -9,7 +9,10 @@ const EDITABLE_KEYS = [
   "LICENSE_REQUEST_TO",
   "LICENSE_REQUEST_CC",
   "ASSETS_REQUEST_TO",
-  "ASSETS_REQUEST_CC"
+  "ASSETS_REQUEST_CC",
+  "SNIPEIT_ENABLED",
+  "SNIPEIT_LAPTOP_PREFIX",
+  "SNIPEIT_MONITOR_PREFIX"
 ];
 
 const RESTRICTED_KEYS = [
@@ -19,7 +22,9 @@ const RESTRICTED_KEYS = [
   "CLIENT_ID",
   "CLIENT_SECRET",
   "DEFAULT_USAGE_LOCATION",
-  "SESSION_SECRET"
+  "SESSION_SECRET",
+  "SNIPEIT_URL",
+  "SNIPEIT_API_KEY"
 ];
 
 const FALLBACK_LEGACY_TENANT_KEY = "EIGROUP";
@@ -163,6 +168,52 @@ function validateUpdates(updates) {
   if (Object.prototype.hasOwnProperty.call(updates, "ASSETS_REQUEST_CC")) {
     validateEmailList("ASSETS_REQUEST_CC", updates.ASSETS_REQUEST_CC);
   }
+  if (Object.prototype.hasOwnProperty.call(updates, "SNIPEIT_ENABLED")) {
+    const value = String(updates.SNIPEIT_ENABLED || "").trim().toLowerCase();
+    if (!["true", "false"].includes(value)) {
+      const error = new Error("SNIPEIT_ENABLED must be true or false");
+      error.status = 400;
+      throw error;
+    }
+    if (value === "true") {
+      const url = String(process.env.SNIPEIT_URL || "").trim();
+      const key = String(process.env.SNIPEIT_API_KEY || "").trim();
+      if (!url || !key) {
+        const error = new Error("SNIPEIT_URL and SNIPEIT_API_KEY must be configured in .env before enabling");
+        error.status = 400;
+        throw error;
+      }
+      let parsed;
+      try {
+        parsed = new URL(url);
+      } catch {
+        const error = new Error("SNIPEIT_URL must be a valid URL");
+        error.status = 400;
+        throw error;
+      }
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        const error = new Error("SNIPEIT_URL must use http or https protocol");
+        error.status = 400;
+        throw error;
+      }
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "SNIPEIT_LAPTOP_PREFIX")) {
+    const value = String(updates.SNIPEIT_LAPTOP_PREFIX || "").trim();
+    if (!value) {
+      const error = new Error("SNIPEIT_LAPTOP_PREFIX is required");
+      error.status = 400;
+      throw error;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "SNIPEIT_MONITOR_PREFIX")) {
+    const value = String(updates.SNIPEIT_MONITOR_PREFIX || "").trim();
+    if (!value) {
+      const error = new Error("SNIPEIT_MONITOR_PREFIX is required");
+      error.status = 400;
+      throw error;
+    }
+  }
 }
 
 function ensureAllowedPayloadKeys(payload) {
@@ -292,6 +343,9 @@ function getCurrentSettings() {
     LICENSE_REQUEST_CC: normalizeEnvStoredValue(envMap.LICENSE_REQUEST_CC || process.env.LICENSE_REQUEST_CC || ""),
     ASSETS_REQUEST_TO: normalizeEnvStoredValue(envMap.ASSETS_REQUEST_TO || process.env.ASSETS_REQUEST_TO || ""),
     ASSETS_REQUEST_CC: normalizeEnvStoredValue(envMap.ASSETS_REQUEST_CC || process.env.ASSETS_REQUEST_CC || ""),
+    SNIPEIT_ENABLED: normalizeEnvStoredValue(envMap.SNIPEIT_ENABLED || process.env.SNIPEIT_ENABLED || "false") || "false",
+    SNIPEIT_LAPTOP_PREFIX: normalizeEnvStoredValue(envMap.SNIPEIT_LAPTOP_PREFIX || process.env.SNIPEIT_LAPTOP_PREFIX || "PC-") || "PC-",
+    SNIPEIT_MONITOR_PREFIX: normalizeEnvStoredValue(envMap.SNIPEIT_MONITOR_PREFIX || process.env.SNIPEIT_MONITOR_PREFIX || "MN-") || "MN-",
     tenants,
     companies: parseCompanyMatchersFromEnvMap(envMap, tenants),
     companyMatcher: parseCompanyMatchersFromEnvMap(envMap, tenants)

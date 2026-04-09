@@ -1,0 +1,25 @@
+[
+  {
+    "id": "1775736260003_ggg4c4",
+    "type": "SNIPEIT_ASSIGN",
+    "status": "completed",
+    "email": "snipeit.user@researchlab.digital",
+    "createdAt": "2026-04-09T12:04:20.003Z",
+    "updatedAt": "2026-04-09T12:08:07.256Z",
+    "lastAttemptAt": "2026-04-09T12:08:07.255Z",
+    "nextAttemptAt": "2026-04-09T12:19:20.003Z",
+    "attempts": 1,
+    "completedAt": "2026-04-09T12:08:07.255Z",
+    "error": "",
+    "taskId": "9eba4a6d-cc26-4ecd-a9a2-2cff8a96f4b0",
+    "assets": [
+      {
+        "id": 420,
+        "asset_tag": "PC-00099",
+        "model": "20L6S37K00",
+        "notes": "Old ( Gunel eilink)",
+        "type": "laptop"
+      }
+    ]
+  }
+]

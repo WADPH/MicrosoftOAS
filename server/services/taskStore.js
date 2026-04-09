@@ -104,6 +104,18 @@ function normalizeTask(task = {}) {
     email: normalizeString(task.email),
     licenseRequired: task.licenseRequired !== false,
     assets,
+    snipeitAssets: Array.isArray(task.snipeitAssets)
+      ? task.snipeitAssets
+          .map((asset) => ({
+            id: Number(asset?.id),
+            asset_tag: String(asset?.asset_tag || "").trim(),
+            model: String(asset?.model || "").trim(),
+            notes: String(asset?.notes || "").trim(),
+            companyName: String(asset?.companyName || "").trim(),
+            type: String(asset?.type || "").trim().toLowerCase()
+          }))
+          .filter((asset) => Number.isFinite(asset.id) && asset.asset_tag)
+      : [],
     createdAt: task.createdAt || new Date().toISOString()
   };
 

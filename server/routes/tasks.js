@@ -21,8 +21,54 @@ const {
   assignManager
 } = require("../services/graph");
 const { sendLicenseRequestMail, sendAssetsMail } = require("../services/mail");
+const { isEnabled } = require("../services/snipeit.service");
+const { addAssignTask } = require("../services/snipeitAssignStore");
 
 const router = express.Router();
+
+function validateSnipeitAssetsInput(input) {
+  if (!Array.isArray(input)) {
+    const error = new Error("snipeitAssets must be an array");
+    error.status = 400;
+    throw error;
+  }
+
+  if (input.length === 0) return [];
+
+  if (!isEnabled()) {
+    const error = new Error("Snipe-IT integration is disabled");
+    error.status = 400;
+    throw error;
+  }
+
+  const laptopPrefix = String(process.env.SNIPEIT_LAPTOP_PREFIX || "PC-").trim();
+  const monitorPrefix = String(process.env.SNIPEIT_MONITOR_PREFIX || "MN-").trim();
+  const allowedPrefixes = [laptopPrefix, monitorPrefix].filter(Boolean);
+
+  const normalized = input.map((asset) => ({
+    id: Number(asset?.id),
+    asset_tag: String(asset?.asset_tag || "").trim(),
+    model: String(asset?.model || "").trim(),
+    notes: String(asset?.notes || "").trim(),
+    companyName: String(asset?.companyName || "").trim(),
+    type: String(asset?.type || "").trim().toLowerCase()
+  }));
+
+  for (const asset of normalized) {
+    if (!Number.isFinite(asset.id) || !asset.asset_tag) {
+      const error = new Error("Each Snipe-IT asset must include id and asset_tag");
+      error.status = 400;
+      throw error;
+    }
+    if (!allowedPrefixes.some((prefix) => asset.asset_tag.startsWith(prefix))) {
+      const error = new Error(`Asset ${asset.asset_tag} does not match configured Snipe-IT prefixes`);
+      error.status = 400;
+      throw error;
+    }
+  }
+
+  return normalized;
+}
 
 router.get("/", (req, res) => {
   const tasks = getAllTasks();
@@ -126,13 +172,23 @@ router.patch("/:id", (req, res) => {
     "lastName",
     "fullName",
     "licenseMail",
-    "assetsMail"
+    "assetsMail",
+    "snipeitAssets"
   ];
   const updates = {};
 
   for (const key of allowedKeys) {
     if (Object.prototype.hasOwnProperty.call(payload, key)) {
       updates[key] = payload[key];
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, "snipeitAssets")) {
+    try {
+      updates.snipeitAssets = validateSnipeitAssetsInput(updates.snipeitAssets);
+    } catch (error) {
+      const status = Number(error.status || 400);
+      return res.status(status).json({ error: error.message || "Invalid snipeitAssets" });
     }
   }
 
@@ -261,6 +317,27 @@ router.post("/:id/approve", async (req, res) => {
     } catch (assetsError) {
       console.error("[approve] Assets step failed", assetsError);
       stepErrors.push({ step: "assets", message: assetsError.message || "unknown assets error" });
+    }
+
+    try {
+      const selectedSnipeitAssets = Array.isArray(task.snipeitAssets) ? task.snipeitAssets : [];
+      if (isEnabled() && selectedSnipeitAssets.length > 0) {
+        const assignTask = addAssignTask({
+          email: task.email,
+          assets: selectedSnipeitAssets,
+          taskId: task.id
+        });
+        console.log(`[approve] Snipe-IT assign task queued: ${assignTask.id}`);
+        steps.push({ step: "snipeit_assign", action: "queued", success: true, assignTaskId: assignTask.id });
+      } else if (!isEnabled() && selectedSnipeitAssets.length > 0) {
+        console.warn("[approve] Snipe-IT assets selected but integration disabled, skipping queue");
+        steps.push({ step: "snipeit_assign", action: "skipped_disabled", success: true });
+      } else {
+        steps.push({ step: "snipeit_assign", action: "skipped_no_assets", success: true });
+      }
+    } catch (snipeitError) {
+      console.error("[approve] Snipe-IT queue step failed", snipeitError);
+      stepErrors.push({ step: "snipeit_assign", message: snipeitError.message || "unknown snipeit error" });
     }
 
     if (stepErrors.length) {

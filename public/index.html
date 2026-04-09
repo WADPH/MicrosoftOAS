@@ -186,6 +186,20 @@
               <p class="metaSmall">Select equipment and send a single request email</p>
             </div>
 
+            <div id="snipeitAssetsControls" class="field hidden">
+              <label>Snipe-IT Assets</label>
+              <div class="inlineRow">
+                <button id="chooseLaptopBtn" type="button" class="ghost small">Choose Laptop</button>
+                <button id="chooseMonitorBtn" type="button" class="ghost small">Choose Monitor</button>
+                <button id="goToSnipeitBtn" type="button" class="ghost small">Go to SnipeIT</button>
+              </div>
+            </div>
+
+            <div id="selectedSnipeitAssetsWrap" class="field hidden">
+              <label>Selected Snipe-IT Assets</label>
+              <div id="selectedSnipeitAssets" class="snipeitSelectedList"></div>
+            </div>
+
             <div class="field">
               <label>Assets</label>
               <div class="assets">
@@ -252,6 +266,8 @@
             <li><code>CLIENT_ID — From Entra ID application</code></li>
             <li><code>CLIENT_SECRET — From Entra ID application</code></li>
             <li><code>DEFAULT_USAGE_LOCATION — For example 'EN'</code></li>
+            <li><code>SNIPEIT_URL — Base URL of your Snipe-IT instance</code></li>
+            <li><code>SNIPEIT_API_KEY — API key from Snipe-IT</code></li>
           </ul>
         </div>
 
@@ -304,6 +320,40 @@
         </div>
 
         <div class="settingsSection">
+          <h3>SnipeIT</h3>
+          <div class="grid2">
+            <div class="field">
+              <label class="switch">
+                <input id="settingSnipeitEnabled" type="checkbox" />
+                <span class="switchTrack" aria-hidden="true"><span class="switchThumb"></span></span>
+                <span class="switchText">Enable SnipeIT</span>
+              </label>
+            </div>
+          </div>
+          <div id="snipeitSettingsBody" class="grid2 hidden">
+            <div class="field">
+              <label for="settingSnipeitLaptopPrefix" title="SNIPEIT_LAPTOP_PREFIX">Laptop Prefix</label>
+              <input id="settingSnipeitLaptopPrefix" type="text" title="SNIPEIT_LAPTOP_PREFIX" placeholder="PC-" />
+            </div>
+            <div class="field">
+              <label for="settingSnipeitMonitorPrefix" title="SNIPEIT_MONITOR_PREFIX">Monitor Prefix</label>
+              <input id="settingSnipeitMonitorPrefix" type="text" title="SNIPEIT_MONITOR_PREFIX" placeholder="MN-" />
+            </div>
+          </div>
+          <div id="snipeitSettingsDisabled" class="companyMatcherEmpty">
+            Snipe-IT is disabled. Enable it to use asset discovery and deferred assignment.
+          </div>
+        </div>
+
+        <div id="snipeitPendingSection" class="settingsSection hidden">
+          <div class="settingsSectionRow">
+            <h3>Pending Assign Tasks</h3>
+            <button id="refreshSnipeitTasksBtn" type="button" class="ghost small">Refresh</button>
+          </div>
+          <div id="snipeitPendingTasks" class="snipeitPendingList"></div>
+        </div>
+
+        <div class="settingsSection">
           <div class="settingsSectionRow">
             <h3>Company Matcher</h3>
             <button id="addCompanyMatcherBtn" type="button" class="ghost small">Add New Company</button>
@@ -336,6 +386,29 @@
         </div>
         <div id="managerUserList" class="managerList"></div>
         <p id="managerModalError" class="meta"></p>
+      </div>
+    </div>
+
+    <div id="snipeitAssetModal" class="modal hidden" aria-hidden="true">
+      <div id="snipeitAssetModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="snipeitAssetModalTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="snipeitAssetModalTitle">Choose Asset</h3>
+            <p class="metaSmall">Only free assets are listed (prefix and Ready to Deploy filter).</p>
+          </div>
+          <button id="snipeitAssetModalClose" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="field">
+          <label for="snipeitAssetSearch">Filter in list</label>
+          <input id="snipeitAssetSearch" type="search" placeholder="Type asset tag, model, notes" />
+        </div>
+        <div id="snipeitAssetList" class="snipeitAssetList"></div>
+        <div class="actions">
+          <button id="snipeitAssetApplyBtn" class="primary" type="button">Apply Selection</button>
+          <button id="snipeitAssetCancelBtn" class="ghost" type="button">Cancel</button>
+        </div>
+        <p id="snipeitAssetModalStatus" class="meta"></p>
       </div>
     </div>
     <script src="/app.js"></script>

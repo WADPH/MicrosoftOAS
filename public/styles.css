@@ -463,6 +463,64 @@ body[data-theme="dark"] .iconBtn .moon {
   color: var(--muted);
 }
 
+.snipeitSelectedList,
+.snipeitPendingList,
+.snipeitAssetList {
+  display: grid;
+  gap: 8px;
+}
+
+.snipeitSelectedItem,
+.snipeitPendingItem {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--input);
+}
+
+.assetTag {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.assetMeta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.snipeitAssetItem {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--input);
+  cursor: pointer;
+}
+
+.snipeitAssetItem input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.snipeitPendingItem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.pendingActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .settingsModalContent {
   width: min(860px, 100%);
   scrollbar-width: thin;
