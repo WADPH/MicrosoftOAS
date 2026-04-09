@@ -175,6 +175,14 @@ function matcherVarName(key, suffix) {
   return `COMPANY_MATCHER_${normalized}_${suffix}`;
 }
 
+function normalizeTenantKey(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9_]/g, "");
+}
+
 function applyTheme(theme) {
   const value = theme === "dark" ? "dark" : "light";
   document.body.dataset.theme = value;
@@ -451,7 +459,8 @@ async function loadTasks() {
 
 async function loadManagerUsers(search = "") {
   try {
-    const users = await api(`/tasks/meta/users?search=${encodeURIComponent(String(search || ""))}`);
+    const taskEmail = String(el("email")?.value || "").trim();
+    const users = await api(`/tasks/meta/users?search=${encodeURIComponent(String(search || ""))}&email=${encodeURIComponent(taskEmail)}`);
     state.availableManagers = Array.isArray(users) ? users : [];
     el("managerModalError").textContent = "";
   } catch (error) {
@@ -510,7 +519,7 @@ function closeManagerModal() {
   el("managerModal").setAttribute("aria-hidden", "true");
 }
 
-function createCompanyMatcherCard(entry = {}) {
+function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
   const card = document.createElement("div");
   card.className = "companyMatcherCard";
   card.innerHTML = `
@@ -535,6 +544,10 @@ function createCompanyMatcherCard(entry = {}) {
         <label class="companyDomainLabel">Domain</label>
         <input class="companyMatcherDomain" type="text" placeholder="ei-g.com" />
       </div>
+      <div class="field">
+        <label class="companyTenantLabel">Tenant</label>
+        <select class="companyMatcherTenant"></select>
+      </div>
     </div>
     <div class="companyMatcherErrors hidden"></div>
   `;
@@ -543,29 +556,57 @@ function createCompanyMatcherCard(entry = {}) {
   const patternsInput = card.querySelector(".companyMatcherPatterns");
   const domainInput = card.querySelector(".companyMatcherDomain");
   const codeInput = card.querySelector(".companyMatcherCode");
+  const tenantInput = card.querySelector(".companyMatcherTenant");
   const deleteBtn = card.querySelector(".companyMatcherDeleteBtn");
 
   keyInput.value = String(entry.key || "");
   patternsInput.value = String(entry.patterns || "");
   domainInput.value = String(entry.domain || "");
   codeInput.value = String(entry.code || "");
+  const normalizedTenants = (Array.isArray(tenantOptions) ? tenantOptions : [])
+    .map((x) => normalizeTenantKey(x))
+    .filter(Boolean);
+  const selectedTenant = normalizeTenantKey(entry.tenant || normalizedTenants[0] || "");
+  tenantInput.innerHTML = "";
+  const emptyOption = document.createElement("option");
+  emptyOption.value = "";
+  emptyOption.textContent = "Select tenant";
+  tenantInput.appendChild(emptyOption);
+  for (const tenant of normalizedTenants) {
+    const option = document.createElement("option");
+    option.value = tenant;
+    option.textContent = tenant;
+    option.selected = tenant === selectedTenant;
+    tenantInput.appendChild(option);
+  }
+  if (selectedTenant && !normalizedTenants.includes(selectedTenant)) {
+    const option = document.createElement("option");
+    option.value = selectedTenant;
+    option.textContent = `${selectedTenant} (not in TENANTS)`;
+    option.selected = true;
+    tenantInput.appendChild(option);
+  }
 
   const syncTooltips = () => {
     const key = normalizeCompanyMatcherKey(keyInput.value);
     const patternsVar = matcherVarName(key, "PATTERNS");
     const domainVar = matcherVarName(key, "DOMAIN");
     const codeVar = matcherVarName(key, "CODE");
+    const tenantVar = matcherVarName(key, "TENANT");
     const keyLabel = card.querySelector(".companyKeyLabel");
     const patternsLabel = card.querySelector(".companyPatternsLabel");
     const domainLabel = card.querySelector(".companyDomainLabel");
     const codeLabel = card.querySelector(".companyCodeLabel");
+    const tenantLabel = card.querySelector(".companyTenantLabel");
     keyLabel.title = "COMPANY_MATCHER_KEYS";
     patternsLabel.title = patternsVar;
     domainLabel.title = domainVar;
     codeLabel.title = codeVar;
+    tenantLabel.title = tenantVar;
     patternsInput.title = patternsVar;
     domainInput.title = domainVar;
     codeInput.title = codeVar;
+    tenantInput.title = tenantVar;
   };
 
   keyInput.addEventListener("input", () => {
@@ -590,7 +631,7 @@ function createCompanyMatcherCard(entry = {}) {
   return card;
 }
 
-function renderCompanyMatcher(entries = []) {
+function renderCompanyMatcher(entries = [], tenantOptions = []) {
   const list = el("companyMatcherList");
   list.innerHTML = "";
   const rows = Array.isArray(entries) ? entries : [];
@@ -601,7 +642,7 @@ function renderCompanyMatcher(entries = []) {
   }
 
   for (const entry of rows) {
-    list.appendChild(createCompanyMatcherCard(entry));
+    list.appendChild(createCompanyMatcherCard(entry, tenantOptions));
   }
 }
 
@@ -612,11 +653,13 @@ function readCompanyMatcherEntries() {
     const patterns = card.querySelector(".companyMatcherPatterns").value.trim();
     const domain = card.querySelector(".companyMatcherDomain").value.trim();
     const code = card.querySelector(".companyMatcherCode").value.trim();
-    return { key, patterns, domain, code, _index: index, _card: card };
+    const tenant = card.querySelector(".companyMatcherTenant").value.trim();
+    return { key, patterns, domain, code, tenant, _index: index, _card: card };
   });
 }
 
-function setCompanyMatcherErrors(entries) {
+function setCompanyMatcherErrors(entries, tenantOptions = []) {
+  const tenantSet = new Set((Array.isArray(tenantOptions) ? tenantOptions : []).map((x) => normalizeTenantKey(x)).filter(Boolean));
   for (const row of entries) {
     const box = row._card.querySelector(".companyMatcherErrors");
     const errors = [];
@@ -630,6 +673,12 @@ function setCompanyMatcherErrors(entries) {
     }
     if (!row.code) {
       errors.push("Code Name is required.");
+    }
+    const tenant = normalizeTenantKey(row.tenant);
+    if (!tenant) {
+      errors.push("Tenant is required.");
+    } else if (tenantSet.size > 0 && !tenantSet.has(tenant)) {
+      errors.push("Tenant must exist in TENANTS.");
     }
 
     if (errors.length > 0) {
@@ -668,7 +717,8 @@ function fillSettingsForm(values = {}) {
   el("settingLicenseCc").value = String(values.LICENSE_REQUEST_CC || "");
   el("settingAssetsTo").value = String(values.ASSETS_REQUEST_TO || "");
   el("settingAssetsCc").value = String(values.ASSETS_REQUEST_CC || "");
-  renderCompanyMatcher(values.companyMatcher || []);
+  const companies = values.companies || values.companyMatcher || [];
+  renderCompanyMatcher(companies, values.tenants || []);
 }
 
 function readSettingsForm() {
@@ -688,7 +738,8 @@ function readSettingsForm() {
         .filter(Boolean)
         .join(","),
       domain: row.domain.trim().toLowerCase(),
-      code: row.code.trim()
+      code: row.code.trim(),
+      tenant: normalizeTenantKey(row.tenant)
     })),
     _companyMatcherMeta: companyMatcher
   };
@@ -703,7 +754,8 @@ function validateSettingsPayload(payload) {
   validateEmailList("Assets Request CC", payload.ASSETS_REQUEST_CC);
 
   const entries = payload._companyMatcherMeta || [];
-  setCompanyMatcherErrors(entries);
+  const tenants = Array.isArray(state.settings?.tenants) ? state.settings.tenants : [];
+  setCompanyMatcherErrors(entries, tenants);
   const hasErrors = entries.some((row) => Array.isArray(row._errors) && row._errors.length > 0);
   if (hasErrors) {
     throw new Error("Company Matcher contains validation errors");
@@ -937,13 +989,15 @@ function setupActions() {
       if (list.querySelector(".companyMatcherEmpty")) {
         list.innerHTML = "";
       }
+      const tenants = Array.isArray(state.settings?.tenants) ? state.settings.tenants : [];
       list.appendChild(
         createCompanyMatcherCard({
           key: "",
           patterns: "",
           domain: "",
-          code: ""
-        })
+          code: "",
+          tenant: tenants[0] || ""
+        }, tenants)
       );
     };
   }

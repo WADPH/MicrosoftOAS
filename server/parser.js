@@ -1,4 +1,5 @@
 const normalizeText = (value) => String(value || "").trim();
+const { getDefaultTenantKey, normalizeTenantKey } = require("./services/tenantConfig");
 
 function cleanInlineField(value) {
   return normalizeText(value)
@@ -183,11 +184,25 @@ function normalizeCompanyKey(company) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+function tokenizeAlphaNum(value) {
+  return String(value || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
 function parseEnvList(value) {
   return String(value || "")
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
+}
+
+function normalizeCompanyCodeValue(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase();
 }
 
 function loadCompanyMatcherKeys() {
@@ -198,6 +213,7 @@ function loadCompanyMatcherKeys() {
 }
 
 function buildCompanyMatchers() {
+  const defaultTenant = getDefaultTenantKey();
   const keys = loadCompanyMatcherKeys();
   if (keys.length === 0) {
     return [];
@@ -208,17 +224,97 @@ function buildCompanyMatchers() {
       key,
       patterns: parseEnvList(process.env[`COMPANY_MATCHER_${key}_PATTERNS`]),
       domain: String(process.env[`COMPANY_MATCHER_${key}_DOMAIN`] || "").trim() || "ei-g.com",
-      code: String(process.env[`COMPANY_MATCHER_${key}_CODE`] || "").trim() || key
+      code: normalizeCompanyCodeValue(process.env[`COMPANY_MATCHER_${key}_CODE`] || key) || key,
+      tenant: normalizeTenantKey(process.env[`COMPANY_MATCHER_${key}_TENANT`] || defaultTenant)
     }))
-    .filter((matcher) => matcher.patterns.length > 0);
+    .filter((matcher) => matcher.patterns.length > 0 || matcher.domain);
+}
+
+function evaluateMatcherScore(input, matcher) {
+  const raw = String(input || "").trim().toLowerCase();
+  const normalized = normalizeCompanyKey(raw);
+  const tokens = tokenizeAlphaNum(raw);
+  let best = { score: 0, reason: "no_match", pattern: "" };
+
+  for (const rawPattern of matcher.patterns || []) {
+    const pattern = String(rawPattern || "").trim().toLowerCase();
+    if (!pattern) continue;
+    const normalizedPattern = normalizeCompanyKey(pattern);
+    if (!normalizedPattern) continue;
+
+    if (raw === pattern) {
+      return { score: 100, reason: "exact_text_pattern", pattern };
+    }
+    if (tokens.includes(pattern)) {
+      best = best.score < 90 ? { score: 90, reason: "exact_token_pattern", pattern } : best;
+      continue;
+    }
+    if (tokens.some((token) => token.startsWith(pattern))) {
+      best = best.score < 80 ? { score: 80, reason: "token_prefix_pattern", pattern } : best;
+      continue;
+    }
+    if (normalized.includes(normalizedPattern)) {
+      const baseScore = 60 + Math.min(20, normalizedPattern.length);
+      if (
+        baseScore > best.score ||
+        (baseScore === best.score && normalizedPattern.length > normalizeCompanyKey(best.pattern).length)
+      ) {
+        best = { score: baseScore, reason: "normalized_contains_pattern", pattern };
+      }
+    }
+  }
+
+  return best;
+}
+
+function evaluateMatcherScoreByDomain(domain, matcher) {
+  const rawDomain = String(domain || "").trim().toLowerCase();
+  if (!rawDomain) return { score: 0, reason: "no_domain", pattern: "" };
+
+  const matcherDomain = String(matcher.domain || "").trim().toLowerCase();
+  if (matcherDomain) {
+    if (rawDomain === matcherDomain) {
+      return { score: 120, reason: "exact_domain", pattern: matcherDomain };
+    }
+    if (rawDomain.endsWith(`.${matcherDomain}`)) {
+      return { score: 110, reason: "subdomain_domain", pattern: matcherDomain };
+    }
+  }
+
+  return evaluateMatcherScore(rawDomain, matcher);
+}
+
+function pickBestMatcher(matchers, scorer) {
+  let chosen = null;
+  for (const matcher of matchers) {
+    const candidate = scorer(matcher);
+    if (!chosen) {
+      chosen = { matcher, ...candidate };
+      continue;
+    }
+    const chosenPatternLen = normalizeCompanyKey(chosen.pattern).length;
+    const nextPatternLen = normalizeCompanyKey(candidate.pattern).length;
+    if (
+      candidate.score > chosen.score ||
+      (candidate.score === chosen.score && nextPatternLen > chosenPatternLen)
+    ) {
+      chosen = { matcher, ...candidate };
+    }
+  }
+  return chosen && chosen.score > 0 ? chosen : null;
 }
 
 function findCompanyMatcher(company) {
-  const normalized = normalizeCompanyKey(company);
   const matchers = buildCompanyMatchers();
-  return matchers.find((matcher) =>
-    matcher.patterns.some((pattern) => normalized.includes(pattern))
-  );
+  const chosen = pickBestMatcher(matchers, (matcher) => evaluateMatcherScore(company, matcher));
+  if (chosen) {
+    console.log(
+      `[matcher] company="${company}" -> key=${chosen.matcher.key}, code=${chosen.matcher.code}, reason=${chosen.reason}, pattern=${chosen.pattern}`
+    );
+    return chosen.matcher;
+  }
+  console.log(`[matcher] company="${company}" -> no match`);
+  return null;
 }
 
 function inferCompanyInfo(company) {
@@ -241,7 +337,7 @@ function getCompanyMatcherOptions() {
 
   for (const matcher of matchers) {
     const domain = String(matcher.domain || "").trim();
-    const code = String(matcher.code || "").trim();
+    const code = normalizeCompanyCodeValue(matcher.code || "");
     if (domain && !seenDomains.has(domain)) {
       seenDomains.add(domain);
       domains.push(domain);
@@ -260,6 +356,33 @@ function getCompanyMatcherOptions() {
   }
 
   return { domains, codes };
+}
+
+function extractDomainFromEmail(email) {
+  const raw = String(email || "").trim().toLowerCase();
+  const idx = raw.lastIndexOf("@");
+  if (idx < 0) return "";
+  return raw.slice(idx + 1).trim();
+}
+
+function resolveTenantKeyByEmail(email) {
+  const defaultTenant = getDefaultTenantKey();
+  const domain = extractDomainFromEmail(email);
+  if (!domain) {
+    console.log(`[matcher] tenant by email="${email}" -> default=${defaultTenant} (no domain)`);
+    return defaultTenant;
+  }
+
+  const matchers = buildCompanyMatchers();
+  const chosen = pickBestMatcher(matchers, (matcher) => evaluateMatcherScoreByDomain(domain, matcher));
+  if (chosen?.matcher?.tenant) {
+    console.log(
+      `[matcher] tenant by email="${email}" domain="${domain}" -> key=${chosen.matcher.key}, tenant=${chosen.matcher.tenant}, reason=${chosen.reason}, pattern=${chosen.pattern}`
+    );
+    return chosen.matcher.tenant;
+  }
+  console.log(`[matcher] tenant by email="${email}" domain="${domain}" -> default=${defaultTenant}`);
+  return defaultTenant;
 }
 
 function inferDomain(company) {
@@ -414,6 +537,7 @@ module.exports = {
   parseOnboardingMessage,
   inferDomain,
   inferCompanyCode,
+  resolveTenantKeyByEmail,
   getCompanyMatcherOptions,
   generateEmail
 };

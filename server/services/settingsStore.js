@@ -22,6 +22,8 @@ const RESTRICTED_KEYS = [
   "SESSION_SECRET"
 ];
 
+const FALLBACK_LEGACY_TENANT_KEY = "EIGROUP";
+
 function normalizeNewlines(text) {
   return text.includes("\r\n") ? "\r\n" : "\n";
 }
@@ -54,6 +56,20 @@ function normalizeMatcherKey(value) {
     .toUpperCase()
     .replace(/\s+/g, "")
     .replace(/[^A-Z0-9_]/g, "");
+}
+
+function normalizeTenantKey(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9_]/g, "");
+}
+
+function normalizeCompanyCodeValue(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase();
 }
 
 function parseEnvKey(line) {
@@ -150,7 +166,7 @@ function validateUpdates(updates) {
 }
 
 function ensureAllowedPayloadKeys(payload) {
-  const allowed = new Set([...EDITABLE_KEYS, "companyMatcher", "ALLOWED_EMAIL"]);
+  const allowed = new Set([...EDITABLE_KEYS, "companyMatcher", "companies", "ALLOWED_EMAIL"]);
   for (const key of Object.keys(payload || {})) {
     if (!allowed.has(key)) {
       const isRestricted = RESTRICTED_KEYS.includes(key);
@@ -162,19 +178,42 @@ function ensureAllowedPayloadKeys(payload) {
   }
 }
 
-function parseCompanyMatchersFromEnvMap(envMap) {
+function parseTenantsFromEnvMap(envMap) {
+  const explicit = splitCsv(normalizeEnvStoredValue(envMap.TENANTS || "")).map((x) => normalizeTenantKey(x));
+  const uniqueExplicit = [...new Set(explicit)].filter(Boolean);
+  if (uniqueExplicit.length > 0) return uniqueExplicit;
+
+  const inferred = Object.keys(envMap)
+    .map((key) => {
+      const m = key.match(/^([A-Z0-9_]+)_TENANT_ID$/);
+      return m ? normalizeTenantKey(m[1]) : "";
+    })
+    .filter(Boolean);
+  const uniqueInferred = [...new Set(inferred)].filter(Boolean);
+  if (uniqueInferred.length > 0) return uniqueInferred;
+
+  if (envMap.TENANT_ID || envMap.CLIENT_ID || envMap.CLIENT_SECRET) {
+    return [FALLBACK_LEGACY_TENANT_KEY];
+  }
+
+  return [];
+}
+
+function parseCompanyMatchersFromEnvMap(envMap, tenants) {
   const keys = splitCsv(normalizeEnvStoredValue(envMap.COMPANY_MATCHER_KEYS || "")).map((key) => normalizeMatcherKey(key));
   const uniqueKeys = [...new Set(keys)].filter(Boolean);
+  const defaultTenant = tenants[0] || "";
 
   return uniqueKeys.map((key) => ({
     key,
     patterns: normalizeEnvStoredValue(envMap[`COMPANY_MATCHER_${key}_PATTERNS`] || ""),
     domain: normalizeEnvStoredValue(envMap[`COMPANY_MATCHER_${key}_DOMAIN`] || ""),
-    code: normalizeEnvStoredValue(envMap[`COMPANY_MATCHER_${key}_CODE`] || "")
+    code: normalizeCompanyCodeValue(normalizeEnvStoredValue(envMap[`COMPANY_MATCHER_${key}_CODE`] || "")),
+    tenant: normalizeTenantKey(normalizeEnvStoredValue(envMap[`COMPANY_MATCHER_${key}_TENANT`] || defaultTenant))
   }));
 }
 
-function validateCompanyMatchers(rawList) {
+function validateCompanyMatchers(rawList, tenants) {
   if (!Array.isArray(rawList)) {
     const error = new Error("companyMatcher must be an array");
     error.status = 400;
@@ -183,13 +222,20 @@ function validateCompanyMatchers(rawList) {
 
   const seen = new Set();
   const normalized = [];
+  const tenantSet = new Set((tenants || []).map((x) => normalizeTenantKey(x)).filter(Boolean));
+  if (tenantSet.size === 0 && rawList.length > 0) {
+    const error = new Error("TENANTS is not configured in .env");
+    error.status = 400;
+    throw error;
+  }
 
   for (let i = 0; i < rawList.length; i += 1) {
     const row = rawList[i] || {};
     const key = normalizeMatcherKey(row.key);
     const patterns = splitCsv(row.patterns).join(",");
     const domain = String(row.domain || "").trim().toLowerCase();
-    const code = String(row.code || "").trim();
+    const code = normalizeCompanyCodeValue(row.code);
+    const tenant = normalizeTenantKey(row.tenant);
     const indexLabel = `companyMatcher[${i}]`;
 
     if (!key) {
@@ -217,9 +263,19 @@ function validateCompanyMatchers(rawList) {
       error.status = 400;
       throw error;
     }
+    if (!tenant) {
+      const error = new Error(`${indexLabel}.tenant is required`);
+      error.status = 400;
+      throw error;
+    }
+    if (tenantSet.size > 0 && !tenantSet.has(tenant)) {
+      const error = new Error(`${indexLabel}.tenant must be one of TENANTS`);
+      error.status = 400;
+      throw error;
+    }
 
     seen.add(key);
-    normalized.push({ key, patterns, domain, code });
+    normalized.push({ key, patterns, domain, code, tenant });
   }
 
   return normalized;
@@ -227,6 +283,7 @@ function validateCompanyMatchers(rawList) {
 
 function getCurrentSettings() {
   const envMap = parseEnvFileMap();
+  const tenants = parseTenantsFromEnvMap(envMap);
   const allowedEmail = normalizeEnvStoredValue(envMap.ALLOWED_EMAILS || envMap.ALLOWED_EMAIL || process.env.ALLOWED_EMAILS || process.env.ALLOWED_EMAIL || "");
   return {
     REDIRECT_URI: normalizeEnvStoredValue(envMap.REDIRECT_URI || process.env.REDIRECT_URI || ""),
@@ -235,7 +292,9 @@ function getCurrentSettings() {
     LICENSE_REQUEST_CC: normalizeEnvStoredValue(envMap.LICENSE_REQUEST_CC || process.env.LICENSE_REQUEST_CC || ""),
     ASSETS_REQUEST_TO: normalizeEnvStoredValue(envMap.ASSETS_REQUEST_TO || process.env.ASSETS_REQUEST_TO || ""),
     ASSETS_REQUEST_CC: normalizeEnvStoredValue(envMap.ASSETS_REQUEST_CC || process.env.ASSETS_REQUEST_CC || ""),
-    companyMatcher: parseCompanyMatchersFromEnvMap(envMap)
+    tenants,
+    companies: parseCompanyMatchersFromEnvMap(envMap, tenants),
+    companyMatcher: parseCompanyMatchersFromEnvMap(envMap, tenants)
   };
 }
 
@@ -254,7 +313,7 @@ function collectExistingMatcherVarKeys(lines) {
   for (const line of lines) {
     const key = parseEnvKey(line);
     if (!key) continue;
-    if (key === "COMPANY_MATCHER_KEYS" || /^COMPANY_MATCHER_[A-Z0-9_]+_(PATTERNS|DOMAIN|CODE)$/.test(key)) {
+    if (key === "COMPANY_MATCHER_KEYS" || /^COMPANY_MATCHER_[A-Z0-9_]+_(PATTERNS|DOMAIN|CODE|TENANT)$/.test(key)) {
       keys.add(key);
     }
   }
@@ -267,22 +326,36 @@ function updateEnvFile(updates, removeKeys = []) {
   const lines = raw ? raw.split(/\r?\n/) : [];
 
   const removeSet = new Set(removeKeys);
-  const updateSet = new Set(Object.keys(updates || {}));
-  const preserved = [];
+  const updateMap = new Map(Object.entries(updates || {}));
+  const seenUpdates = new Set();
+  const nextLines = [];
 
   for (const line of lines) {
     const key = parseEnvKey(line);
-    if (key && (removeSet.has(key) || updateSet.has(key))) {
+    if (!key) {
+      nextLines.push(line);
       continue;
     }
-    preserved.push(line);
+
+    if (removeSet.has(key)) {
+      continue;
+    }
+
+    if (updateMap.has(key)) {
+      nextLines.push(`${key}=${formatEnvValue(updateMap.get(key))}`);
+      seenUpdates.add(key);
+      continue;
+    }
+
+    nextLines.push(line);
   }
 
-  for (const [key, value] of Object.entries(updates || {})) {
-    preserved.push(`${key}=${formatEnvValue(value)}`);
+  for (const [key, value] of updateMap.entries()) {
+    if (seenUpdates.has(key)) continue;
+    nextLines.push(`${key}=${formatEnvValue(value)}`);
   }
 
-  const content = `${preserved.join(newline).replace(/[ \t]+$/gm, "")}${newline}`;
+  const content = `${nextLines.join(newline).replace(/[ \t]+$/gm, "")}${newline}`;
   fs.writeFileSync(ENV_PATH, content, "utf8");
 }
 
@@ -300,8 +373,8 @@ function applyRuntimeUpdates(updates, removeKeys = []) {
   }
 }
 
-function buildCompanyMatcherUpdates(companyMatcher, envLines) {
-  const normalized = validateCompanyMatchers(companyMatcher);
+function buildCompanyMatcherUpdates(companyMatcher, envLines, tenants) {
+  const normalized = validateCompanyMatchers(companyMatcher, tenants);
   const updates = {
     COMPANY_MATCHER_KEYS: normalized.map((row) => row.key).join(",")
   };
@@ -310,6 +383,7 @@ function buildCompanyMatcherUpdates(companyMatcher, envLines) {
     updates[`COMPANY_MATCHER_${row.key}_PATTERNS`] = row.patterns;
     updates[`COMPANY_MATCHER_${row.key}_DOMAIN`] = row.domain;
     updates[`COMPANY_MATCHER_${row.key}_CODE`] = row.code;
+    updates[`COMPANY_MATCHER_${row.key}_TENANT`] = row.tenant;
   }
 
   const existingKeys = collectExistingMatcherVarKeys(envLines);
@@ -320,6 +394,12 @@ function buildCompanyMatcherUpdates(companyMatcher, envLines) {
 function updateSettings(rawUpdates) {
   const payload = { ...(rawUpdates || {}) };
   ensureAllowedPayloadKeys(payload);
+  if (
+    Object.prototype.hasOwnProperty.call(payload, "companies") &&
+    !Object.prototype.hasOwnProperty.call(payload, "companyMatcher")
+  ) {
+    payload.companyMatcher = payload.companies;
+  }
   if (
     Object.prototype.hasOwnProperty.call(payload, "ALLOWED_EMAIL") &&
     !Object.prototype.hasOwnProperty.call(payload, "ALLOWED_EMAILS")
@@ -348,7 +428,9 @@ function updateSettings(rawUpdates) {
   if (hasCompanyMatcher) {
     const raw = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, "utf8") : "";
     const lines = raw ? raw.split(/\r?\n/) : [];
-    const matcherResult = buildCompanyMatcherUpdates(payload.companyMatcher, lines);
+    const envMap = parseEnvFileMap();
+    const tenants = parseTenantsFromEnvMap(envMap);
+    const matcherResult = buildCompanyMatcherUpdates(payload.companyMatcher, lines, tenants);
     matcherUpdates = matcherResult.updates;
     matcherRemoveKeys = matcherResult.removeKeys;
   }

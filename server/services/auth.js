@@ -1,25 +1,28 @@
 const msal = require("@azure/msal-node");
+const { getTenantConfig } = require("./tenantConfig");
 
-const msalConfig = {
-  auth: {
-    clientId: process.env.CLIENT_ID,
-    authority: `https://login.microsoftonline.com/${process.env.TENANT_ID}`,
-    clientSecret: process.env.CLIENT_SECRET
-  },
-  system: {
-    loggerOptions: {
-      loggerCallback(loglevel, message) {
-        if (loglevel === msal.LogLevel.Error) {
-          console.error(`[msal] ${message}`);
-        }
-      },
-      piiLoggingEnabled: false,
-      logLevel: msal.LogLevel.Warning
+function getMsalClient() {
+  const tenant = getTenantConfig();
+  const msalConfig = {
+    auth: {
+      clientId: tenant.clientId,
+      authority: `https://login.microsoftonline.com/${tenant.tenantId}`,
+      clientSecret: tenant.clientSecret
+    },
+    system: {
+      loggerOptions: {
+        loggerCallback(loglevel, message) {
+          if (loglevel === msal.LogLevel.Error) {
+            console.error(`[msal] ${message}`);
+          }
+        },
+        piiLoggingEnabled: false,
+        logLevel: msal.LogLevel.Warning
+      }
     }
-  }
-};
-
-const cca = new msal.ConfidentialClientApplication(msalConfig);
+  };
+  return new msal.ConfidentialClientApplication(msalConfig);
+}
 
 function getRedirectUri() {
   return process.env.REDIRECT_URI || "http://localhost:3000/auth/callback";
@@ -32,7 +35,7 @@ async function getAuthCodeUrl(req) {
     state: req.sessionID
   };
 
-  return await cca.getAuthCodeUrl(authCodeUrlParameters);
+  return await getMsalClient().getAuthCodeUrl(authCodeUrlParameters);
 }
 
 async function handleAuthCallback(code) {
@@ -43,7 +46,7 @@ async function handleAuthCallback(code) {
   };
 
   try {
-    const response = await cca.acquireTokenByCode(tokenRequest);
+    const response = await getMsalClient().acquireTokenByCode(tokenRequest);
     return response;
   } catch (error) {
     console.error("[auth] Token acquisition failed", error.message);

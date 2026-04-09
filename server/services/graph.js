@@ -1,17 +1,7 @@
 const GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
+const { normalizeTenantKey, getDefaultTenantKey, getTenantConfig } = require("./tenantConfig");
 
-let tokenCache = {
-  accessToken: null,
-  expiresAt: 0
-};
-
-function requiredEnv(name) {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required env variable: ${name}`);
-  }
-  return value;
-}
+const tokenCache = new Map();
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -39,23 +29,22 @@ async function withRetry(fn, attempts = 3) {
   throw lastError;
 }
 
-async function getAccessToken() {
-  if (tokenCache.accessToken && Date.now() < tokenCache.expiresAt - 60_000) {
-    return tokenCache.accessToken;
+async function getAccessToken(tenantKey) {
+  const tenant = getTenantConfig(tenantKey);
+  const cacheKey = tenant.key;
+  const cached = tokenCache.get(cacheKey);
+  if (cached?.accessToken && Date.now() < cached.expiresAt - 60_000) {
+    return cached.accessToken;
   }
 
-  const tenantId = requiredEnv("TENANT_ID");
-  const clientId = requiredEnv("CLIENT_ID");
-  const clientSecret = requiredEnv("CLIENT_SECRET");
-
   const body = new URLSearchParams({
-    client_id: clientId,
-    client_secret: clientSecret,
+    client_id: tenant.clientId,
+    client_secret: tenant.clientSecret,
     grant_type: "client_credentials",
     scope: "https://graph.microsoft.com/.default"
   });
 
-  const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+  const response = await fetch(`https://login.microsoftonline.com/${tenant.tenantId}/oauth2/v2.0/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body
@@ -67,17 +56,17 @@ async function getAccessToken() {
   }
 
   const data = await response.json();
-  tokenCache = {
+  tokenCache.set(cacheKey, {
     accessToken: data.access_token,
     expiresAt: Date.now() + (data.expires_in || 3600) * 1000
-  };
+  });
 
-  return tokenCache.accessToken;
+  return data.access_token;
 }
 
-async function graphRequest(method, path, body) {
+async function graphRequest(method, path, body, tenantKey) {
   return withRetry(async () => {
-    const token = await getAccessToken();
+    const token = await getAccessToken(tenantKey);
 
     const response = await fetch(`${GRAPH_BASE_URL}${path}`, {
       method,
@@ -103,19 +92,19 @@ async function graphRequest(method, path, body) {
   });
 }
 
-async function getUserByEmail(email) {
+async function getUserByEmail(email, tenantKey) {
   try {
-    return await graphRequest("GET", `/users/${encodeURIComponent(email)}`);
+    return await graphRequest("GET", `/users/${encodeURIComponent(email)}`, undefined, tenantKey);
   } catch (error) {
     if (error.status === 404) return null;
     throw error;
   }
 }
 
-async function listUsers(search = "", limit = 200) {
+async function listUsers(search = "", limit = 200, tenantKey, options = {}) {
   const normalized = String(search || "").trim().replace(/'/g, "''");
   const cappedLimit = Math.min(Math.max(Number(limit) || 1, 1), 999);
-  const queryParts = [`$select=displayName,givenName,surname,mail,id`, `$top=${cappedLimit}`];
+  const queryParts = [`$select=displayName,givenName,surname,mail,id,userPrincipalName,userType,accountEnabled`, `$top=${cappedLimit}`];
 
   if (normalized) {
     const pieces = normalized.split(/\s+/).filter(Boolean);
@@ -129,15 +118,26 @@ async function listUsers(search = "", limit = 200) {
   }
 
   const path = `/users?${queryParts.join("&")}`;
-  const result = await graphRequest("GET", path);
-  return Array.isArray(result?.value) ? result.value : [];
+  const result = await graphRequest("GET", path, undefined, tenantKey);
+  const users = Array.isArray(result?.value) ? result.value : [];
+  const excludeGuests = options.excludeGuests !== false;
+  const excludeDisabled = options.excludeDisabled !== false;
+  return users.filter((user) => {
+    const upn = String(user.userPrincipalName || "").toLowerCase();
+    const userType = String(user.userType || "").toLowerCase();
+    const isGuest = upn.includes("#ext#") || userType === "guest";
+    const isDisabled = user.accountEnabled === false;
+    if (excludeGuests && isGuest) return false;
+    if (excludeDisabled && isDisabled) return false;
+    return true;
+  });
 }
 
-async function findUserByDisplayName(displayName) {
+async function findUserByDisplayName(displayName, tenantKey) {
   const raw = String(displayName || "").trim();
   if (!raw) return null;
 
-  const users = await listUsers(raw, 50);
+  const users = await listUsers(raw, 50, tenantKey);
   const normalized = raw.toLowerCase();
 
   const exact = users.find((user) => String(user.displayName || "").toLowerCase() === normalized);
@@ -158,9 +158,9 @@ async function findUserByDisplayName(displayName) {
   return users[0] || null;
 }
 
-async function assignManager(userIdentifier, managerDisplayName) {
+async function assignManager(userIdentifier, managerDisplayName, tenantKey) {
   try {
-    const manager = await findUserByDisplayName(managerDisplayName);
+    const manager = await findUserByDisplayName(managerDisplayName, tenantKey);
     if (!manager || !manager.id) {
       console.log(`[graph] Manager not found for: ${managerDisplayName}`);
       return { success: false, reason: `Manager not found: ${managerDisplayName}` };
@@ -172,7 +172,7 @@ async function assignManager(userIdentifier, managerDisplayName) {
       "@odata.id": `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(managerId)}`
     };
 
-    await graphRequest("PUT", path, body);
+    await graphRequest("PUT", path, body, tenantKey);
     console.log(`[graph] Manager assigned: ${userIdentifier} -> ${managerDisplayName}`);
     return { success: true, reason: "Manager assigned", manager: { displayName: manager.displayName, mail: manager.mail } };
   } catch (error) {
@@ -192,7 +192,7 @@ function generateInitialPassword() {
   return `Temp#${stamp}Aa1!`;
 }
 
-async function createUser(task) {
+async function createUser(task, tenantKey) {
   const usageLocation = String(process.env.DEFAULT_USAGE_LOCATION || "AZ").trim().toUpperCase();
   const payload = {
     accountEnabled: true,
@@ -211,25 +211,25 @@ async function createUser(task) {
     }
   };
 
-  return graphRequest("POST", "/users", payload);
+  return graphRequest("POST", "/users", payload, tenantKey);
 }
 
-async function updateUserUsageLocation(email, usageLocation) {
+async function updateUserUsageLocation(email, usageLocation, tenantKey) {
   return graphRequest("PATCH", `/users/${encodeURIComponent(email)}`, {
     usageLocation: String(usageLocation || "").trim().toUpperCase()
-  });
+  }, tenantKey);
 }
 
 /**
  * After createUser Graph can briefly return 404 on subsequent operations.
  * Polls /users/{email} until it is visible (or we give up).
  */
-async function waitForUserProvisioning(email, attempts = 5) {
+async function waitForUserProvisioning(email, attempts = 5, tenantKey) {
   let lastError;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const user = await getUserByEmail(email);
+      const user = await getUserByEmail(email, tenantKey);
       if (user) return user;
       lastError = new Error("User still not found");
     } catch (error) {
@@ -244,8 +244,8 @@ async function waitForUserProvisioning(email, attempts = 5) {
   throw lastError || new Error("User not visible after provisioning retries");
 }
 
-async function getSubscribedSkus() {
-  const data = await graphRequest("GET", "/subscribedSkus");
+async function getSubscribedSkus(tenantKey) {
+  const data = await graphRequest("GET", "/subscribedSkus", undefined, tenantKey);
   return data?.value || [];
 }
 
@@ -269,22 +269,22 @@ function hasAvailableSeats(sku) {
   return enabled - consumed > 0;
 }
 
-async function assignLicense(email, skuId) {
+async function assignLicense(email, skuId, tenantKey) {
   return graphRequest("POST", `/users/${encodeURIComponent(email)}/assignLicense`, {
     addLicenses: [{ skuId }],
     removeLicenses: []
-  });
+  }, tenantKey);
 }
 
 /**
  * Newly created users can briefly return 404 on assignLicense; retry a few times.
  */
-async function assignLicenseWithRetry(email, skuId, attempts = 5) {
+async function assignLicenseWithRetry(email, skuId, attempts = 5, tenantKey) {
   let lastError;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      return await assignLicense(email, skuId);
+      return await assignLicense(email, skuId, tenantKey);
     } catch (error) {
       lastError = error;
       const status = error.status || 0;
@@ -302,6 +302,8 @@ async function assignLicenseWithRetry(email, skuId, attempts = 5) {
 }
 
 module.exports = {
+  normalizeTenantKey,
+  getDefaultTenantKey,
   getUserByEmail,
   listUsers,
   findUserByDisplayName,

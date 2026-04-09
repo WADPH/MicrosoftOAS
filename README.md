@@ -11,6 +11,26 @@ Node.js + Express + JSON storage + Microsoft Graph.
 3. Open UI:
    http://localhost:3000
 
+## Multi-tenant Graph setup
+
+Use tenant keys and credentials in `.env`:
+
+```env
+TENANTS=EIGROUP,WAVERITY
+EIGROUP_TENANT_ID=...
+EIGROUP_CLIENT_ID=...
+EIGROUP_CLIENT_SECRET=...
+WAVERITY_TENANT_ID=...
+WAVERITY_CLIENT_ID=...
+WAVERITY_CLIENT_SECRET=...
+```
+
+Each company matcher entry can point to a tenant:
+
+```env
+COMPANY_MATCHER_EIG_TENANT=EIGROUP
+```
+
 ## API
 
 - `POST /webhook/teams` (Teams Outgoing Webhook + HMAC validation)

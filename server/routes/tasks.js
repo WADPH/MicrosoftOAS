@@ -7,7 +7,7 @@ const {
   DOMAIN_OPTIONS,
   COMPANY_CODE_OPTIONS
 } = require("../services/taskStore");
-const { getCompanyMatcherOptions } = require("../parser");
+const { getCompanyMatcherOptions, resolveTenantKeyByEmail } = require("../parser");
 const {
   getUserByEmail,
   createUser,
@@ -39,11 +39,22 @@ router.get("/meta/options", (req, res) => {
 
 router.get("/meta/users", async (req, res) => {
   try {
-    const users = await listUsers(String(req.query.search || ""), 200);
+    const emailForTenant = String(req.query.email || "").trim();
+    const tenantKey = resolveTenantKeyByEmail(emailForTenant);
+    const users = await listUsers(String(req.query.search || ""), 200, tenantKey, { excludeGuests: true, excludeDisabled: true });
+    const filtered = users.filter((user) => {
+      const displayName = String(user.displayName || "").toLowerCase();
+      const identity = String(user.mail || user.userPrincipalName || "").toLowerCase();
+      if (displayName.includes("service account")) return false;
+      if (/^(svc[-_.]|service[-_.])/.test(identity)) return false;
+      return true;
+    });
+    console.log(`[meta] users lookup tenant=${tenantKey} search="${String(req.query.search || "").trim()}" found=${filtered.length}`);
     return res.json(
-      users.map((user) => ({
+      filtered.map((user) => ({
         displayName: String(user.displayName || "").trim(),
-        mail: String(user.mail || "").trim(),
+        mail: String(user.mail || user.userPrincipalName || "").trim(),
+        userPrincipalName: String(user.userPrincipalName || "").trim(),
         givenName: String(user.givenName || "").trim(),
         surname: String(user.surname || "").trim()
       }))
@@ -157,15 +168,17 @@ router.post("/:id/approve", async (req, res) => {
 
   try {
     console.log(`[approve] Started for ${existingTask.fullName} (${existingTask.email})`);
+    const tenantKey = resolveTenantKeyByEmail(existingTask.email);
+    console.log(`[approve] Resolved tenant ${tenantKey || "default"} for ${existingTask.email}`);
 
-    let user = await getUserByEmail(existingTask.email);
+    let user = await getUserByEmail(existingTask.email, tenantKey);
 
     if (!user) {
       console.log(`[approve] User not found, creating ${existingTask.email}`);
-      user = await createUser(existingTask);
+      user = await createUser(existingTask, tenantKey);
       // Wait until the directory starts returning this user reliably
       try {
-        user = await waitForUserProvisioning(existingTask.email);
+        user = await waitForUserProvisioning(existingTask.email, 5, tenantKey);
       } catch (provisionError) {
         console.warn("[approve] User provisioning wait failed, will still attempt license steps", provisionError.message);
       }
@@ -181,7 +194,7 @@ router.post("/:id/approve", async (req, res) => {
     const userIdentifier = (user && user.id) ? user.id : existingTask.email;
     if (task.manager && String(task.manager).trim() && task.manager !== "not specified") {
       try {
-        const managerResult = await assignManager(userIdentifier, task.manager);
+        const managerResult = await assignManager(userIdentifier, task.manager, tenantKey);
         if (managerResult.success) {
           console.log("[approve] Manager assigned successfully");
           steps.push({ step: "manager", action: "assigned", success: true });
@@ -205,13 +218,13 @@ router.post("/:id/approve", async (req, res) => {
         steps.push({ step: "license", action: "email_request", success: true });
       } else {
         console.log("[approve] License: assign from tenant pool only (checkbox off)");
-        const skus = await getSubscribedSkus();
+        const skus = await getSubscribedSkus(tenantKey);
         const premiumSku = findBusinessPremiumSku(skus);
 
         if (premiumSku && hasAvailableSeats(premiumSku)) {
           const desiredUsageLocation = String(process.env.DEFAULT_USAGE_LOCATION || "AZ").trim().toUpperCase();
-          await updateUserUsageLocation(task.email, desiredUsageLocation);
-          await assignLicenseWithRetry(task.email, premiumSku.skuId);
+          await updateUserUsageLocation(task.email, desiredUsageLocation, tenantKey);
+          await assignLicenseWithRetry(task.email, premiumSku.skuId, 5, tenantKey);
           console.log(`[approve] Business Premium assigned for ${task.email}`);
           steps.push({
             step: "license",
