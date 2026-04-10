@@ -199,6 +199,18 @@ body[data-theme="dark"] .iconBtn .moon {
   flex-shrink: 0;
 }
 
+.tasksTabs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tasksTabs button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+}
+
 .panelContent {
   flex: 1;
   overflow-y: auto;
@@ -500,6 +512,20 @@ body[data-theme="dark"] .iconBtn .moon {
   padding: 10px 12px;
   background: var(--input);
   cursor: pointer;
+}
+
+.snipeitAssetItem .line2 {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.offboardingCheckTile {
+  align-items: flex-start;
+}
+
+.offboardingCheckTile .checkText {
+  font-weight: 600;
 }
 
 .snipeitAssetItem input[type="checkbox"] {

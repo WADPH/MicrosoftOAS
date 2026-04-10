@@ -8,6 +8,8 @@ const DEFAULT_COMPANY_DOMAIN = "ei-g.com";
 const DOMAIN_OPTIONS = ["eilink.az", "researchlab.digital", "ei-g.com"];
 const COMPANY_CODE_OPTIONS = ["EILINK", "DRL", "EIG"];
 const DEFAULT_COMPANY_CODE = "EIG";
+const TASK_TYPE_ONBOARDING = "onboarding";
+const TASK_TYPE_OFFBOARDING = "offboarding";
 
 function parseRecipients(rawValue) {
   if (!rawValue) return [];
@@ -80,7 +82,51 @@ function buildDefaultMails(taskLike) {
   };
 }
 
+function normalizeOffboardingPayload(value = {}) {
+  const user = value?.user || {};
+  return {
+    tenant: String(value.tenant || "").trim().toUpperCase(),
+    email: String(value.email || user.userPrincipalName || user.mail || "").trim().toLowerCase(),
+    deleteUser: value.deleteUser !== false,
+    user: {
+      id: String(user.id || "").trim(),
+      tenant: String(user.tenant || value.tenant || "").trim().toUpperCase(),
+      displayName: String(user.displayName || "").trim(),
+      mail: String(user.mail || "").trim(),
+      userPrincipalName: String(user.userPrincipalName || "").trim(),
+      userType: String(user.userType || "").trim()
+    },
+    accountsToDelete: Array.isArray(value.accountsToDelete)
+      ? value.accountsToDelete
+          .map((row) => ({
+            id: String(row?.id || "").trim(),
+            tenant: String(row?.tenant || "").trim().toUpperCase(),
+            displayName: String(row?.displayName || "").trim(),
+            mail: String(row?.mail || "").trim(),
+            userPrincipalName: String(row?.userPrincipalName || "").trim(),
+            userType: String(row?.userType || "").trim()
+          }))
+          .filter((row) => row.id || row.userPrincipalName || row.mail)
+      : [],
+    assetsToCheckin: Array.isArray(value.assetsToCheckin)
+      ? value.assetsToCheckin
+          .map((row) => ({
+            id: Number(row?.id || row),
+            asset_tag: String(row?.asset_tag || row?.assetTag || "").trim(),
+            model: String(row?.model || "").trim(),
+            notes: String(row?.notes || "").trim(),
+            companyName: String(row?.companyName || "").trim()
+          }))
+          .filter((row) => Number.isFinite(row.id))
+      : []
+  };
+}
+
 function normalizeTask(task = {}) {
+  const taskType = String(task.taskType || TASK_TYPE_ONBOARDING).toLowerCase() === TASK_TYPE_OFFBOARDING
+    ? TASK_TYPE_OFFBOARDING
+    : TASK_TYPE_ONBOARDING;
+
   const assets = {
     laptop: Boolean(task.assets?.laptop),
     keyboard: Boolean(task.assets?.keyboard),
@@ -90,6 +136,7 @@ function normalizeTask(task = {}) {
   };
   const base = {
     id: task.id || crypto.randomUUID(),
+    taskType,
     status: task.status || "pending",
     fullName: normalizeString(task.fullName),
     firstName: normalizeString(task.firstName),
@@ -116,6 +163,7 @@ function normalizeTask(task = {}) {
           }))
           .filter((asset) => Number.isFinite(asset.id) && asset.asset_tag)
       : [],
+    offboarding: normalizeOffboardingPayload(task.offboarding),
     createdAt: task.createdAt || new Date().toISOString()
   };
 
@@ -164,6 +212,13 @@ function getAllTasks() {
   return readTasks();
 }
 
+function getTasksByType(taskType = TASK_TYPE_ONBOARDING) {
+  const type = String(taskType || TASK_TYPE_ONBOARDING).toLowerCase() === TASK_TYPE_OFFBOARDING
+    ? TASK_TYPE_OFFBOARDING
+    : TASK_TYPE_ONBOARDING;
+  return readTasks().filter((task) => String(task.taskType || TASK_TYPE_ONBOARDING) === type);
+}
+
 function getTaskById(id) {
   return readTasks().find((task) => task.id === id) || null;
 }
@@ -177,7 +232,7 @@ function isDuplicateTask(tasks, fullName, startDate) {
   });
 }
 
-function addTask(parsedData) {
+function addTask(parsedData, options = {}) {
   const tasks = readTasks();
   const normalizedTask = normalizeTask({
     ...parsedData,
@@ -189,7 +244,9 @@ function addTask(parsedData) {
       monitor: false
     }
   });
-  if (isDuplicateTask(tasks, normalizedTask.fullName, normalizedTask.startDate)) {
+  const skipDuplicate = options.skipDuplicate === true;
+  const isOnboarding = normalizedTask.taskType === TASK_TYPE_ONBOARDING;
+  if (!skipDuplicate && isOnboarding && isDuplicateTask(tasks, normalizedTask.fullName, normalizedTask.startDate)) {
     return { task: null, duplicate: true };
   }
   tasks.unshift(normalizedTask);
@@ -216,6 +273,7 @@ function updateTaskById(id, updates) {
     ...current,
     ...updates,
     assets: nextAssets,
+    offboarding: updates.offboarding ? { ...(current.offboarding || {}), ...updates.offboarding } : current.offboarding,
     id: current.id,
     createdAt: current.createdAt
   });
@@ -237,6 +295,7 @@ function deleteTaskById(id) {
 
 module.exports = {
   getAllTasks,
+  getTasksByType,
   getTaskById,
   addTask,
   updateTaskById,
@@ -244,5 +303,7 @@ module.exports = {
   normalizeTask,
   NOT_SPECIFIED,
   DOMAIN_OPTIONS,
-  COMPANY_CODE_OPTIONS
+  COMPANY_CODE_OPTIONS,
+  TASK_TYPE_ONBOARDING,
+  TASK_TYPE_OFFBOARDING
 };

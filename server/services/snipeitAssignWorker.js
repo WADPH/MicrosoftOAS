@@ -10,7 +10,8 @@ const {
   getAssetByTag
 } = require("./snipeit.service");
 
-const CHECK_INTERVAL_MS = 15 * 60 * 1000;
+const RETRY_MINUTES = 5;
+const CHECK_INTERVAL_MS = RETRY_MINUTES * 60 * 1000;
 let running = false;
 
 function nowIso() {
@@ -24,7 +25,7 @@ function isDue(task) {
   return when <= Date.now();
 }
 
-function getNextAttemptAt(minutes = 15) {
+function getNextAttemptAt(minutes = RETRY_MINUTES) {
   return new Date(Date.now() + minutes * 60 * 1000).toISOString();
 }
 
@@ -37,7 +38,7 @@ async function processOneTask(task, { force = false } = {}) {
   if (!user || !user.id) {
     updateAssignTaskById(current.id, {
       lastAttemptAt: nowIso(),
-      nextAttemptAt: getNextAttemptAt(15),
+      nextAttemptAt: getNextAttemptAt(RETRY_MINUTES),
       attempts: Number(current.attempts || 0) + 1,
       error: "Snipe-IT user not found yet"
     });
@@ -94,7 +95,7 @@ async function processPendingAssignTasks(options = {}) {
       } catch (error) {
         updateAssignTaskById(task.id, {
           lastAttemptAt: nowIso(),
-          nextAttemptAt: getNextAttemptAt(15),
+          nextAttemptAt: getNextAttemptAt(RETRY_MINUTES),
           attempts: Number(task.attempts || 0) + 1,
           error: String(error.message || "unknown error")
         });

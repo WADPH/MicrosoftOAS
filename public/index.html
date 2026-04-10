@@ -42,7 +42,8 @@
               <button id="settingsBtn" class="iconBtn" type="button" aria-label="Open settings" title="Open settings">
                 <span class="icon gear active" aria-hidden="true">
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8">
-                    <path d="M10.33 3.32a1 1 0 0 1 1.34-.45l.86.4a1 1 0 0 0 .86 0l.86-.4a1 1 0 0 1 1.34.45l.58 1.01a1 1 0 0 0 .75.5l1.15.16a1 1 0 0 1 .84.99v1.17a1 1 0 0 0 .43.82l.94.68a1 1 0 0 1 .23 1.39l-.69.94a1 1 0 0 0-.17.9l.29 1.11a1 1 0 0 1-.74 1.22l-1.13.27a1 1 0 0 0-.66.62l-.45 1.06a1 1 0 0 1-1.27.56l-1.08-.39a1 1 0 0 0-.91.1l-.95.64a1 1 0 0 1-1.38-.28l-.64-.95a1 1 0 0 0-.8-.43H9.82a1 1 0 0 1-.99-.83l-.17-1.15a1 1 0 0 0-.51-.75l-1.02-.58a1 1 0 0 1-.44-1.34l.4-.86a1 1 0 0 0 0-.86l-.4-.86a1 1 0 0 1 .44-1.34l1.02-.58a1 1 0 0 0 .51-.75l.17-1.15a1 1 0 0 1 .99-.83h1.17a1 1 0 0 0 .8-.43Z" />
+                    <circle cx="12" cy="12" r="3"/>
+<path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1Z"/>
                     <circle cx="12" cy="12" r="3.1" />
                   </svg>
                 </span>
@@ -63,15 +64,27 @@
         <div class="layout">
           <section class="panel">
             <div class="panelHeader">
-              <h2>Tasks</h2>
-              <button id="refreshBtn" class="ghost">Refresh</button>
+              <div class="tasksTabs">
+                <button id="tabOnboardingBtn" class="ghost small active" type="button">Onboarding</button>
+                <button id="tabOffboardingBtn" class="ghost small" type="button">Offboarding</button>
+              </div>
+              <div class="inlineRow">
+                <button id="refreshBtn" class="ghost">Refresh</button>
+                <button id="onboardingNewBtn" class="ghost" type="button">New</button>
+                <button id="offboardingRefreshBtn" class="ghost hidden" type="button">Refresh</button>
+                <button id="offboardingNewBtn" class="ghost hidden" type="button">New</button>
+              </div>
             </div>
             <ul id="taskList"></ul>
+            <div id="offboardingTaskListHint" class="managerEmpty hidden">
+              Offboarding tasks are executed on demand. Click <strong>New</strong> to start.
+            </div>
           </section>
 
           <section class="panel details">
-            <h2>Task Details</h2>
+            <h2 id="detailsTitle">Onboarding Details</h2>
             <div class="panelContent">
+              <div id="onboardingDetails">
               <div class="meta">ID: <span id="taskId">-</span></div>
 
               <div class="sectionCard">
@@ -241,6 +254,58 @@
           </div>
 
           <p id="status" class="meta"></p>
+          </div>
+
+          <div id="offboardingDetails" class="hidden">
+            <div class="sectionCard">
+              <div class="sectionHeader">
+                <h3>Employee</h3>
+                <p class="metaSmall">Choose tenant and user for offboarding</p>
+              </div>
+              <div class="field">
+                <button id="chooseOffboardingUserBtn" class="ghost" type="button">Choose User</button>
+              </div>
+              <div id="offboardingSelectedUser" class="managerEmpty">No user selected.</div>
+            </div>
+
+            <div class="sectionCard">
+              <div class="sectionHeader">
+                <h3>Accounts</h3>
+                <p class="metaSmall">Select which related accounts should be deleted</p>
+              </div>
+              <div class="field">
+                <label class="switch">
+                  <input id="offboardingDeleteUser" type="checkbox" checked />
+                  <span class="switchTrack" aria-hidden="true"><span class="switchThumb"></span></span>
+                  <span class="switchText">Delete User</span>
+                </label>
+              </div>
+              <div id="offboardingAccountsList" class="snipeitAssetList"></div>
+            </div>
+
+            <div id="offboardingSnipeitSection" class="sectionCard hidden">
+              <div class="sectionHeader">
+                <h3>SnipeIT Assets</h3>
+                <p class="metaSmall">Select assets to check in (user in SnipeIT is never deleted)</p>
+              </div>
+              <div id="offboardingAssetsList" class="snipeitAssetList"></div>
+            </div>
+
+            <div class="sectionCard">
+              <div class="sectionHeader">
+                <h3>Preview</h3>
+                <p class="metaSmall">Review selected actions before execute</p>
+              </div>
+              <div id="offboardingPreview" class="managerEmpty">No actions selected yet.</div>
+            </div>
+
+            <div class="actions">
+              <button id="offboardingSaveBtn" class="ghost" type="button">Save</button>
+              <button id="offboardingExecuteBtn" class="primary" type="button">Execute Offboarding</button>
+              <button id="offboardingDeleteBtn" class="danger" type="button">Delete Task</button>
+            </div>
+            <p id="offboardingStatus" class="meta"></p>
+          </div>
         </section>
       </div>
     </div>
@@ -386,6 +451,31 @@
         </div>
         <div id="managerUserList" class="managerList"></div>
         <p id="managerModalError" class="meta"></p>
+      </div>
+    </div>
+
+    <div id="offboardingUserModal" class="modal hidden" aria-hidden="true">
+      <div id="offboardingUserModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="offboardingUserModalTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="offboardingUserModalTitle">Choose User</h3>
+            <p class="metaSmall">Select tenant and pick user for offboarding.</p>
+          </div>
+          <button id="offboardingUserModalClose" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label for="offboardingUserTenantSelect">Tenant</label>
+            <select id="offboardingUserTenantSelect"></select>
+          </div>
+          <div class="field">
+            <label for="offboardingUserSearch">Search users</label>
+            <input id="offboardingUserSearch" type="search" placeholder="Type name or email" />
+          </div>
+        </div>
+        <div id="offboardingUserList" class="managerList"></div>
+        <p id="offboardingUserModalError" class="meta"></p>
       </div>
     </div>
 

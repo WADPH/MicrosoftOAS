@@ -19,7 +19,19 @@ const state = {
   },
   availableSnipeitAssets: [],
   selectedSnipeitModalType: null,
-  selectedSnipeitAssetsDraft: []
+  selectedSnipeitAssetsDraft: [],
+  taskMode: "onboarding",
+  offboardingTasks: [],
+  offboardingSelectedId: null,
+  offboarding: {
+    tenants: [],
+    selectedTenant: "",
+    selectedUser: null,
+    userCandidates: [],
+    relatedAccounts: [],
+    snipeitAssets: [],
+    deleteUser: true
+  }
 };
 
 function serverLog(message, level = "INFO") {
@@ -112,7 +124,9 @@ async function initApp() {
   showAppScreen();
   await loadMeta();
   await loadSnipeitConfig();
+  await loadOffboardingMeta().catch(() => {});
   await loadTasks();
+  await loadOffboardingTasks().catch(() => {});
   initTheme();
   setupActions();
 }
@@ -255,6 +269,333 @@ function getSelectedSnipeitAssets(task = getCurrentTask()) {
   return Array.isArray(task?.snipeitAssets) ? task.snipeitAssets : [];
 }
 
+function setTaskMode(mode) {
+  state.taskMode = mode === "offboarding" ? "offboarding" : "onboarding";
+  const isOffboarding = state.taskMode === "offboarding";
+
+  el("tabOnboardingBtn")?.classList.toggle("active", !isOffboarding);
+  el("tabOffboardingBtn")?.classList.toggle("active", isOffboarding);
+  el("refreshBtn")?.classList.toggle("hidden", isOffboarding);
+  el("onboardingNewBtn")?.classList.toggle("hidden", isOffboarding);
+  el("offboardingRefreshBtn")?.classList.toggle("hidden", !isOffboarding);
+  el("offboardingNewBtn")?.classList.toggle("hidden", !isOffboarding);
+  el("offboardingTaskListHint")?.classList.toggle("hidden", !isOffboarding);
+  el("onboardingDetails")?.classList.toggle("hidden", isOffboarding);
+  el("offboardingDetails")?.classList.toggle("hidden", !isOffboarding);
+  const title = el("detailsTitle");
+  if (title) title.textContent = isOffboarding ? "Offboarding Details" : "Onboarding Details";
+  renderCurrentTaskList();
+  if (isOffboarding) {
+    loadOffboardingTasks().catch(() => {});
+  }
+}
+
+function renderOffboardingTenantOptions() {
+  const options = Array.isArray(state.offboarding.tenants) ? state.offboarding.tenants : [];
+  const selects = [el("offboardingUserTenantSelect")].filter(Boolean);
+  for (const select of selects) {
+    select.innerHTML = "";
+    for (const tenant of options) {
+      const option = document.createElement("option");
+      option.value = tenant;
+      option.textContent = tenant;
+      option.selected = tenant === state.offboarding.selectedTenant;
+      select.appendChild(option);
+    }
+  }
+}
+
+function renderOffboardingSelectedUser() {
+  const box = el("offboardingSelectedUser");
+  if (!box) return;
+  const user = state.offboarding.selectedUser;
+  if (!user) {
+    box.textContent = "No user selected.";
+    return;
+  }
+  box.innerHTML = `
+    <div class="assetTag">${String(user.displayName || "Unnamed user").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+    <div class="assetMeta">${String(user.userPrincipalName || user.mail || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+  `;
+}
+
+function renderOffboardingAccounts() {
+  const list = el("offboardingAccountsList");
+  if (!list) return;
+  list.innerHTML = "";
+  const accounts = Array.isArray(state.offboarding.relatedAccounts) ? state.offboarding.relatedAccounts : [];
+  if (accounts.length === 0) {
+    list.innerHTML = `<div class="managerEmpty">No related accounts found yet.</div>`;
+    updateOffboardingPreview();
+    return;
+  }
+
+  for (const account of accounts) {
+    const row = document.createElement("label");
+    row.className = "checkTile offboardingCheckTile";
+    row.innerHTML = `
+      <input type="checkbox" class="offboardingAccountCheck" data-id="${account.id}" ${account.selected ? "checked" : ""} />
+      <span class="checkMark" aria-hidden="true"></span>
+      <div>
+        <div class="checkText">${String(account.userPrincipalName || account.mail || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+        <div class="assetMeta">${[account.displayName, account.tenant, account.userType].filter(Boolean).join(" · ").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+      </div>
+    `;
+    list.appendChild(row);
+  }
+  updateOffboardingPreview();
+}
+
+function renderOffboardingAssets() {
+  const section = el("offboardingSnipeitSection");
+  const list = el("offboardingAssetsList");
+  if (!section || !list) return;
+
+  const enabled = Boolean(state.snipeitConfig?.enabled);
+  section.classList.toggle("hidden", !enabled);
+  list.innerHTML = "";
+
+  if (!enabled) {
+    updateOffboardingPreview();
+    return;
+  }
+
+  const assets = Array.isArray(state.offboarding.snipeitAssets) ? state.offboarding.snipeitAssets : [];
+  if (assets.length === 0) {
+    list.innerHTML = `<div class="managerEmpty">No assigned SnipeIT assets found.</div>`;
+    updateOffboardingPreview();
+    return;
+  }
+
+  for (const asset of assets) {
+    const row = document.createElement("label");
+    row.className = "checkTile offboardingCheckTile";
+    row.innerHTML = `
+      <input type="checkbox" class="offboardingAssetCheck" data-id="${asset.id}" ${asset.selected ? "checked" : ""} />
+      <span class="checkMark" aria-hidden="true"></span>
+      <div>
+        <div class="checkText">${String(asset.asset_tag || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+        <div class="assetMeta">${[asset.model, asset.companyName, asset.notes].filter(Boolean).join(" · ").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+      </div>
+    `;
+    list.appendChild(row);
+  }
+  updateOffboardingPreview();
+}
+
+function updateOffboardingPreview() {
+  const box = el("offboardingPreview");
+  if (!box) return;
+  const deleteUser = Boolean(el("offboardingDeleteUser")?.checked);
+  const accountCount = state.offboarding.relatedAccounts.filter((row) => row.selected).length;
+  const assetCount = state.offboarding.snipeitAssets.filter((row) => row.selected).length;
+  const user = state.offboarding.selectedUser;
+  if (!user) {
+    box.textContent = "No actions selected yet.";
+    return;
+  }
+  box.innerHTML = `
+    <div class="assetTag">${String(user.userPrincipalName || user.mail || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+    <div class="assetMeta">Delete accounts: ${deleteUser ? accountCount : 0} | Checkin assets: ${assetCount}</div>
+  `;
+}
+
+function resetOffboardingState() {
+  state.offboardingSelectedId = null;
+  state.offboarding.selectedUser = null;
+  state.offboarding.relatedAccounts = [];
+  state.offboarding.snipeitAssets = [];
+  state.offboarding.deleteUser = true;
+  if (el("offboardingDeleteUser")) el("offboardingDeleteUser").checked = true;
+  renderOffboardingSelectedUser();
+  renderOffboardingAccounts();
+  renderOffboardingAssets();
+  el("offboardingStatus").textContent = "";
+  renderCurrentTaskList();
+}
+
+function selectOffboardingTask(id) {
+  const task = state.offboardingTasks.find((row) => row.id === id);
+  if (!task) return;
+  state.offboardingSelectedId = id;
+  renderCurrentTaskList();
+
+  const payload = task.offboarding || {};
+  state.offboarding.selectedTenant = String(payload.tenant || state.offboarding.selectedTenant || "").trim();
+  if (!state.offboarding.selectedTenant && state.offboarding.tenants.length > 0) {
+    state.offboarding.selectedTenant = state.offboarding.tenants[0];
+  }
+  renderOffboardingTenantOptions();
+
+  state.offboarding.selectedUser = payload.user || null;
+  state.offboarding.deleteUser = payload.deleteUser !== false;
+  if (el("offboardingDeleteUser")) el("offboardingDeleteUser").checked = state.offboarding.deleteUser;
+  state.offboarding.relatedAccounts = Array.isArray(payload.accountsToDelete)
+    ? payload.accountsToDelete.map((row) => ({ ...row, selected: true }))
+    : [];
+  state.offboarding.snipeitAssets = Array.isArray(payload.assetsToCheckin)
+    ? payload.assetsToCheckin.map((row) => ({ ...row, selected: true }))
+    : [];
+
+  renderOffboardingSelectedUser();
+  renderOffboardingAccounts();
+  renderOffboardingAssets();
+  el("offboardingStatus").textContent = `Loaded offboarding task ${task.id}`;
+}
+
+async function loadOffboardingMeta() {
+  const data = await api("/offboarding/meta");
+  state.offboarding.tenants = Array.isArray(data?.tenants) ? data.tenants : [];
+  state.offboarding.selectedTenant = state.offboarding.tenants[0] || "";
+  renderOffboardingTenantOptions();
+  return data;
+}
+
+async function loadOffboardingUsers(search = "") {
+  const tenant = String(state.offboarding.selectedTenant || "").trim();
+  if (!tenant) return;
+  const errorBox = el("offboardingUserModalError");
+  if (errorBox) errorBox.textContent = "";
+  const data = await api(`/offboarding/users?tenant=${encodeURIComponent(tenant)}&search=${encodeURIComponent(search)}`);
+  state.offboarding.userCandidates = Array.isArray(data?.users) ? data.users : [];
+  const list = el("offboardingUserList");
+  if (!list) return;
+  list.innerHTML = "";
+  if (state.offboarding.userCandidates.length === 0) {
+    list.innerHTML = `<div class="managerEmpty">No users found.</div>`;
+    return;
+  }
+
+  for (const user of state.offboarding.userCandidates) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "managerItem";
+    button.innerHTML = `
+      <div>${String(user.displayName || user.mail || "Unnamed user").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+      <div class="subtitle">${[user.userPrincipalName || user.mail, user.tenant].filter(Boolean).join(" · ").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+    `;
+    button.onclick = () => {
+      state.offboarding.selectedUser = user;
+      closeOffboardingUserModal();
+      loadOffboardingAccountAndAssets().catch((error) => {
+        el("offboardingStatus").textContent = `Failed to load related data: ${error.message}`;
+      });
+    };
+    list.appendChild(button);
+  }
+}
+
+async function loadOffboardingAccountAndAssets() {
+  renderOffboardingSelectedUser();
+  const user = state.offboarding.selectedUser;
+  if (!user) return;
+  const tenant = state.offboarding.selectedTenant;
+  const email = String(user.userPrincipalName || user.mail || "").trim().toLowerCase();
+  if (!tenant || !email) return;
+
+  const accountsData = await api(`/offboarding/accounts?tenant=${encodeURIComponent(tenant)}&email=${encodeURIComponent(email)}`);
+  state.offboarding.relatedAccounts = (Array.isArray(accountsData?.accounts) ? accountsData.accounts : []).map((row) => ({
+    ...row,
+    selected: true
+  }));
+  renderOffboardingAccounts();
+
+  if (state.snipeitConfig.enabled) {
+    const assetsData = await api(`/offboarding/snipeit-assets?email=${encodeURIComponent(email)}`);
+    state.offboarding.snipeitAssets = (Array.isArray(assetsData?.assets) ? assetsData.assets : []).map((row) => ({
+      ...row,
+      selected: true
+    }));
+  } else {
+    state.offboarding.snipeitAssets = [];
+  }
+  renderOffboardingAssets();
+}
+
+function openOffboardingUserModal() {
+  el("offboardingUserModal").classList.remove("hidden");
+  el("offboardingUserModal").setAttribute("aria-hidden", "false");
+  const tenantSelect = el("offboardingUserTenantSelect");
+  if (tenantSelect) tenantSelect.value = state.offboarding.selectedTenant || "";
+  el("offboardingUserSearch").value = "";
+  loadOffboardingUsers().catch((error) => {
+    el("offboardingUserModalError").textContent = `Failed to load users: ${error.message}`;
+  });
+}
+
+function closeOffboardingUserModal() {
+  el("offboardingUserModal").classList.add("hidden");
+  el("offboardingUserModal").setAttribute("aria-hidden", "true");
+}
+
+function buildOffboardingPayload(validateForExecute = false) {
+  const user = state.offboarding.selectedUser;
+  const tenant = String(state.offboarding.selectedTenant || "").trim();
+  const deleteUser = Boolean(el("offboardingDeleteUser")?.checked);
+  const accountsToDelete = state.offboarding.relatedAccounts.filter((row) => row.selected);
+  const assetsToCheckin = state.offboarding.snipeitAssets.filter((row) => row.selected).map((row) => ({
+    id: row.id,
+    asset_tag: row.asset_tag
+  }));
+
+  if (!user) {
+    throw new Error("Choose user first");
+  }
+  if (!tenant) {
+    throw new Error("Tenant is required");
+  }
+  if (validateForExecute && deleteUser && accountsToDelete.length === 0) {
+    throw new Error("Select at least one account to delete");
+  }
+
+  return {
+    taskId: state.offboardingSelectedId || undefined,
+    tenant,
+    user,
+    email: user.userPrincipalName || user.mail,
+    deleteUser,
+    accountsToDelete,
+    assetsToCheckin
+  };
+}
+
+async function saveOffboardingTask() {
+  const payload = buildOffboardingPayload(false);
+  const response = await api("/offboarding/tasks", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  const task = response?.task;
+  if (task?.id) state.offboardingSelectedId = task.id;
+  await loadOffboardingTasks();
+  return response;
+}
+
+async function executeOffboarding() {
+  const payload = buildOffboardingPayload(true);
+  const response = await api("/offboarding/execute", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  const task = response?.task;
+  if (task?.id) state.offboardingSelectedId = task.id;
+  await loadOffboardingTasks();
+  return response;
+}
+
+async function deleteOffboardingTask() {
+  const id = state.offboardingSelectedId;
+  if (!id) {
+    throw new Error("Select offboarding task first");
+  }
+  const target = state.offboardingTasks.find((task) => task.id === id);
+  const ok = window.confirm(`Delete offboarding task for ${target?.offboarding?.email || target?.email || "selected user"}?`);
+  if (!ok) return;
+  await api(`/tasks/${encodeURIComponent(id)}`, { method: "DELETE" });
+  resetOffboardingState();
+  await loadOffboardingTasks();
+}
+
 function buildDefaultLicenseSubject() {
   return "License request for new employee";
 }
@@ -374,9 +715,66 @@ function renderTasks() {
   }
 }
 
+function renderOffboardingTasks() {
+  const list = el("taskList");
+  list.innerHTML = "";
+  const rows = Array.isArray(state.offboardingTasks) ? state.offboardingTasks : [];
+  el("offboardingTaskListHint")?.classList.toggle("hidden", rows.length > 0 || state.taskMode !== "offboarding");
+
+  if (rows.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "No offboarding tasks yet";
+    list.appendChild(li);
+    return;
+  }
+
+  const cls = (status) => {
+    const s = String(status || "").toLowerCase();
+    if (s === "done") return "done";
+    if (s === "failed") return "failed";
+    if (s === "processing") return "processing";
+    return "pending";
+  };
+
+  for (const task of rows) {
+    const li = document.createElement("li");
+    li.className = task.id === state.offboardingSelectedId ? "active" : "";
+    const userUpn = task.offboarding?.email || task.email || "not specified";
+    li.innerHTML = `
+      <div class="taskRow">
+        <div class="taskMain">
+          <div class="taskName">${String(task.fullName || userUpn).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+          <div class="taskMeta">${String(userUpn).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+        </div>
+        <div class="statusPill ${cls(task.status)}">${String(task.status || "pending").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+      </div>
+    `;
+    li.onclick = () => selectOffboardingTask(task.id);
+    list.appendChild(li);
+  }
+}
+
+function renderCurrentTaskList() {
+  if (state.taskMode === "offboarding") {
+    renderOffboardingTasks();
+  } else {
+    renderTasks();
+  }
+}
+
 function setCheckbox(id, value) {
   const input = el(id);
   if (input) input.checked = Boolean(value);
+}
+
+function setInputValue(id, value) {
+  const input = el(id);
+  if (input) input.value = value;
+}
+
+function setTextValue(id, value) {
+  const node = el(id);
+  if (node) node.textContent = value;
 }
 
 function selectTask(id) {
@@ -390,22 +788,22 @@ function selectTask(id) {
   state.userEditedAssetsSubject = false;
   state.userEditedAssetsBody = false;
 
-  el("taskId").textContent = task.id;
-  el("fullName").value = task.fullName || "";
-  el("firstName").value = task.firstName || "";
-  el("lastName").value = task.lastName || "";
-  el("startDate").value = task.startDate || "";
+  setTextValue("taskId", task.id);
+  setInputValue("fullName", task.fullName || "");
+  setInputValue("firstName", task.firstName || "");
+  setInputValue("lastName", task.lastName || "");
+  setInputValue("startDate", task.startDate || "");
 
-  el("email").value = task.email || "";
-  el("company").value = task.company || "";
-  el("position").value = task.position || "";
-  el("phone").value = task.phone || "";
-  el("manager").value = task.manager || "";
+  setInputValue("email", task.email || "");
+  setInputValue("company", task.company || "");
+  setInputValue("position", task.position || "");
+  setInputValue("phone", task.phone || "");
+  setInputValue("manager", task.manager || "");
 
   renderDomainOptions(task.companyDomain || state.companyDomains[2]);
   renderCompanyCodeOptions(task.companyCode || state.companyCodes[2]);
 
-  el("licenseRequired").checked = Boolean(task.licenseRequired);
+  setCheckbox("licenseRequired", task.licenseRequired);
 
   setCheckbox("assetLaptop", task.assets?.laptop);
   setCheckbox("assetKeyboard", task.assets?.keyboard);
@@ -415,13 +813,13 @@ function selectTask(id) {
 
   fillRecipients("licenseTo", task.licenseMail?.to);
   fillRecipients("licenseCc", task.licenseMail?.cc);
-  el("licenseSubject").value = task.licenseMail?.subject || buildDefaultLicenseSubject();
-  el("licenseBody").value = task.licenseMail?.body || buildDefaultLicenseBody();
+  setInputValue("licenseSubject", task.licenseMail?.subject || buildDefaultLicenseSubject());
+  setInputValue("licenseBody", task.licenseMail?.body || buildDefaultLicenseBody());
 
   fillRecipients("assetsTo", task.assetsMail?.to);
   fillRecipients("assetsCc", task.assetsMail?.cc);
-  el("assetsSubject").value = task.assetsMail?.subject || buildDefaultAssetsSubject();
-  el("assetsBody").value = task.assetsMail?.body || buildDefaultAssetsBody();
+  setInputValue("assetsSubject", task.assetsMail?.subject || buildDefaultAssetsSubject());
+  setInputValue("assetsBody", task.assetsMail?.body || buildDefaultAssetsBody());
   renderSelectedSnipeitAssets(task);
   refreshMailVisibilityAndPreview();
 }
@@ -463,17 +861,32 @@ async function loadLicenseAvailability() {
 }
 
 async function loadTasks() {
-  state.tasks = await api("/tasks");
+  state.tasks = await api("/tasks?type=onboarding");
   ensureSelectedTaskStillExists();
 
   if (!state.selectedId && state.tasks.length > 0) {
     state.selectedId = state.tasks[0].id;
   }
 
-  renderTasks();
+  renderCurrentTaskList();
 
   if (state.selectedId) {
     selectTask(state.selectedId);
+  }
+}
+
+async function loadOffboardingTasks() {
+  const data = await api("/offboarding/tasks");
+  state.offboardingTasks = Array.isArray(data?.tasks) ? data.tasks : [];
+  if (state.offboardingSelectedId && !state.offboardingTasks.some((task) => task.id === state.offboardingSelectedId)) {
+    state.offboardingSelectedId = null;
+  }
+  if (!state.offboardingSelectedId && state.offboardingTasks.length > 0) {
+    state.offboardingSelectedId = state.offboardingTasks[0].id;
+  }
+  renderCurrentTaskList();
+  if (state.offboardingSelectedId) {
+    selectOffboardingTask(state.offboardingSelectedId);
   }
 }
 
@@ -576,6 +989,8 @@ function applySnipeitUiVisibility() {
   if (settingsDisabled) settingsDisabled.classList.toggle("hidden", enabled);
   const pendingSection = el("snipeitPendingSection");
   if (pendingSection) pendingSection.classList.toggle("hidden", !enabled);
+  const offboardingSnipeitSection = el("offboardingSnipeitSection");
+  if (offboardingSnipeitSection) offboardingSnipeitSection.classList.toggle("hidden", !enabled);
 }
 
 function renderSelectedSnipeitAssets(task = getCurrentTask()) {
@@ -715,7 +1130,7 @@ async function loadSnipeitAssignTasks() {
       <div class="pendingMain">
         <div class="assetTag">${String(task.email || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
         <div class="assetMeta">${(task.assets || []).map((x) => x.asset_tag).join(", ").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
-        <div class="assetMeta">Created: ${task.createdAt || "-"} | Next check: ${eta} | Status: ${task.status || "pending"}</div>
+        <div class="assetMeta">Created: ${task.createdAt || "-"} | Next check: ${task.nextAttemptAt || "-"} (${eta}) | Status: ${task.status || "pending"}</div>
       </div>
       <div class="pendingActions">
         <button type="button" class="ghost small" data-action="force" data-id="${task.id}">Force Assign</button>
@@ -1206,6 +1621,172 @@ function setupActions() {
     managerModalOverlay.onclick = () => closeManagerModal();
   }
 
+  const tabOnboardingBtn = el("tabOnboardingBtn");
+  if (tabOnboardingBtn) {
+    tabOnboardingBtn.onclick = () => setTaskMode("onboarding");
+  }
+
+  const tabOffboardingBtn = el("tabOffboardingBtn");
+  if (tabOffboardingBtn) {
+    tabOffboardingBtn.onclick = () => setTaskMode("offboarding");
+  }
+
+  const offboardingNewBtn = el("offboardingNewBtn");
+  if (offboardingNewBtn) {
+    offboardingNewBtn.onclick = () => {
+      resetOffboardingState();
+      el("offboardingStatus").textContent = "New offboarding draft";
+    };
+  }
+
+  const onboardingNewBtn = el("onboardingNewBtn");
+  if (onboardingNewBtn) {
+    onboardingNewBtn.onclick = async () => {
+      try {
+        const response = await api("/tasks/new", { method: "POST", body: JSON.stringify({}) });
+        await loadTasks();
+        if (response?.task?.id) {
+          state.selectedId = response.task.id;
+          selectTask(response.task.id);
+        }
+        el("status").textContent = "New onboarding task created";
+      } catch (error) {
+        el("status").textContent = `Failed to create onboarding task: ${error.message}`;
+      }
+    };
+  }
+
+  const offboardingRefreshBtn = el("offboardingRefreshBtn");
+  if (offboardingRefreshBtn) {
+    offboardingRefreshBtn.onclick = async () => {
+      try {
+        await loadOffboardingTasks();
+        el("offboardingStatus").textContent = "Offboarding tasks refreshed";
+      } catch (error) {
+        el("offboardingStatus").textContent = `Refresh failed: ${error.message}`;
+      }
+    };
+  }
+
+  const chooseOffboardingUserBtn = el("chooseOffboardingUserBtn");
+  if (chooseOffboardingUserBtn) {
+    chooseOffboardingUserBtn.onclick = () => openOffboardingUserModal();
+  }
+
+  const offboardingDeleteUser = el("offboardingDeleteUser");
+  if (offboardingDeleteUser) {
+    offboardingDeleteUser.addEventListener("change", () => {
+      state.offboarding.deleteUser = offboardingDeleteUser.checked;
+      updateOffboardingPreview();
+    });
+  }
+
+  const offboardingAccountsList = el("offboardingAccountsList");
+  if (offboardingAccountsList) {
+    offboardingAccountsList.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.classList.contains("offboardingAccountCheck")) return;
+      const id = target.getAttribute("data-id");
+      for (const account of state.offboarding.relatedAccounts) {
+        if (String(account.id) === String(id)) account.selected = target.checked;
+      }
+      updateOffboardingPreview();
+    });
+  }
+
+  const offboardingAssetsList = el("offboardingAssetsList");
+  if (offboardingAssetsList) {
+    offboardingAssetsList.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.classList.contains("offboardingAssetCheck")) return;
+      const id = target.getAttribute("data-id");
+      for (const asset of state.offboarding.snipeitAssets) {
+        if (String(asset.id) === String(id)) asset.selected = target.checked;
+      }
+      updateOffboardingPreview();
+    });
+  }
+
+  const offboardingExecuteBtn = el("offboardingExecuteBtn");
+  if (offboardingExecuteBtn) {
+    offboardingExecuteBtn.onclick = async () => {
+      try {
+        offboardingExecuteBtn.disabled = true;
+        el("offboardingStatus").textContent = "Executing...";
+        const result = await executeOffboarding();
+        const entraSummary = (result?.steps?.entra || []).map((x) => `${x.user}:${x.status}`).join(", ");
+        const snipeitSummary = (result?.steps?.snipeit || []).map((x) => `${x.id}:${x.status}`).join(", ");
+        el("offboardingStatus").textContent = `Done. Entra[${entraSummary || "-"}], SnipeIT[${snipeitSummary || "-"}]`;
+      } catch (error) {
+        el("offboardingStatus").textContent = `Execute failed: ${error.message}`;
+      } finally {
+        offboardingExecuteBtn.disabled = false;
+      }
+    };
+  }
+
+  const offboardingSaveBtn = el("offboardingSaveBtn");
+  if (offboardingSaveBtn) {
+    offboardingSaveBtn.onclick = async () => {
+      try {
+        offboardingSaveBtn.disabled = true;
+        const result = await saveOffboardingTask();
+        el("offboardingStatus").textContent = `Saved (${result?.task?.id || "task"})`;
+      } catch (error) {
+        el("offboardingStatus").textContent = `Save failed: ${error.message}`;
+      } finally {
+        offboardingSaveBtn.disabled = false;
+      }
+    };
+  }
+
+  const offboardingDeleteBtn = el("offboardingDeleteBtn");
+  if (offboardingDeleteBtn) {
+    offboardingDeleteBtn.onclick = async () => {
+      try {
+        offboardingDeleteBtn.disabled = true;
+        await deleteOffboardingTask();
+        el("offboardingStatus").textContent = "Offboarding task deleted";
+      } catch (error) {
+        el("offboardingStatus").textContent = `Delete failed: ${error.message}`;
+      } finally {
+        offboardingDeleteBtn.disabled = false;
+      }
+    };
+  }
+
+  const offboardingUserModalClose = el("offboardingUserModalClose");
+  if (offboardingUserModalClose) {
+    offboardingUserModalClose.onclick = () => closeOffboardingUserModal();
+  }
+
+  const offboardingUserModalOverlay = el("offboardingUserModalOverlay");
+  if (offboardingUserModalOverlay) {
+    offboardingUserModalOverlay.onclick = () => closeOffboardingUserModal();
+  }
+
+  const offboardingUserTenantSelect = el("offboardingUserTenantSelect");
+  if (offboardingUserTenantSelect) {
+    offboardingUserTenantSelect.addEventListener("change", () => {
+      state.offboarding.selectedTenant = offboardingUserTenantSelect.value;
+      renderOffboardingTenantOptions();
+      loadOffboardingUsers(el("offboardingUserSearch")?.value || "").catch((error) => {
+        el("offboardingUserModalError").textContent = `Failed to load users: ${error.message}`;
+      });
+    });
+  }
+
+  const offboardingUserSearch = el("offboardingUserSearch");
+  if (offboardingUserSearch) {
+    offboardingUserSearch.addEventListener("input", () => {
+      loadOffboardingUsers(offboardingUserSearch.value.trim()).catch((error) => {
+        el("offboardingUserModalError").textContent = `Failed to load users: ${error.message}`;
+      });
+    });
+  }
+
   const chooseLaptopBtn = el("chooseLaptopBtn");
   if (chooseLaptopBtn) {
     chooseLaptopBtn.onclick = async () => {
@@ -1373,10 +1954,19 @@ function setupActions() {
 
   el("refreshBtn").onclick = async () => {
     try {
-      await loadTasks();
-      el("status").textContent = "Refreshed";
+      if (state.taskMode === "offboarding") {
+        await loadOffboardingTasks();
+        el("offboardingStatus").textContent = "Offboarding tasks refreshed";
+      } else {
+        await loadTasks();
+        el("status").textContent = "Refreshed";
+      }
     } catch (error) {
-      el("status").textContent = `Refresh failed: ${error.message}`;
+      if (state.taskMode === "offboarding") {
+        el("offboardingStatus").textContent = `Refresh failed: ${error.message}`;
+      } else {
+        el("status").textContent = `Refresh failed: ${error.message}`;
+      }
     }
   };
 
@@ -1391,6 +1981,11 @@ function setupActions() {
       }
     };
   }
+
+  renderOffboardingSelectedUser();
+  renderOffboardingAccounts();
+  renderOffboardingAssets();
+  setTaskMode("onboarding");
 }
 
 (async function main() {

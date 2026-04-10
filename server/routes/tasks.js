@@ -1,7 +1,9 @@
 const express = require("express");
 const {
   getAllTasks,
+  getTasksByType,
   getTaskById,
+  addTask,
   updateTaskById,
   deleteTaskById,
   DOMAIN_OPTIONS,
@@ -23,6 +25,7 @@ const {
 const { sendLicenseRequestMail, sendAssetsMail } = require("../services/mail");
 const { isEnabled } = require("../services/snipeit.service");
 const { addAssignTask } = require("../services/snipeitAssignStore");
+const { processPendingAssignTasks } = require("../services/snipeitAssignWorker");
 
 const router = express.Router();
 
@@ -71,8 +74,38 @@ function validateSnipeitAssetsInput(input) {
 }
 
 router.get("/", (req, res) => {
-  const tasks = getAllTasks();
+  const taskType = String(req.query.type || "onboarding").trim().toLowerCase();
+  const tasks = taskType === "all" ? getAllTasks() : getTasksByType(taskType);
   res.json(tasks);
+});
+
+router.post("/new", (req, res) => {
+  const base = req.body || {};
+  const result = addTask({
+    taskType: "onboarding",
+    status: "pending",
+    fullName: base.fullName || "",
+    firstName: base.firstName || "",
+    lastName: base.lastName || "",
+    company: base.company || "",
+    companyCode: base.companyCode || "",
+    companyDomain: base.companyDomain || "",
+    position: base.position || "",
+    phone: base.phone || "",
+    manager: base.manager || "",
+    startDate: base.startDate || "",
+    email: base.email || "",
+    licenseRequired: true,
+    assets: {
+      laptop: false,
+      keyboard: false,
+      mouse: false,
+      headphones: false,
+      monitor: false
+    }
+  }, { skipDuplicate: true });
+
+  return res.status(201).json({ ok: true, task: result.task });
 });
 
 router.get("/meta/options", (req, res) => {
@@ -234,7 +267,7 @@ router.post("/:id/approve", async (req, res) => {
       user = await createUser(existingTask, tenantKey);
       // Wait until the directory starts returning this user reliably
       try {
-        user = await waitForUserProvisioning(existingTask.email, 5, tenantKey);
+        user = await waitForUserProvisioning(existingTask.email, 10, tenantKey);
       } catch (provisionError) {
         console.warn("[approve] User provisioning wait failed, will still attempt license steps", provisionError.message);
       }
@@ -278,9 +311,10 @@ router.post("/:id/approve", async (req, res) => {
         const premiumSku = findBusinessPremiumSku(skus);
 
         if (premiumSku && hasAvailableSeats(premiumSku)) {
+          const licenseTarget = String(user?.id || task.email || "").trim();
           const desiredUsageLocation = String(process.env.DEFAULT_USAGE_LOCATION || "AZ").trim().toUpperCase();
-          await updateUserUsageLocation(task.email, desiredUsageLocation, tenantKey);
-          await assignLicenseWithRetry(task.email, premiumSku.skuId, 5, tenantKey);
+          await updateUserUsageLocation(licenseTarget, desiredUsageLocation, tenantKey);
+          await assignLicenseWithRetry(licenseTarget, premiumSku.skuId, 5, tenantKey);
           console.log(`[approve] Business Premium assigned for ${task.email}`);
           steps.push({
             step: "license",
@@ -328,6 +362,12 @@ router.post("/:id/approve", async (req, res) => {
           taskId: task.id
         });
         console.log(`[approve] Snipe-IT assign task queued: ${assignTask.id}`);
+        try {
+          const immediate = await processPendingAssignTasks({ taskId: assignTask.id, force: true });
+          console.log(`[approve] Snipe-IT immediate assign attempt finished for ${assignTask.id}: ${JSON.stringify(immediate)}`);
+        } catch (immediateError) {
+          console.warn(`[approve] Snipe-IT immediate assign attempt failed for ${assignTask.id}: ${immediateError.message}`);
+        }
         steps.push({ step: "snipeit_assign", action: "queued", success: true, assignTaskId: assignTask.id });
       } else if (!isEnabled() && selectedSnipeitAssets.length > 0) {
         console.warn("[approve] Snipe-IT assets selected but integration disabled, skipping queue");

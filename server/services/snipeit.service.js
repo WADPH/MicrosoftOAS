@@ -139,6 +139,53 @@ async function assignAsset(assetId, userId) {
   });
 }
 
+function normalizeAssignedAsset(item) {
+  const normalized = normalizeHardware(item);
+  return {
+    id: normalized.id,
+    asset_tag: normalized.asset_tag,
+    model: normalized.model,
+    notes: normalized.notes,
+    companyName: normalized.companyName
+  };
+}
+
+async function getAssignedAssetsByEmail(email) {
+  const user = await getUserByEmail(email);
+  if (!user?.id) return [];
+
+  try {
+    const data = await snipeitRequest("GET", `/users/${encodeURIComponent(String(user.id))}/assets`);
+    const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : [];
+    return rows.map(normalizeAssignedAsset).filter((item) => Number.isFinite(item.id) && item.asset_tag);
+  } catch (error) {
+    if (Number(error.status || 0) !== 404) throw error;
+  }
+
+  const fallback = await snipeitRequest("GET", `/hardware?limit=500&search=${encodeURIComponent(String(email || "").trim())}`);
+  const rows = Array.isArray(fallback?.rows) ? fallback.rows : [];
+  return rows
+    .map(normalizeHardware)
+    .filter((item) => Number(item?.assigned_to?.id) === Number(user.id))
+    .map((item) => ({
+      id: item.id,
+      asset_tag: item.asset_tag,
+      model: item.model,
+      notes: item.notes,
+      companyName: item.companyName
+    }));
+}
+
+async function checkinAsset(assetId) {
+  const hardwareId = Number(assetId);
+  if (!Number.isFinite(hardwareId)) {
+    const error = new Error("Invalid assetId");
+    error.status = 400;
+    throw error;
+  }
+  return snipeitRequest("POST", `/hardware/${hardwareId}/checkin`, {});
+}
+
 function getSnipeitConfig() {
   return {
     enabled: isEnabled(),
@@ -155,5 +202,7 @@ module.exports = {
   getAssetByTag,
   getUserByEmail,
   assignAsset,
+  getAssignedAssetsByEmail,
+  checkinAsset,
   assertEnabled
 };

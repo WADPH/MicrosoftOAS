@@ -214,8 +214,8 @@ async function createUser(task, tenantKey) {
   return graphRequest("POST", "/users", payload, tenantKey);
 }
 
-async function updateUserUsageLocation(email, usageLocation, tenantKey) {
-  return graphRequest("PATCH", `/users/${encodeURIComponent(email)}`, {
+async function updateUserUsageLocation(userIdentifier, usageLocation, tenantKey) {
+  return graphRequest("PATCH", `/users/${encodeURIComponent(userIdentifier)}`, {
     usageLocation: String(usageLocation || "").trim().toUpperCase()
   }, tenantKey);
 }
@@ -224,7 +224,7 @@ async function updateUserUsageLocation(email, usageLocation, tenantKey) {
  * After createUser Graph can briefly return 404 on subsequent operations.
  * Polls /users/{email} until it is visible (or we give up).
  */
-async function waitForUserProvisioning(email, attempts = 5, tenantKey) {
+async function waitForUserProvisioning(email, attempts = 10, tenantKey) {
   let lastError;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -236,7 +236,7 @@ async function waitForUserProvisioning(email, attempts = 5, tenantKey) {
       lastError = error;
     }
 
-    const waitMs = 700 * attempt;
+    const waitMs = 1000;
     console.warn(`[graph] waitForUserProvisioning: user not visible yet, retry ${attempt}/${attempts} in ${waitMs}ms`);
     await delay(waitMs);
   }
@@ -301,6 +301,15 @@ async function assignLicenseWithRetry(email, skuId, attempts = 5, tenantKey) {
   throw lastError;
 }
 
+async function deleteUserById(userId, tenantKey) {
+  if (!String(userId || "").trim()) {
+    const error = new Error("userId is required");
+    error.status = 400;
+    throw error;
+  }
+  return graphRequest("DELETE", `/users/${encodeURIComponent(String(userId).trim())}`, undefined, tenantKey);
+}
+
 module.exports = {
   normalizeTenantKey,
   getDefaultTenantKey,
@@ -316,5 +325,6 @@ module.exports = {
   hasAvailableSeats,
   assignLicense,
   assignLicenseWithRetry,
+  deleteUserById,
   graphRequest
 };

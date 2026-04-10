@@ -2,6 +2,7 @@ const path = require("path");
 const fs = require("fs");
 
 const DB_PATH = path.join(__dirname, "..", "db", "snipeit_assign.json");
+const RETRY_MINUTES = 5;
 
 function ensureDbFile() {
   if (!fs.existsSync(DB_PATH)) {
@@ -57,7 +58,7 @@ function normalizeTask(raw = {}) {
   const lastAttemptAt = raw.lastAttemptAt ? String(raw.lastAttemptAt) : null;
   const nextAttemptAt = raw.nextAttemptAt
     ? String(raw.nextAttemptAt)
-    : new Date((Number.isNaN(createdAtMs) ? Date.now() : createdAtMs) + 15 * 60 * 1000).toISOString();
+    : new Date((Number.isNaN(createdAtMs) ? Date.now() : createdAtMs) + RETRY_MINUTES * 60 * 1000).toISOString();
 
   return {
     id: String(raw.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
@@ -101,7 +102,7 @@ function addAssignTask({ email, assets, taskId }) {
     status: "pending",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    nextAttemptAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    nextAttemptAt: new Date().toISOString(),
     attempts: 0
   });
 

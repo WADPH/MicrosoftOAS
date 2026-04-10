@@ -7,6 +7,7 @@ const authRouter = require("./routes/auth");
 const settingsRouter = require("./routes/settings");
 const tasksRouter = require("./routes/tasks");
 const snipeitRouter = require("./routes/snipeit");
+const offboardingRouter = require("./routes/offboarding");
 const webhookRouter = require("./routes/webhook");
 const requireAuth = require("./middleware/requireAuth");
 const { startSnipeitAssignWorker, processPendingAssignTasks } = require("./services/snipeitAssignWorker");
@@ -47,6 +48,7 @@ app.use("/auth", authRouter);
 app.use("/settings", requireAuth, settingsRouter);
 app.use("/tasks", requireAuth, tasksRouter);
 app.use("/snipeit", requireAuth, snipeitRouter);
+app.use("/offboarding", requireAuth, offboardingRouter);
 app.use("/webhook", webhookRouter);
 
 app.use(express.static(path.join(__dirname, "..", "public")));
