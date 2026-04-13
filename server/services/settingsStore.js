@@ -260,8 +260,20 @@ function parseCompanyMatchersFromEnvMap(envMap, tenants) {
     patterns: normalizeEnvStoredValue(envMap[`COMPANY_MATCHER_${key}_PATTERNS`] || ""),
     domain: normalizeEnvStoredValue(envMap[`COMPANY_MATCHER_${key}_DOMAIN`] || ""),
     code: normalizeCompanyCodeValue(normalizeEnvStoredValue(envMap[`COMPANY_MATCHER_${key}_CODE`] || "")),
-    tenant: normalizeTenantKey(normalizeEnvStoredValue(envMap[`COMPANY_MATCHER_${key}_TENANT`] || defaultTenant))
+    tenant: normalizeTenantKey(normalizeEnvStoredValue(envMap[`COMPANY_MATCHER_${key}_TENANT`] || defaultTenant)),
+    groups: splitCsv(normalizeEnvStoredValue(envMap[`COMPANY_MATCHER_${key}_GROUPS`] || ""))
   }));
+}
+
+function normalizeGroupIds(value) {
+  const raw = Array.isArray(value) ? value.join(",") : value;
+  return splitCsv(raw)
+    .map((id) => String(id || "").trim())
+    .filter(Boolean);
+}
+
+function isValidGroupId(value) {
+  return /^[0-9a-fA-F-]{32,36}$/.test(String(value || "").trim());
 }
 
 function validateCompanyMatchers(rawList, tenants) {
@@ -287,6 +299,7 @@ function validateCompanyMatchers(rawList, tenants) {
     const domain = String(row.domain || "").trim().toLowerCase();
     const code = normalizeCompanyCodeValue(row.code);
     const tenant = normalizeTenantKey(row.tenant);
+    const groups = normalizeGroupIds(row.groups);
     const indexLabel = `companyMatcher[${i}]`;
 
     if (!key) {
@@ -324,9 +337,16 @@ function validateCompanyMatchers(rawList, tenants) {
       error.status = 400;
       throw error;
     }
+    for (const groupId of groups) {
+      if (!isValidGroupId(groupId)) {
+        const error = new Error(`${indexLabel}.groups contains invalid group id: ${groupId}`);
+        error.status = 400;
+        throw error;
+      }
+    }
 
     seen.add(key);
-    normalized.push({ key, patterns, domain, code, tenant });
+    normalized.push({ key, patterns, domain, code, tenant, groups });
   }
 
   return normalized;
@@ -367,7 +387,7 @@ function collectExistingMatcherVarKeys(lines) {
   for (const line of lines) {
     const key = parseEnvKey(line);
     if (!key) continue;
-    if (key === "COMPANY_MATCHER_KEYS" || /^COMPANY_MATCHER_[A-Z0-9_]+_(PATTERNS|DOMAIN|CODE|TENANT)$/.test(key)) {
+    if (key === "COMPANY_MATCHER_KEYS" || /^COMPANY_MATCHER_[A-Z0-9_]+_(PATTERNS|DOMAIN|CODE|TENANT|GROUPS)$/.test(key)) {
       keys.add(key);
     }
   }
@@ -438,6 +458,7 @@ function buildCompanyMatcherUpdates(companyMatcher, envLines, tenants) {
     updates[`COMPANY_MATCHER_${row.key}_DOMAIN`] = row.domain;
     updates[`COMPANY_MATCHER_${row.key}_CODE`] = row.code;
     updates[`COMPANY_MATCHER_${row.key}_TENANT`] = row.tenant;
+    updates[`COMPANY_MATCHER_${row.key}_GROUPS`] = row.groups.join(",");
   }
 
   const existingKeys = collectExistingMatcherVarKeys(envLines);

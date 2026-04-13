@@ -3,6 +3,7 @@ const state = {
   selectedId: null,
   companyDomains: ["eilink.az", "researchlab.digital", "ei-g.com"],
   companyCodes: ["EILINK", "DRL", "EIG"],
+  companyMatchers: [],
   availableManagers: [],
   currentUser: null,
   userEditedLicenseSubject: false,
@@ -20,6 +21,17 @@ const state = {
   availableSnipeitAssets: [],
   selectedSnipeitModalType: null,
   selectedSnipeitAssetsDraft: [],
+  onboardingGroupSelectionTouched: false,
+  groupPicker: {
+    context: null,
+    onApply: null,
+    selected: [],
+    selectedTenant: "",
+    tenants: [],
+    groups: [],
+    loading: false,
+    tenantLocked: false
+  },
   taskMode: "onboarding",
   offboardingTasks: [],
   offboardingSelectedId: null,
@@ -219,6 +231,59 @@ function normalizeTenantKey(value) {
     .toUpperCase()
     .replace(/\s+/g, "")
     .replace(/[^A-Z0-9_]/g, "");
+}
+
+function normalizeGroupId(value) {
+  return String(value || "").trim();
+}
+
+function normalizeTaskGroup(group) {
+  return {
+    id: normalizeGroupId(group?.id || group || ""),
+    displayName: String(group?.displayName || "").trim(),
+    tenant: normalizeTenantKey(group?.tenant || "")
+  };
+}
+
+function parseEmailDomain(email) {
+  const raw = String(email || "").trim().toLowerCase();
+  const at = raw.lastIndexOf("@");
+  if (at < 0) return "";
+  return raw.slice(at + 1);
+}
+
+function matcherDomainMatchScore(domain, matcherDomain) {
+  const a = String(domain || "").trim().toLowerCase();
+  const b = String(matcherDomain || "").trim().toLowerCase();
+  if (!a || !b) return 0;
+  if (a === b) return 2;
+  if (a.endsWith(`.${b}`)) return 1;
+  return 0;
+}
+
+function resolveMatcherForCurrentTask(task = getCurrentTask()) {
+  const matchers = Array.isArray(state.companyMatchers) ? state.companyMatchers : [];
+  if (!task || matchers.length === 0) return null;
+
+  const code = String(task.companyCode || el("company")?.value || "").trim().toUpperCase();
+  const domain = String(task.companyDomain || el("companyDomain")?.value || "").trim().toLowerCase();
+  const emailDomain = parseEmailDomain(task.email || el("email")?.value || "");
+
+  if (code) {
+    const byCode = matchers.find((matcher) => String(matcher.code || "").trim().toUpperCase() === code);
+    if (byCode) return byCode;
+  }
+
+  const domainTarget = domain || emailDomain;
+  if (!domainTarget) return null;
+
+  let best = null;
+  for (const matcher of matchers) {
+    const score = matcherDomainMatchScore(domainTarget, matcher.domain);
+    if (!score) continue;
+    if (!best || score > best.score) best = { score, matcher };
+  }
+  return best?.matcher || null;
 }
 
 function applyTheme(theme) {
@@ -746,6 +811,181 @@ function refreshMailVisibilityAndPreview() {
   }
 }
 
+function getTaskGroups(task = getCurrentTask()) {
+  if (!task) return [];
+  if (!Array.isArray(task.entraGroups)) task.entraGroups = [];
+  task.entraGroups = task.entraGroups
+    .map((group) => normalizeTaskGroup(group))
+    .filter((group) => group.id);
+  return task.entraGroups;
+}
+
+function getDefaultGroupsForTask(task = getCurrentTask()) {
+  const matcher = resolveMatcherForCurrentTask(task);
+  if (!matcher) return [];
+  const groups = Array.isArray(matcher.groups) ? matcher.groups : [];
+  const tenant = normalizeTenantKey(matcher.tenant || "");
+  return groups.map((groupId) => ({
+    id: normalizeGroupId(groupId),
+    displayName: "",
+    tenant
+  })).filter((group) => group.id);
+}
+
+function getOnboardingTenantForGroups(task = getCurrentTask()) {
+  const matcher = resolveMatcherForCurrentTask(task);
+  const fromMatcher = normalizeTenantKey(matcher?.tenant || "");
+  if (fromMatcher) return fromMatcher;
+  const fallbackTenant = normalizeTenantKey(
+    state.settings?.tenants?.[0] || state.offboarding?.selectedTenant || state.offboarding?.tenants?.[0] || ""
+  );
+  return fallbackTenant;
+}
+
+function ensureOnboardingDefaultGroups(task = getCurrentTask()) {
+  if (!task) return;
+  if (state.onboardingGroupSelectionTouched) return;
+  const current = getTaskGroups(task);
+  if (current.length > 0) return;
+  task.entraGroups = getDefaultGroupsForTask(task);
+}
+
+function renderOnboardingGroups(task = getCurrentTask()) {
+  const list = el("onboardingGroupsList");
+  const tenantMeta = el("onboardingGroupsTenantMeta");
+  if (!list) return;
+  if (!task) {
+    list.innerHTML = `<div class="managerEmpty">No task selected.</div>`;
+    if (tenantMeta) tenantMeta.textContent = "Tenant: -";
+    return;
+  }
+
+  ensureOnboardingDefaultGroups(task);
+  const groups = getTaskGroups(task);
+  const tenant = getOnboardingTenantForGroups(task) || "-";
+  if (tenantMeta) tenantMeta.textContent = `Tenant: ${tenant}`;
+
+  if (groups.length === 0) {
+    list.innerHTML = `<div class="managerEmpty">No groups selected.</div>`;
+    return;
+  }
+
+  const wrap = document.createElement("div");
+  wrap.className = "groupTagList";
+
+  for (const group of groups) {
+    const item = document.createElement("div");
+    item.className = "groupTag";
+    item.innerHTML = `
+      <span class="groupTagName">${String(group.displayName || group.id).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>
+      <span class="groupTagMeta">${String(group.tenant || tenant).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>
+      <button type="button" class="groupTagRemove" data-group-id="${group.id}" title="Remove">×</button>
+    `;
+    wrap.appendChild(item);
+  }
+
+  list.innerHTML = "";
+  list.appendChild(wrap);
+}
+
+function updateOnboardingGroupsFromSelection(groups = []) {
+  const task = getCurrentTask();
+  if (!task) return;
+  task.entraGroups = groups
+    .map((group) => normalizeTaskGroup(group))
+    .filter((group) => group.id);
+  state.onboardingGroupSelectionTouched = true;
+  renderOnboardingGroups(task);
+}
+
+async function loadGroupPickerGroups() {
+  const tenant = normalizeTenantKey(state.groupPicker.selectedTenant || "");
+  const status = el("groupPickerStatus");
+  if (status) status.textContent = "Loading groups...";
+  state.groupPicker.loading = true;
+  const data = await api(`/tasks/meta/groups?tenant=${encodeURIComponent(tenant)}`);
+  state.groupPicker.groups = Array.isArray(data?.groups) ? data.groups : [];
+  state.groupPicker.loading = false;
+  renderGroupPickerList();
+  if (status) status.textContent = `${state.groupPicker.groups.length} groups loaded`;
+}
+
+function renderGroupPickerTenants() {
+  const select = el("groupPickerTenantSelect");
+  if (!select) return;
+  const tenants = Array.isArray(state.groupPicker.tenants) ? state.groupPicker.tenants : [];
+  select.innerHTML = "";
+  for (const tenant of tenants) {
+    const option = document.createElement("option");
+    option.value = tenant;
+    option.textContent = tenant;
+    option.selected = tenant === state.groupPicker.selectedTenant;
+    select.appendChild(option);
+  }
+  select.disabled = Boolean(state.groupPicker.tenantLocked);
+}
+
+function renderGroupPickerList() {
+  const list = el("groupPickerList");
+  if (!list) return;
+  const query = String(el("groupPickerSearch")?.value || "").trim().toLowerCase();
+  const selected = new Set((state.groupPicker.selected || []).map((group) => normalizeGroupId(group.id)));
+  const groups = (Array.isArray(state.groupPicker.groups) ? state.groupPicker.groups : []).filter((group) => {
+    if (!query) return true;
+    const hay = `${group.displayName || ""} ${group.id || ""}`.toLowerCase();
+    return hay.includes(query);
+  });
+
+  if (groups.length === 0) {
+    list.innerHTML = `<div class="managerEmpty">${query ? "No matching groups found." : "No groups found in tenant."}</div>`;
+    return;
+  }
+
+  list.innerHTML = "";
+  for (const group of groups) {
+    const row = document.createElement("label");
+    row.className = "checkTile offboardingCheckTile";
+    row.innerHTML = `
+      <input type="checkbox" class="groupPickerCheck" data-id="${group.id}" ${selected.has(group.id) ? "checked" : ""} />
+      <span class="checkMark" aria-hidden="true"></span>
+      <div>
+        <div class="checkText">${String(group.displayName || group.id).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+        <div class="assetMeta">${String(Number.isFinite(group.memberCount) ? `${group.memberCount} users` : "- users").replaceAll("<", "&lt;").replaceAll(">", "&gt;")} · ${String(group.id || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+      </div>
+    `;
+    list.appendChild(row);
+  }
+}
+
+function openGroupPickerModal({ title = "Choose Group", tenant = "", tenants = [], selected = [], tenantLocked = false, onApply }) {
+  state.groupPicker.context = title;
+  state.groupPicker.onApply = typeof onApply === "function" ? onApply : null;
+  state.groupPicker.selected = Array.isArray(selected) ? selected.map((group) => normalizeTaskGroup(group)).filter((group) => group.id) : [];
+  state.groupPicker.tenants = Array.isArray(tenants) ? tenants.map((x) => normalizeTenantKey(x)).filter(Boolean) : [];
+  state.groupPicker.selectedTenant = normalizeTenantKey(tenant || state.groupPicker.tenants[0] || "");
+  state.groupPicker.tenantLocked = Boolean(tenantLocked);
+  state.groupPicker.groups = [];
+
+  setTextValue("groupPickerModalTitle", title);
+  setInputValue("groupPickerSearch", "");
+  setTextValue("groupPickerStatus", "");
+  renderGroupPickerTenants();
+  el("groupPickerModal").classList.remove("hidden");
+  el("groupPickerModal").setAttribute("aria-hidden", "false");
+  loadGroupPickerGroups().catch((error) => {
+    state.groupPicker.loading = false;
+    setTextValue("groupPickerStatus", `Failed to load groups: ${error.message}`);
+    renderGroupPickerList();
+  });
+}
+
+function closeGroupPickerModal() {
+  el("groupPickerModal").classList.add("hidden");
+  el("groupPickerModal").setAttribute("aria-hidden", "true");
+  state.groupPicker.context = null;
+  state.groupPicker.onApply = null;
+}
+
 function fillRecipients(inputId, values) {
   el(inputId).value = Array.isArray(values) ? values.join(", ") : "";
 }
@@ -898,6 +1138,7 @@ function selectTask(id) {
   state.userEditedLicenseBody = false;
   state.userEditedAssetsSubject = false;
   state.userEditedAssetsBody = false;
+  state.onboardingGroupSelectionTouched = false;
 
   setTextValue("taskId", task.id);
   setInputValue("fullName", task.fullName || "");
@@ -932,6 +1173,7 @@ function selectTask(id) {
   setInputValue("assetsSubject", task.assetsMail?.subject || buildDefaultAssetsSubject());
   setInputValue("assetsBody", task.assetsMail?.body || buildDefaultAssetsBody());
   renderSelectedSnipeitAssets(task);
+  renderOnboardingGroups(task);
   refreshMailVisibilityAndPreview();
 }
 
@@ -943,6 +1185,17 @@ async function loadMeta() {
     }
     if (Array.isArray(data.companyCodes) && data.companyCodes.length > 0) {
       state.companyCodes = data.companyCodes;
+    }
+    if (Array.isArray(data.companyMatchers)) {
+      state.companyMatchers = data.companyMatchers.map((matcher) => ({
+        key: String(matcher.key || "").trim().toUpperCase(),
+        code: String(matcher.code || "").trim().toUpperCase(),
+        domain: String(matcher.domain || "").trim().toLowerCase(),
+        tenant: normalizeTenantKey(matcher.tenant || ""),
+        groups: Array.isArray(matcher.groups) ? matcher.groups.map((id) => normalizeGroupId(id)).filter(Boolean) : []
+      }));
+    } else {
+      state.companyMatchers = [];
     }
   } catch (error) {
     console.warn("Failed to load meta options", error);
@@ -1304,6 +1557,14 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
         <label class="companyTenantLabel">Tenant</label>
         <select class="companyMatcherTenant"></select>
       </div>
+      <div class="field">
+        <label class="companyGroupsLabel">Group By Default</label>
+        <div class="inlineRow">
+          <button type="button" class="ghost small companyMatcherChooseGroupsBtn">Choose Group</button>
+        </div>
+        <input class="companyMatcherGroups" type="hidden" />
+        <div class="companyMatcherGroupsList groupTagList"></div>
+      </div>
     </div>
     <div class="companyMatcherErrors hidden"></div>
   `;
@@ -1313,12 +1574,22 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
   const domainInput = card.querySelector(".companyMatcherDomain");
   const codeInput = card.querySelector(".companyMatcherCode");
   const tenantInput = card.querySelector(".companyMatcherTenant");
+  const groupsInput = card.querySelector(".companyMatcherGroups");
+  const groupsList = card.querySelector(".companyMatcherGroupsList");
+  const chooseGroupsBtn = card.querySelector(".companyMatcherChooseGroupsBtn");
   const deleteBtn = card.querySelector(".companyMatcherDeleteBtn");
 
   keyInput.value = String(entry.key || "");
   patternsInput.value = String(entry.patterns || "");
   domainInput.value = String(entry.domain || "");
   codeInput.value = String(entry.code || "");
+  const initialGroups = Array.isArray(entry.groups)
+    ? entry.groups.map((id) => normalizeGroupId(id)).filter(Boolean)
+    : String(entry.groups || "")
+        .split(",")
+        .map((id) => normalizeGroupId(id))
+        .filter(Boolean);
+  groupsInput.value = initialGroups.join(",");
   const normalizedTenants = (Array.isArray(tenantOptions) ? tenantOptions : [])
     .map((x) => normalizeTenantKey(x))
     .filter(Boolean);
@@ -1349,20 +1620,24 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
     const domainVar = matcherVarName(key, "DOMAIN");
     const codeVar = matcherVarName(key, "CODE");
     const tenantVar = matcherVarName(key, "TENANT");
+    const groupsVar = matcherVarName(key, "GROUPS");
     const keyLabel = card.querySelector(".companyKeyLabel");
     const patternsLabel = card.querySelector(".companyPatternsLabel");
     const domainLabel = card.querySelector(".companyDomainLabel");
     const codeLabel = card.querySelector(".companyCodeLabel");
     const tenantLabel = card.querySelector(".companyTenantLabel");
+    const groupsLabel = card.querySelector(".companyGroupsLabel");
     keyLabel.title = "COMPANY_MATCHER_KEYS";
     patternsLabel.title = patternsVar;
     domainLabel.title = domainVar;
     codeLabel.title = codeVar;
     tenantLabel.title = tenantVar;
+    groupsLabel.title = groupsVar;
     patternsInput.title = patternsVar;
     domainInput.title = domainVar;
     codeInput.title = codeVar;
     tenantInput.title = tenantVar;
+    groupsInput.title = groupsVar;
   };
 
   keyInput.addEventListener("input", () => {
@@ -1370,6 +1645,60 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
     syncTooltips();
   });
   syncTooltips();
+
+  const parseStoredGroupIds = () =>
+    String(groupsInput.value || "")
+      .split(",")
+      .map((id) => normalizeGroupId(id))
+      .filter(Boolean);
+
+  const renderGroups = () => {
+    const ids = parseStoredGroupIds();
+    groupsList.innerHTML = "";
+    if (ids.length === 0) {
+      groupsList.innerHTML = `<span class="metaSmall">No default groups</span>`;
+      return;
+    }
+    for (const id of ids) {
+      const tag = document.createElement("div");
+      tag.className = "groupTag";
+      tag.innerHTML = `
+        <span class="groupTagName">${id.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>
+        <button type="button" class="groupTagRemove" data-group-id="${id}" title="Remove">×</button>
+      `;
+      groupsList.appendChild(tag);
+    }
+  };
+  renderGroups();
+
+  groupsList.addEventListener("click", (event) => {
+    const button = event.target.closest(".groupTagRemove");
+    if (!button) return;
+    const groupId = normalizeGroupId(button.getAttribute("data-group-id"));
+    const next = parseStoredGroupIds().filter((id) => id !== groupId);
+    groupsInput.value = next.join(",");
+    renderGroups();
+  });
+
+  chooseGroupsBtn.addEventListener("click", () => {
+    const tenants = normalizedTenants.length > 0 ? normalizedTenants : [normalizeTenantKey(tenantInput.value)].filter(Boolean);
+    const tenant = normalizeTenantKey(tenantInput.value || tenants[0] || "");
+    if (!tenant) {
+      const status = el("settingsStatus");
+      if (status) status.textContent = "Select tenant first for this company";
+      return;
+    }
+    openGroupPickerModal({
+      title: "Choose Group By Default",
+      tenant,
+      tenants,
+      selected: parseStoredGroupIds().map((id) => ({ id, tenant })),
+      onApply: ({ selected }) => {
+        groupsInput.value = selected.map((group) => normalizeGroupId(group.id)).filter(Boolean).join(",");
+        renderGroups();
+      }
+    });
+  });
 
   deleteBtn.addEventListener("click", () => {
     const key = normalizeCompanyMatcherKey(keyInput.value) || "this company";
@@ -1410,12 +1739,14 @@ function readCompanyMatcherEntries() {
     const domain = card.querySelector(".companyMatcherDomain").value.trim();
     const code = card.querySelector(".companyMatcherCode").value.trim();
     const tenant = card.querySelector(".companyMatcherTenant").value.trim();
-    return { key, patterns, domain, code, tenant, _index: index, _card: card };
+    const groups = card.querySelector(".companyMatcherGroups").value.trim();
+    return { key, patterns, domain, code, tenant, groups, _index: index, _card: card };
   });
 }
 
 function setCompanyMatcherErrors(entries, tenantOptions = []) {
   const tenantSet = new Set((Array.isArray(tenantOptions) ? tenantOptions : []).map((x) => normalizeTenantKey(x)).filter(Boolean));
+  const isValidGroupId = (value) => /^[0-9a-fA-F-]{32,36}$/.test(String(value || "").trim());
   for (const row of entries) {
     const box = row._card.querySelector(".companyMatcherErrors");
     const errors = [];
@@ -1435,6 +1766,14 @@ function setCompanyMatcherErrors(entries, tenantOptions = []) {
       errors.push("Tenant is required.");
     } else if (tenantSet.size > 0 && !tenantSet.has(tenant)) {
       errors.push("Tenant must exist in TENANTS.");
+    }
+    const groups = String(row.groups || "")
+      .split(",")
+      .map((x) => normalizeGroupId(x))
+      .filter(Boolean);
+    const invalidGroup = groups.find((groupId) => !isValidGroupId(groupId));
+    if (invalidGroup) {
+      errors.push(`Group ID is invalid: ${invalidGroup}`);
     }
 
     if (errors.length > 0) {
@@ -1503,7 +1842,11 @@ function readSettingsForm() {
         .join(","),
       domain: row.domain.trim().toLowerCase(),
       code: row.code.trim(),
-      tenant: normalizeTenantKey(row.tenant)
+      tenant: normalizeTenantKey(row.tenant),
+      groups: String(row.groups || "")
+        .split(",")
+        .map((id) => normalizeGroupId(id))
+        .filter(Boolean)
     })),
     _companyMatcherMeta: companyMatcher
   };
@@ -1631,7 +1974,12 @@ function buildPatchPayload() {
       subject: el("assetsSubject").value,
       body: el("assetsBody").value
     },
-    snipeitAssets: selectedSnipeitAssets
+    snipeitAssets: selectedSnipeitAssets,
+    entraGroups: getTaskGroups().map((group) => ({
+      id: group.id,
+      displayName: group.displayName,
+      tenant: group.tenant
+    }))
   };
   return payload;
 }
@@ -1730,6 +2078,44 @@ function setupActions() {
   const managerModalOverlay = el("managerModalOverlay");
   if (managerModalOverlay) {
     managerModalOverlay.onclick = () => closeManagerModal();
+  }
+
+  const chooseOnboardingGroupBtn = el("chooseOnboardingGroupBtn");
+  if (chooseOnboardingGroupBtn) {
+    chooseOnboardingGroupBtn.onclick = () => {
+      const task = getCurrentTask();
+      if (!task) return;
+      const tenant = getOnboardingTenantForGroups(task);
+      if (!tenant) {
+        el("status").textContent = "Unable to resolve tenant for current user";
+        return;
+      }
+      openGroupPickerModal({
+        title: "Choose Group",
+        tenant,
+        tenants: [tenant],
+        selected: getTaskGroups(task),
+        tenantLocked: true,
+        onApply: ({ selected }) => {
+          updateOnboardingGroupsFromSelection(
+            selected.map((group) => ({ ...group, tenant }))
+          );
+        }
+      });
+    };
+  }
+
+  const onboardingGroupsList = el("onboardingGroupsList");
+  if (onboardingGroupsList) {
+    onboardingGroupsList.addEventListener("click", (event) => {
+      const button = event.target.closest(".groupTagRemove");
+      if (!button) return;
+      const groupId = normalizeGroupId(button.getAttribute("data-group-id"));
+      const task = getCurrentTask();
+      if (!task) return;
+      const next = getTaskGroups(task).filter((group) => group.id !== groupId);
+      updateOnboardingGroupsFromSelection(next);
+    });
   }
 
   const tabOnboardingBtn = el("tabOnboardingBtn");
@@ -1940,6 +2326,86 @@ function setupActions() {
     });
   }
 
+  const groupPickerModalClose = el("groupPickerModalClose");
+  if (groupPickerModalClose) {
+    groupPickerModalClose.onclick = () => closeGroupPickerModal();
+  }
+
+  const groupPickerModalOverlay = el("groupPickerModalOverlay");
+  if (groupPickerModalOverlay) {
+    groupPickerModalOverlay.onclick = () => closeGroupPickerModal();
+  }
+
+  const groupPickerCancelBtn = el("groupPickerCancelBtn");
+  if (groupPickerCancelBtn) {
+    groupPickerCancelBtn.onclick = () => closeGroupPickerModal();
+  }
+
+  const groupPickerTenantSelect = el("groupPickerTenantSelect");
+  if (groupPickerTenantSelect) {
+    groupPickerTenantSelect.addEventListener("change", () => {
+      state.groupPicker.selectedTenant = normalizeTenantKey(groupPickerTenantSelect.value);
+      loadGroupPickerGroups().catch((error) => {
+        setTextValue("groupPickerStatus", `Failed to load groups: ${error.message}`);
+      });
+    });
+  }
+
+  const groupPickerSearch = el("groupPickerSearch");
+  if (groupPickerSearch) {
+    groupPickerSearch.addEventListener("input", () => renderGroupPickerList());
+  }
+
+  const groupPickerList = el("groupPickerList");
+  if (groupPickerList) {
+    groupPickerList.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.classList.contains("groupPickerCheck")) return;
+      const id = normalizeGroupId(target.getAttribute("data-id"));
+      const existing = Array.isArray(state.groupPicker.selected) ? state.groupPicker.selected : [];
+      if (target.checked) {
+        if (!existing.some((group) => group.id === id)) {
+          existing.push({ id, tenant: state.groupPicker.selectedTenant, displayName: "" });
+        }
+      } else {
+        state.groupPicker.selected = existing.filter((group) => group.id !== id);
+        return;
+      }
+      state.groupPicker.selected = existing;
+    });
+  }
+
+  const groupPickerApplyBtn = el("groupPickerApplyBtn");
+  if (groupPickerApplyBtn) {
+    groupPickerApplyBtn.onclick = () => {
+      const selectedIds = new Set((state.groupPicker.selected || []).map((group) => group.id));
+      const selectedFromLoaded = (state.groupPicker.groups || [])
+        .filter((group) => selectedIds.has(group.id))
+        .map((group) => ({
+          id: normalizeGroupId(group.id),
+          displayName: String(group.displayName || "").trim(),
+          tenant: state.groupPicker.selectedTenant
+        }));
+      const loadedIds = new Set(selectedFromLoaded.map((group) => group.id));
+      const selectedFallback = (state.groupPicker.selected || [])
+        .filter((group) => selectedIds.has(group.id) && !loadedIds.has(group.id))
+        .map((group) => ({
+          id: normalizeGroupId(group.id),
+          displayName: String(group.displayName || "").trim(),
+          tenant: normalizeTenantKey(group.tenant || state.groupPicker.selectedTenant)
+        }));
+      const selectedGroups = [...selectedFromLoaded, ...selectedFallback];
+      if (typeof state.groupPicker.onApply === "function") {
+        state.groupPicker.onApply({
+          selected: selectedGroups,
+          tenant: state.groupPicker.selectedTenant
+        });
+      }
+      closeGroupPickerModal();
+    };
+  }
+
   const chooseLaptopBtn = el("chooseLaptopBtn");
   if (chooseLaptopBtn) {
     chooseLaptopBtn.onclick = async () => {
@@ -2073,13 +2539,26 @@ function setupActions() {
           patterns: "",
           domain: "",
           code: "",
-          tenant: tenants[0] || ""
+          tenant: tenants[0] || "",
+          groups: []
         }, tenants)
       );
     };
   }
 
-  el("companyDomain").addEventListener("change", updateEmailFromDomain);
+  el("companyDomain").addEventListener("change", () => {
+    updateEmailFromDomain();
+    state.onboardingGroupSelectionTouched = false;
+    renderOnboardingGroups(getCurrentTask());
+  });
+  el("company").addEventListener("change", () => {
+    state.onboardingGroupSelectionTouched = false;
+    renderOnboardingGroups(getCurrentTask());
+  });
+  el("email").addEventListener("input", () => {
+    state.onboardingGroupSelectionTouched = false;
+    renderOnboardingGroups(getCurrentTask());
+  });
 
   el("saveBtn").onclick = async () => {
     try {

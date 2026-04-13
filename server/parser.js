@@ -225,9 +225,32 @@ function buildCompanyMatchers() {
       patterns: parseEnvList(process.env[`COMPANY_MATCHER_${key}_PATTERNS`]),
       domain: String(process.env[`COMPANY_MATCHER_${key}_DOMAIN`] || "").trim() || "ei-g.com",
       code: normalizeCompanyCodeValue(process.env[`COMPANY_MATCHER_${key}_CODE`] || key) || key,
-      tenant: normalizeTenantKey(process.env[`COMPANY_MATCHER_${key}_TENANT`] || defaultTenant)
+      tenant: normalizeTenantKey(process.env[`COMPANY_MATCHER_${key}_TENANT`] || defaultTenant),
+      groups: String(process.env[`COMPANY_MATCHER_${key}_GROUPS`] || "")
+        .split(",")
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
     }))
     .filter((matcher) => matcher.patterns.length > 0 || matcher.domain);
+}
+
+function findCompanyMatcherByHints({ companyCode = "", companyDomain = "", email = "" } = {}) {
+  const matchers = buildCompanyMatchers();
+  if (matchers.length === 0) return null;
+
+  const normalizedCode = normalizeCompanyCodeValue(companyCode);
+  if (normalizedCode) {
+    const byCode = matchers.find((matcher) => normalizeCompanyCodeValue(matcher.code) === normalizedCode);
+    if (byCode) return byCode;
+  }
+
+  const domainCandidate = String(companyDomain || "").trim().toLowerCase() || extractDomainFromEmail(email);
+  if (domainCandidate) {
+    const byDomain = pickBestMatcher(matchers, (matcher) => evaluateMatcherScoreByDomain(domainCandidate, matcher));
+    if (byDomain?.matcher) return byDomain.matcher;
+  }
+
+  return null;
 }
 
 function evaluateMatcherScore(input, matcher) {
@@ -538,6 +561,8 @@ module.exports = {
   inferDomain,
   inferCompanyCode,
   resolveTenantKeyByEmail,
+  findCompanyMatcherByHints,
   getCompanyMatcherOptions,
+  buildCompanyMatchers,
   generateEmail
 };

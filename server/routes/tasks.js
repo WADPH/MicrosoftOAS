@@ -9,7 +9,7 @@ const {
   DOMAIN_OPTIONS,
   COMPANY_CODE_OPTIONS
 } = require("../services/taskStore");
-const { getCompanyMatcherOptions, resolveTenantKeyByEmail } = require("../parser");
+const { getCompanyMatcherOptions, resolveTenantKeyByEmail, buildCompanyMatchers, findCompanyMatcherByHints } = require("../parser");
 const {
   getUserByEmail,
   createUser,
@@ -20,7 +20,10 @@ const {
   assignLicenseWithRetry,
   waitForUserProvisioning,
   listUsers,
-  assignManager
+  assignManager,
+  listGroups,
+  getGroupById,
+  addUserToGroup
 } = require("../services/graph");
 const { sendLicenseRequestMail, sendAssetsMail } = require("../services/mail");
 const { isEnabled } = require("../services/snipeit.service");
@@ -110,9 +113,17 @@ router.post("/new", (req, res) => {
 
 router.get("/meta/options", (req, res) => {
   const options = getCompanyMatcherOptions();
+  const companyMatchers = buildCompanyMatchers().map((matcher) => ({
+    key: matcher.key,
+    code: matcher.code,
+    domain: matcher.domain,
+    tenant: matcher.tenant,
+    groups: Array.isArray(matcher.groups) ? matcher.groups : []
+  }));
   return res.json({
     companyDomains: options.domains,
-    companyCodes: options.codes
+    companyCodes: options.codes,
+    companyMatchers
   });
 });
 
@@ -141,6 +152,27 @@ router.get("/meta/users", async (req, res) => {
   } catch (error) {
     console.error("[meta] users lookup failed", error.message);
     return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+router.get("/meta/groups", async (req, res) => {
+  try {
+    const tenant = String(req.query.tenant || "").trim();
+    if (!tenant) {
+      return res.status(400).json({ ok: false, error: "tenant is required" });
+    }
+    const groups = await listGroups(String(req.query.search || ""), 200, tenant);
+    return res.json({
+      ok: true,
+      groups: groups.map((group) => ({
+        id: group.id,
+        displayName: group.displayName,
+        memberCount: Number.isFinite(group.memberCount) ? group.memberCount : null
+      }))
+    });
+  } catch (error) {
+    console.error("[meta] groups lookup failed", error.message);
+    return res.status(500).json({ ok: false, error: error.message || "Failed to load groups" });
   }
 });
 
@@ -206,7 +238,8 @@ router.patch("/:id", (req, res) => {
     "fullName",
     "licenseMail",
     "assetsMail",
-    "snipeitAssets"
+    "snipeitAssets",
+    "entraGroups"
   ];
   const updates = {};
 
@@ -223,6 +256,18 @@ router.patch("/:id", (req, res) => {
       const status = Number(error.status || 400);
       return res.status(status).json({ error: error.message || "Invalid snipeitAssets" });
     }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "entraGroups")) {
+    if (!Array.isArray(updates.entraGroups)) {
+      return res.status(400).json({ error: "entraGroups must be an array" });
+    }
+    updates.entraGroups = updates.entraGroups
+      .map((group) => ({
+        id: String(group?.id || group || "").trim(),
+        displayName: String(group?.displayName || "").trim(),
+        tenant: String(group?.tenant || "").trim().toUpperCase()
+      }))
+      .filter((group) => group.id);
   }
 
   const updated = updateTaskById(req.params.id, updates);
@@ -337,6 +382,58 @@ router.post("/:id/approve", async (req, res) => {
     }
 
     task = getTaskById(existingTask.id) || task;
+
+    try {
+      const userObjectId = String(user?.id || "").trim();
+      const selectedGroups = Array.isArray(task.entraGroups) ? task.entraGroups : [];
+      const matcherDefaults = findCompanyMatcherByHints({
+        companyCode: task.companyCode,
+        companyDomain: task.companyDomain,
+        email: task.email
+      });
+      const defaultGroupIds = Array.isArray(matcherDefaults?.groups) ? matcherDefaults.groups : [];
+      const groupsToAssign = selectedGroups.length > 0
+        ? selectedGroups.map((group) => String(group.id || "").trim()).filter(Boolean)
+        : defaultGroupIds;
+
+      if (!userObjectId || groupsToAssign.length === 0) {
+        steps.push({ step: "groups", action: groupsToAssign.length > 0 ? "skipped_no_user_id" : "skipped_no_groups", success: true });
+      } else {
+        const uniqueGroupIds = [...new Set(groupsToAssign)];
+        const groupResults = [];
+        for (const groupId of uniqueGroupIds) {
+          try {
+            const group = await getGroupById(groupId, tenantKey);
+            if (!group?.id) {
+              console.warn(`[approve] Group not found in tenant ${tenantKey}: ${groupId}`);
+              groupResults.push({ groupId, status: "not_found" });
+              continue;
+            }
+            await addUserToGroup(groupId, userObjectId, tenantKey);
+            console.log(`[approve] User ${task.email} added to group ${groupId}`);
+            groupResults.push({ groupId, status: "added" });
+          } catch (groupError) {
+            const message = String(groupError?.message || "");
+            if (message.includes("added object references already exist")) {
+              console.log(`[approve] User already in group ${groupId}`);
+              groupResults.push({ groupId, status: "already_member" });
+              continue;
+            }
+            console.error(`[approve] Failed to add user to group ${groupId}: ${message}`);
+            groupResults.push({ groupId, status: "failed", error: message });
+          }
+        }
+        steps.push({ step: "groups", action: "assign", success: true, groups: groupResults });
+      }
+    } catch (groupStepError) {
+      console.error("[approve] Group step failed", groupStepError);
+      steps.push({
+        step: "groups",
+        action: "failed_non_blocking",
+        success: false,
+        error: groupStepError.message || "unknown group error"
+      });
+    }
 
     try {
       const hasAnyAsset = Object.values(task.assets || {}).some((x) => Boolean(x));

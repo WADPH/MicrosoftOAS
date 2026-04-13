@@ -174,6 +174,15 @@ function normalizeTask(task = {}) {
           }))
           .filter((asset) => Number.isFinite(asset.id) && asset.asset_tag)
       : [],
+    entraGroups: Array.isArray(task.entraGroups)
+      ? task.entraGroups
+          .map((group) => ({
+            id: String(group?.id || group || "").trim(),
+            displayName: String(group?.displayName || "").trim(),
+            tenant: String(group?.tenant || "").trim().toUpperCase()
+          }))
+          .filter((group) => group.id)
+      : [],
     offboarding: normalizeOffboardingPayload(task.offboarding),
     createdAt: task.createdAt || new Date().toISOString()
   };

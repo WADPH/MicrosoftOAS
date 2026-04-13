@@ -92,6 +92,26 @@ async function graphRequest(method, path, body, tenantKey) {
   });
 }
 
+async function graphTextRequest(method, path, tenantKey, headers = {}) {
+  return withRetry(async () => {
+    const token = await getAccessToken(tenantKey);
+    const response = await fetch(`${GRAPH_BASE_URL}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...headers
+      }
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      const error = new Error(`Graph request failed ${method} ${path}: ${response.status} ${errText}`);
+      error.status = response.status;
+      throw error;
+    }
+    return response.text();
+  });
+}
+
 async function getUserByEmail(email, tenantKey) {
   try {
     return await graphRequest("GET", `/users/${encodeURIComponent(email)}`, undefined, tenantKey);
@@ -301,6 +321,81 @@ async function assignLicenseWithRetry(email, skuId, attempts = 5, tenantKey) {
   throw lastError;
 }
 
+async function getGroupById(groupId, tenantKey) {
+  const id = String(groupId || "").trim();
+  if (!id) return null;
+  try {
+    return await graphRequest("GET", `/groups/${encodeURIComponent(id)}?$select=id,displayName`, undefined, tenantKey);
+  } catch (error) {
+    if (error.status === 404) return null;
+    throw error;
+  }
+}
+
+async function getGroupMemberCount(groupId, tenantKey) {
+  const id = String(groupId || "").trim();
+  if (!id) return 0;
+  const raw = await graphTextRequest(
+    "GET",
+    `/groups/${encodeURIComponent(id)}/members/$count`,
+    tenantKey,
+    { ConsistencyLevel: "eventual" }
+  );
+  const count = Number(String(raw || "").trim());
+  return Number.isFinite(count) ? count : 0;
+}
+
+async function listGroups(search = "", limit = 200, tenantKey) {
+  const normalized = String(search || "").trim().replace(/'/g, "''");
+  const cappedLimit = Math.min(Math.max(Number(limit) || 1, 1), 300);
+  const query = [`$select=id,displayName`, `$top=${cappedLimit}`];
+  if (normalized) {
+    query.push(`$filter=${encodeURIComponent(`startswith(displayName,'${normalized}')`)}`);
+  }
+  const path = `/groups?${query.join("&")}`;
+  const result = await graphRequest("GET", path, undefined, tenantKey);
+  const groups = Array.isArray(result?.value) ? result.value : [];
+
+  const enriched = await Promise.all(
+    groups.map(async (group) => {
+      const id = String(group.id || "").trim();
+      let memberCount = null;
+      if (id) {
+        try {
+          memberCount = await getGroupMemberCount(id, tenantKey);
+        } catch {
+          memberCount = null;
+        }
+      }
+      return {
+        id,
+        displayName: String(group.displayName || "").trim(),
+        memberCount
+      };
+    })
+  );
+
+  return enriched.filter((group) => group.id);
+}
+
+async function addUserToGroup(groupId, userId, tenantKey) {
+  const gid = String(groupId || "").trim();
+  const uid = String(userId || "").trim();
+  if (!gid || !uid) {
+    const error = new Error("groupId and userId are required");
+    error.status = 400;
+    throw error;
+  }
+  return graphRequest(
+    "POST",
+    `/groups/${encodeURIComponent(gid)}/members/$ref`,
+    {
+      "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${uid}`
+    },
+    tenantKey
+  );
+}
+
 async function deleteUserById(userId, tenantKey) {
   if (!String(userId || "").trim()) {
     const error = new Error("userId is required");
@@ -325,6 +420,9 @@ module.exports = {
   hasAvailableSeats,
   assignLicense,
   assignLicenseWithRetry,
+  getGroupById,
+  listGroups,
+  addUserToGroup,
   deleteUserById,
   graphRequest
 };
