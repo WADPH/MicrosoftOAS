@@ -283,6 +283,42 @@
               <div id="offboardingAccountsList" class="snipeitAssetList"></div>
             </div>
 
+            <div id="offboardingLicenseCancelSection" class="sectionCard hidden">
+              <div class="sectionHeader">
+                <h3>License Cancellation Request</h3>
+                <p class="metaSmall">Automatically notify to cancel Microsoft Business Premium renewal</p>
+              </div>
+
+              <div class="field">
+                <label class="switch">
+                  <input id="offboardingLicenseCancelEnabled" type="checkbox" checked />
+                  <span class="switchTrack" aria-hidden="true"><span class="switchThumb"></span></span>
+                  <span class="switchText">Send cancellation email</span>
+                </label>
+              </div>
+
+              <div id="offboardingLicenseCancelMailFields">
+                <div class="grid2">
+                  <div class="field">
+                    <label for="offboardingLicenseTo">Email To (comma separated)</label>
+                    <input id="offboardingLicenseTo" type="text" />
+                  </div>
+                  <div class="field">
+                    <label for="offboardingLicenseCc">Email CC (comma separated)</label>
+                    <input id="offboardingLicenseCc" type="text" />
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="offboardingLicenseSubject">Subject</label>
+                  <input id="offboardingLicenseSubject" type="text" />
+                </div>
+                <div class="field">
+                  <label for="offboardingLicenseBody">Body</label>
+                  <textarea id="offboardingLicenseBody" rows="4"></textarea>
+                </div>
+              </div>
+            </div>
+
             <div id="offboardingSnipeitSection" class="sectionCard hidden">
               <div class="sectionHeader">
                 <h3>SnipeIT Assets</h3>

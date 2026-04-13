@@ -88,6 +88,17 @@ function normalizeOffboardingPayload(value = {}) {
     tenant: String(value.tenant || "").trim().toUpperCase(),
     email: String(value.email || user.userPrincipalName || user.mail || "").trim().toLowerCase(),
     deleteUser: value.deleteUser !== false,
+    sendLicenseCancelEmail: value.sendLicenseCancelEmail !== false,
+    licenseCancelMail: {
+      to: Array.isArray(value.licenseCancelMail?.to)
+        ? value.licenseCancelMail.to.map((x) => String(x || "").trim()).filter(Boolean)
+        : [],
+      cc: Array.isArray(value.licenseCancelMail?.cc)
+        ? value.licenseCancelMail.cc.map((x) => String(x || "").trim()).filter(Boolean)
+        : [],
+      subject: String(value.licenseCancelMail?.subject || "").trim(),
+      body: String(value.licenseCancelMail?.body || "")
+    },
     user: {
       id: String(user.id || "").trim(),
       tenant: String(user.tenant || value.tenant || "").trim().toUpperCase(),

@@ -26,11 +26,24 @@ const state = {
   offboarding: {
     tenants: [],
     selectedTenant: "",
+    licenseDefaults: {
+      to: [],
+      cc: []
+    },
     selectedUser: null,
     userCandidates: [],
     relatedAccounts: [],
     snipeitAssets: [],
-    deleteUser: true
+    deleteUser: true,
+    sendLicenseCancelEmail: true,
+    licenseCancelMail: {
+      to: [],
+      cc: [],
+      subject: "",
+      body: ""
+    },
+    userEditedLicenseSubject: false,
+    userEditedLicenseBody: false
   }
 };
 
@@ -243,6 +256,10 @@ function parseRecipients(value) {
     .filter(Boolean);
 }
 
+function joinRecipients(value) {
+  return Array.isArray(value) ? value.join(", ") : "";
+}
+
 function getAssetSentence() {
   const selected = [];
   if (el("assetLaptop").checked) selected.push("laptop");
@@ -343,6 +360,7 @@ function renderOffboardingAccounts() {
     `;
     list.appendChild(row);
   }
+  refreshOffboardingLicenseCancelVisibility();
   updateOffboardingPreview();
 }
 
@@ -396,8 +414,46 @@ function updateOffboardingPreview() {
   }
   box.innerHTML = `
     <div class="assetTag">${String(user.userPrincipalName || user.mail || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
-    <div class="assetMeta">Delete accounts: ${deleteUser ? accountCount : 0} | Checkin assets: ${assetCount}</div>
+    <div class="assetMeta">Delete accounts: ${deleteUser ? accountCount : 0} | Checkin assets: ${assetCount} | License email: ${state.offboarding.sendLicenseCancelEmail ? "on" : "off"}</div>
   `;
+}
+
+function buildDefaultOffboardingLicenseSubject() {
+  const tenant = String(state.offboarding.selectedTenant || "").trim().toUpperCase();
+  return `License cancel for ${tenant}`;
+}
+
+function buildDefaultOffboardingLicenseBody() {
+  const tenant = String(state.offboarding.selectedTenant || "").trim().toUpperCase();
+  return `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license for the tenant ${tenant}.\n\nBest regards,\nIT Team`;
+}
+
+function refreshOffboardingLicenseCancelVisibility() {
+  const section = el("offboardingLicenseCancelSection");
+  if (!section) return;
+  const deleteUserChecked = Boolean(el("offboardingDeleteUser")?.checked);
+  const selectedAccounts = state.offboarding.relatedAccounts.filter((row) => row.selected).length;
+  const show = deleteUserChecked && selectedAccounts > 0;
+  section.classList.toggle("hidden", !show);
+
+  const enabled = Boolean(el("offboardingLicenseCancelEnabled")?.checked);
+  const fields = el("offboardingLicenseCancelMailFields");
+  if (fields) fields.classList.toggle("hidden", !enabled);
+}
+
+function fillOffboardingLicenseCancelMailFromState() {
+  setCheckbox("offboardingLicenseCancelEnabled", state.offboarding.sendLicenseCancelEmail);
+  setInputValue("offboardingLicenseTo", joinRecipients(state.offboarding.licenseCancelMail.to));
+  setInputValue("offboardingLicenseCc", joinRecipients(state.offboarding.licenseCancelMail.cc));
+  if (!state.offboarding.userEditedLicenseSubject) {
+    state.offboarding.licenseCancelMail.subject = buildDefaultOffboardingLicenseSubject();
+  }
+  if (!state.offboarding.userEditedLicenseBody) {
+    state.offboarding.licenseCancelMail.body = buildDefaultOffboardingLicenseBody();
+  }
+  setInputValue("offboardingLicenseSubject", state.offboarding.licenseCancelMail.subject || buildDefaultOffboardingLicenseSubject());
+  setInputValue("offboardingLicenseBody", state.offboarding.licenseCancelMail.body || buildDefaultOffboardingLicenseBody());
+  refreshOffboardingLicenseCancelVisibility();
 }
 
 function resetOffboardingState() {
@@ -406,10 +462,20 @@ function resetOffboardingState() {
   state.offboarding.relatedAccounts = [];
   state.offboarding.snipeitAssets = [];
   state.offboarding.deleteUser = true;
+  state.offboarding.sendLicenseCancelEmail = true;
+  state.offboarding.userEditedLicenseSubject = false;
+  state.offboarding.userEditedLicenseBody = false;
+  state.offboarding.licenseCancelMail = {
+    to: [...state.offboarding.licenseDefaults.to],
+    cc: [...state.offboarding.licenseDefaults.cc],
+    subject: buildDefaultOffboardingLicenseSubject(),
+    body: buildDefaultOffboardingLicenseBody()
+  };
   if (el("offboardingDeleteUser")) el("offboardingDeleteUser").checked = true;
   renderOffboardingSelectedUser();
   renderOffboardingAccounts();
   renderOffboardingAssets();
+  fillOffboardingLicenseCancelMailFromState();
   el("offboardingStatus").textContent = "";
   renderCurrentTaskList();
 }
@@ -430,6 +496,15 @@ function selectOffboardingTask(id) {
   state.offboarding.selectedUser = payload.user || null;
   state.offboarding.deleteUser = payload.deleteUser !== false;
   if (el("offboardingDeleteUser")) el("offboardingDeleteUser").checked = state.offboarding.deleteUser;
+  state.offboarding.sendLicenseCancelEmail = payload.sendLicenseCancelEmail !== false;
+  state.offboarding.userEditedLicenseSubject = true;
+  state.offboarding.userEditedLicenseBody = true;
+  state.offboarding.licenseCancelMail = {
+    to: Array.isArray(payload.licenseCancelMail?.to) ? payload.licenseCancelMail.to : [...state.offboarding.licenseDefaults.to],
+    cc: Array.isArray(payload.licenseCancelMail?.cc) ? payload.licenseCancelMail.cc : [...state.offboarding.licenseDefaults.cc],
+    subject: String(payload.licenseCancelMail?.subject || buildDefaultOffboardingLicenseSubject()),
+    body: String(payload.licenseCancelMail?.body || buildDefaultOffboardingLicenseBody())
+  };
   state.offboarding.relatedAccounts = Array.isArray(payload.accountsToDelete)
     ? payload.accountsToDelete.map((row) => ({ ...row, selected: true }))
     : [];
@@ -440,6 +515,7 @@ function selectOffboardingTask(id) {
   renderOffboardingSelectedUser();
   renderOffboardingAccounts();
   renderOffboardingAssets();
+  fillOffboardingLicenseCancelMailFromState();
   el("offboardingStatus").textContent = `Loaded offboarding task ${task.id}`;
 }
 
@@ -447,7 +523,18 @@ async function loadOffboardingMeta() {
   const data = await api("/offboarding/meta");
   state.offboarding.tenants = Array.isArray(data?.tenants) ? data.tenants : [];
   state.offboarding.selectedTenant = state.offboarding.tenants[0] || "";
+  state.offboarding.licenseDefaults = {
+    to: Array.isArray(data?.licenseCancelDefaults?.to) ? data.licenseCancelDefaults.to : [],
+    cc: Array.isArray(data?.licenseCancelDefaults?.cc) ? data.licenseCancelDefaults.cc : []
+  };
+  state.offboarding.licenseCancelMail = {
+    to: [...state.offboarding.licenseDefaults.to],
+    cc: [...state.offboarding.licenseDefaults.cc],
+    subject: buildDefaultOffboardingLicenseSubject(),
+    body: buildDefaultOffboardingLicenseBody()
+  };
   renderOffboardingTenantOptions();
+  fillOffboardingLicenseCancelMailFromState();
   return data;
 }
 
@@ -476,6 +563,14 @@ async function loadOffboardingUsers(search = "") {
     `;
     button.onclick = () => {
       state.offboarding.selectedUser = user;
+      state.offboarding.userEditedLicenseSubject = false;
+      state.offboarding.userEditedLicenseBody = false;
+      state.offboarding.licenseCancelMail = {
+        to: [...state.offboarding.licenseDefaults.to],
+        cc: [...state.offboarding.licenseDefaults.cc],
+        subject: buildDefaultOffboardingLicenseSubject(),
+        body: buildDefaultOffboardingLicenseBody()
+      };
       closeOffboardingUserModal();
       loadOffboardingAccountAndAssets().catch((error) => {
         el("offboardingStatus").textContent = `Failed to load related data: ${error.message}`;
@@ -510,6 +605,7 @@ async function loadOffboardingAccountAndAssets() {
     state.offboarding.snipeitAssets = [];
   }
   renderOffboardingAssets();
+  fillOffboardingLicenseCancelMailFromState();
 }
 
 function openOffboardingUserModal() {
@@ -547,6 +643,14 @@ function buildOffboardingPayload(validateForExecute = false) {
   if (validateForExecute && deleteUser && accountsToDelete.length === 0) {
     throw new Error("Select at least one account to delete");
   }
+  const sendLicenseCancelEmail = Boolean(el("offboardingLicenseCancelEnabled")?.checked);
+  const licenseTo = parseRecipients(el("offboardingLicenseTo")?.value || "");
+  const licenseCc = parseRecipients(el("offboardingLicenseCc")?.value || "");
+  const licenseSubject = String(el("offboardingLicenseSubject")?.value || "").trim();
+  const licenseBody = String(el("offboardingLicenseBody")?.value || "");
+  if (sendLicenseCancelEmail && licenseTo.length === 0) {
+    throw new Error("Email To is required for license cancellation request");
+  }
 
   return {
     taskId: state.offboardingSelectedId || undefined,
@@ -554,6 +658,13 @@ function buildOffboardingPayload(validateForExecute = false) {
     user,
     email: user.userPrincipalName || user.mail,
     deleteUser,
+    sendLicenseCancelEmail,
+    licenseCancelMail: {
+      to: licenseTo,
+      cc: licenseCc,
+      subject: licenseSubject || buildDefaultOffboardingLicenseSubject(),
+      body: licenseBody || buildDefaultOffboardingLicenseBody()
+    },
     accountsToDelete,
     assetsToCheckin
   };
@@ -601,7 +712,7 @@ function buildDefaultLicenseSubject() {
 }
 
 function buildDefaultLicenseBody() {
-  return `Hello,\nWe need 1 Microsoft Business Premium licence with monthly payment on ${el("company").value.trim() || "not specified"} balance.`;
+  return `Hello,\nWe need 1 Microsoft Business Premium licence with monthly payment on ${el("company").value.trim() || "not specified"} balance.\n\nBest regards,\nIT Team`;
 }
 
 function buildDefaultAssetsSubject() {
@@ -609,7 +720,7 @@ function buildDefaultAssetsSubject() {
 }
 
 function buildDefaultAssetsBody() {
-  return `Hello,\nWe need ${getAssetSentence()} for our new employee ${el("fullName").value.trim() || "not specified"}. From ${el("company").value.trim() || "not specified"} balance.`;
+  return `Hello,\nWe need ${getAssetSentence()} for our new employee ${el("fullName").value.trim() || "not specified"}. From ${el("company").value.trim() || "not specified"} balance.\n\nBest regards,\nIT Team`;
 }
 
 function refreshMailVisibilityAndPreview() {
@@ -1677,6 +1788,7 @@ function setupActions() {
   if (offboardingDeleteUser) {
     offboardingDeleteUser.addEventListener("change", () => {
       state.offboarding.deleteUser = offboardingDeleteUser.checked;
+      refreshOffboardingLicenseCancelVisibility();
       updateOffboardingPreview();
     });
   }
@@ -1691,6 +1803,7 @@ function setupActions() {
       for (const account of state.offboarding.relatedAccounts) {
         if (String(account.id) === String(id)) account.selected = target.checked;
       }
+      refreshOffboardingLicenseCancelVisibility();
       updateOffboardingPreview();
     });
   }
@@ -1772,9 +1885,49 @@ function setupActions() {
     offboardingUserTenantSelect.addEventListener("change", () => {
       state.offboarding.selectedTenant = offboardingUserTenantSelect.value;
       renderOffboardingTenantOptions();
+      fillOffboardingLicenseCancelMailFromState();
       loadOffboardingUsers(el("offboardingUserSearch")?.value || "").catch((error) => {
         el("offboardingUserModalError").textContent = `Failed to load users: ${error.message}`;
       });
+    });
+  }
+
+  const offboardingLicenseCancelEnabled = el("offboardingLicenseCancelEnabled");
+  if (offboardingLicenseCancelEnabled) {
+    offboardingLicenseCancelEnabled.addEventListener("change", () => {
+      state.offboarding.sendLicenseCancelEmail = offboardingLicenseCancelEnabled.checked;
+      refreshOffboardingLicenseCancelVisibility();
+      updateOffboardingPreview();
+    });
+  }
+
+  const offboardingLicenseSubject = el("offboardingLicenseSubject");
+  if (offboardingLicenseSubject) {
+    offboardingLicenseSubject.addEventListener("input", () => {
+      state.offboarding.userEditedLicenseSubject = true;
+      state.offboarding.licenseCancelMail.subject = offboardingLicenseSubject.value;
+    });
+  }
+
+  const offboardingLicenseBody = el("offboardingLicenseBody");
+  if (offboardingLicenseBody) {
+    offboardingLicenseBody.addEventListener("input", () => {
+      state.offboarding.userEditedLicenseBody = true;
+      state.offboarding.licenseCancelMail.body = offboardingLicenseBody.value;
+    });
+  }
+
+  const offboardingLicenseTo = el("offboardingLicenseTo");
+  if (offboardingLicenseTo) {
+    offboardingLicenseTo.addEventListener("input", () => {
+      state.offboarding.licenseCancelMail.to = parseRecipients(offboardingLicenseTo.value);
+    });
+  }
+
+  const offboardingLicenseCc = el("offboardingLicenseCc");
+  if (offboardingLicenseCc) {
+    offboardingLicenseCc.addEventListener("input", () => {
+      state.offboarding.licenseCancelMail.cc = parseRecipients(offboardingLicenseCc.value);
     });
   }
 

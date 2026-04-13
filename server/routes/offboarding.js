@@ -3,6 +3,7 @@ const { getTenantKeysFromEnv, normalizeTenantKey } = require("../services/tenant
 const { listUsers, deleteUserById, getUserByEmail } = require("../services/graph");
 const { isEnabled: isSnipeitEnabled, getAssignedAssetsByEmail, checkinAsset } = require("../services/snipeit.service");
 const { addTask, getTasksByType, getTaskById, updateTaskById } = require("../services/taskStore");
+const { sendLicenseCancellationMail, getLicenseRequestRecipients } = require("../services/mail");
 
 const router = express.Router();
 
@@ -62,12 +63,25 @@ function buildOffboardingTaskPayload(payload = {}) {
   const tenant = normalizeTenantKey(payload.tenant || user.tenant || "");
   const email = String(payload.email || user.mail || user.userPrincipalName || "").trim().toLowerCase();
   const deleteUser = payload.deleteUser !== false;
+  const sendLicenseCancelEmail = payload.sendLicenseCancelEmail !== false;
   const accountsToDelete = Array.isArray(payload.accountsToDelete) ? payload.accountsToDelete : [];
   const assetsToCheckin = Array.isArray(payload.assetsToCheckin) ? payload.assetsToCheckin : [];
+  const legacyMail = payload.email && typeof payload.email === "object" ? payload.email : {};
+  const licenseCancelMail = payload.licenseCancelMail || legacyMail || {};
   return {
     tenant,
     email,
     deleteUser,
+    sendLicenseCancelEmail,
+    licenseCancelMail: {
+      to: Array.isArray(licenseCancelMail.to) ? licenseCancelMail.to.map((x) => String(x || "").trim()).filter(Boolean) : [],
+      cc: Array.isArray(licenseCancelMail.cc) ? licenseCancelMail.cc.map((x) => String(x || "").trim()).filter(Boolean) : [],
+      subject: String(licenseCancelMail.subject || `License cancel for ${tenant}`).trim(),
+      body: String(
+        licenseCancelMail.body ||
+          `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license for the tenant ${tenant}.\n\nBest regards,\nIT Team`
+      )
+    },
     user,
     accountsToDelete,
     assetsToCheckin
@@ -75,10 +89,15 @@ function buildOffboardingTaskPayload(payload = {}) {
 }
 
 router.get("/meta", (req, res) => {
+  const recipients = getLicenseRequestRecipients();
   return res.json({
     ok: true,
     tenants: getTenantKeysFromEnv(),
-    snipeitEnabled: isSnipeitEnabled()
+    snipeitEnabled: isSnipeitEnabled(),
+    licenseCancelDefaults: {
+      to: recipients.to,
+      cc: recipients.cc
+    }
   });
 });
 
@@ -95,6 +114,9 @@ router.post("/tasks", (req, res) => {
   }
   if (!offboarding.email) {
     return res.status(400).json({ ok: false, error: "user/email is required" });
+  }
+  if (offboarding.sendLicenseCancelEmail && (!Array.isArray(offboarding.licenseCancelMail?.to) || offboarding.licenseCancelMail.to.length === 0)) {
+    return res.status(400).json({ ok: false, error: "Email To is required when license cancellation email is enabled" });
   }
 
   if (payload.taskId) {
@@ -232,6 +254,7 @@ router.post("/execute", async (req, res) => {
   const tenant = offboarding.tenant;
   const email = offboarding.email;
   const deleteUser = offboarding.deleteUser;
+  const sendLicenseCancelEmail = offboarding.sendLicenseCancelEmail;
   const accountsToDelete = offboarding.accountsToDelete;
   const assetsToCheckin = offboarding.assetsToCheckin;
 
@@ -244,8 +267,17 @@ router.post("/execute", async (req, res) => {
   if (deleteUser && accountsToDelete.length === 0) {
     return res.status(400).json({ ok: false, error: "At least one account must be selected for deletion" });
   }
+  if (sendLicenseCancelEmail) {
+    if (!tenant) {
+      return res.status(400).json({ ok: false, error: "Tenant must be defined for license cancellation email" });
+    }
+    if (!Array.isArray(offboarding.licenseCancelMail?.to) || offboarding.licenseCancelMail.to.length === 0) {
+      return res.status(400).json({ ok: false, error: "Email To is required when license cancellation email is enabled" });
+    }
+  }
 
   const steps = {
+    email: [],
     snipeit: [],
     entra: []
   };
@@ -276,6 +308,20 @@ router.post("/execute", async (req, res) => {
     }
 
     console.log(`[offboarding] Started for ${email} (tenant=${tenant})`);
+    if (sendLicenseCancelEmail) {
+      console.log(`[offboarding] Attempting to send license cancellation email for tenant ${tenant}`);
+      try {
+        await sendLicenseCancellationMail(offboarding);
+        console.log("[offboarding] Successfully sent license cancellation email");
+        steps.email.push({ status: "sent" });
+      } catch (error) {
+        console.error(`[offboarding] Failed to send license cancellation email: ${error.message || "send failed"}`);
+        steps.email.push({ status: "failed", error: error.message || "send failed" });
+      }
+    } else {
+      steps.email.push({ status: "skipped" });
+    }
+
     if (isSnipeitEnabled() && assetsToCheckin.length > 0) {
       for (const rawAsset of assetsToCheckin) {
         const assetId = Number(rawAsset?.id || rawAsset);
@@ -351,7 +397,10 @@ router.post("/execute", async (req, res) => {
       }
     }
 
-    const hasErrors = (steps.entra || []).some((x) => x.status === "failed") || (steps.snipeit || []).some((x) => x.status === "failed");
+    const hasErrors =
+      (steps.email || []).some((x) => x.status === "failed") ||
+      (steps.entra || []).some((x) => x.status === "failed") ||
+      (steps.snipeit || []).some((x) => x.status === "failed");
     if (hasErrors) {
       console.warn("[offboarding] Offboarding task completed with errors");
       task = updateTaskById(task.id, { status: "failed", offboarding });

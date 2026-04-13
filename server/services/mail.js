@@ -24,6 +24,10 @@ function getRecipientConfig(key) {
   return { to, cc };
 }
 
+function getLicenseRequestRecipients() {
+  return getRecipientConfig("LICENSE_REQUEST");
+}
+
 function toRecipients(addresses) {
   return addresses.map((address) => ({ emailAddress: { address } }));
 }
@@ -115,10 +119,42 @@ async function sendAssetsMail(task) {
   });
 }
 
+function buildLicenseCancellationMail(offboarding = {}) {
+  const recipients = getLicenseRequestRecipients();
+  const mail = offboarding.licenseCancelMail || {};
+  const tenantName = String(offboarding.tenant || "").trim().toUpperCase();
+  return {
+    to: normalizeRecipients(mail.to).length ? normalizeRecipients(mail.to) : recipients.to,
+    cc: normalizeRecipients(mail.cc).length ? normalizeRecipients(mail.cc) : recipients.cc,
+    subject: String(mail.subject || `License cancel for ${tenantName}`),
+    body: String(
+      mail.body ||
+        `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license for the tenant ${tenantName}.\n\nBest regards,\nIT Team`
+    )
+  };
+}
+
+async function sendLicenseCancellationMail(offboarding = {}) {
+  const mail = buildLicenseCancellationMail(offboarding);
+  if (mail.to.length === 0) {
+    console.warn("[mail] LICENSE_REQUEST_TO is empty, skipping cancellation email");
+    return;
+  }
+  await sendMail({
+    subject: mail.subject,
+    body: mail.body,
+    to: mail.to,
+    cc: mail.cc
+  });
+}
+
 module.exports = {
   sendLicenseRequestMail,
   sendAssetsMail,
+  sendLicenseCancellationMail,
   humanizeAssetList,
   buildLicenseMail,
-  buildAssetsMail
+  buildAssetsMail,
+  buildLicenseCancellationMail,
+  getLicenseRequestRecipients
 };
