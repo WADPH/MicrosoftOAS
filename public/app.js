@@ -151,6 +151,9 @@ async function initApp() {
   await loadSnipeitConfig();
   await loadOffboardingMeta().catch(() => {});
   await loadTasks();
+  await loadLicenseAvailability().catch((error) => {
+    console.warn("License availability load failed", error);
+  });
   await loadOffboardingTasks().catch(() => {});
   initTheme();
   setupActions();
@@ -231,6 +234,24 @@ function normalizeTenantKey(value) {
     .toUpperCase()
     .replace(/\s+/g, "")
     .replace(/[^A-Z0-9_]/g, "");
+}
+
+function getTenantTagStyles(tenant) {
+  const palette = [
+    { background: "rgba(66, 133, 244, 0.16)", border: "rgba(66, 133, 244, 0.28)", color: "#1a73e8" },
+    { background: "rgba(15, 157, 88, 0.16)", border: "rgba(15, 157, 88, 0.28)", color: "#0f9d58" },
+    { background: "rgba(244, 180, 0, 0.16)", border: "rgba(244, 180, 0, 0.28)", color: "#f4b400" },
+    { background: "rgba(219, 68, 55, 0.16)", border: "rgba(219, 68, 55, 0.28)", color: "#db4437" },
+    { background: "rgba(123, 31, 162, 0.16)", border: "rgba(123, 31, 162, 0.28)", color: "#7b1fa2" },
+    { background: "rgba(0, 172, 193, 0.16)", border: "rgba(0, 172, 193, 0.28)", color: "#00838f" }
+  ];
+  const key = normalizeTenantKey(tenant);
+  if (!key) return {};
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash += key.charCodeAt(i);
+  }
+  return palette[hash % palette.length];
 }
 
 function normalizeGroupId(value) {
@@ -845,8 +866,6 @@ function getOnboardingTenantForGroups(task = getCurrentTask()) {
 function ensureOnboardingDefaultGroups(task = getCurrentTask()) {
   if (!task) return;
   if (state.onboardingGroupSelectionTouched) return;
-  const current = getTaskGroups(task);
-  if (current.length > 0) return;
   task.entraGroups = getDefaultGroupsForTask(task);
 }
 
@@ -874,11 +893,21 @@ function renderOnboardingGroups(task = getCurrentTask()) {
   wrap.className = "groupTagList";
 
   for (const group of groups) {
+    const displayName = String(group.displayName || "Unnamed group").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    const sourceTenant = normalizeTenantKey(group.tenant || tenant || "");
+    const tooltip = [group.id, sourceTenant].filter(Boolean).join(" | ");
     const item = document.createElement("div");
     item.className = "groupTag";
+    item.title = tooltip || displayName;
+    item.setAttribute("data-tenant", sourceTenant || "");
+
+    const styles = getTenantTagStyles(sourceTenant || tenant);
+    if (styles.background) item.style.backgroundColor = styles.background;
+    if (styles.border) item.style.borderColor = styles.border;
+    if (styles.color) item.style.color = styles.color;
+
     item.innerHTML = `
-      <span class="groupTagName">${String(group.displayName || group.id).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>
-      <span class="groupTagMeta">${String(group.tenant || tenant).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>
+      <span class="groupTagName">${displayName}</span>
       <button type="button" class="groupTagRemove" data-group-id="${group.id}" title="Remove">×</button>
     `;
     wrap.appendChild(item);
@@ -1209,18 +1238,18 @@ async function loadLicenseAvailability() {
   if (!target) return;
 
   try {
-    target.textContent = "...";
+    target.textContent = "Loading...";
     const data = await api("/tasks/meta/licenses");
     if (data && data.ok && data.found) {
       target.textContent = String(data.available);
     } else if (data && data.ok && !data.found) {
       target.textContent = "N/A";
     } else {
-      target.textContent = "-";
+      target.textContent = "N/A";
     }
   } catch (error) {
     console.warn("Failed to load license availability", error);
-    target.textContent = "-";
+    target.textContent = "N/A";
   }
 }
 
@@ -2085,21 +2114,28 @@ function setupActions() {
     chooseOnboardingGroupBtn.onclick = () => {
       const task = getCurrentTask();
       if (!task) return;
-      const tenant = getOnboardingTenantForGroups(task);
-      if (!tenant) {
+      const resolvedTenant = getOnboardingTenantForGroups(task);
+      if (!resolvedTenant) {
         el("status").textContent = "Unable to resolve tenant for current user";
         return;
       }
+      const tenants = [
+        resolvedTenant,
+        ...new Set(
+          (Array.isArray(state.settings?.tenants) ? state.settings.tenants : [])
+            .map((x) => normalizeTenantKey(x))
+            .filter(Boolean)
+        )
+      ].filter(Boolean);
+
       openGroupPickerModal({
         title: "Choose Group",
-        tenant,
-        tenants: [tenant],
+        tenant: resolvedTenant,
+        tenants,
         selected: getTaskGroups(task),
-        tenantLocked: true,
+        tenantLocked: false,
         onApply: ({ selected }) => {
-          updateOnboardingGroupsFromSelection(
-            selected.map((group) => ({ ...group, tenant }))
-          );
+          updateOnboardingGroupsFromSelection(selected);
         }
       });
     };
