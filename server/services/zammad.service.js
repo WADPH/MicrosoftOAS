@@ -228,7 +228,7 @@ async function createOnboardingTicket(task, options = {}) {
 
     const ticketData = {
       title,
-      type: "other",
+      type: "Other",
       group: "Not Sorted",
       customer_id: customer.id,
       priority: "2 normal",
