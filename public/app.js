@@ -863,10 +863,55 @@ function getOnboardingTenantForGroups(task = getCurrentTask()) {
   return fallbackTenant;
 }
 
+function getOnboardingGroupPickerTenants(task = getCurrentTask()) {
+  const tenants = new Set();
+  const resolvedTenant = getOnboardingTenantForGroups(task);
+  if (resolvedTenant) tenants.add(resolvedTenant);
+  for (const matcher of Array.isArray(state.companyMatchers) ? state.companyMatchers : []) {
+    if (matcher.tenant) tenants.add(normalizeTenantKey(matcher.tenant));
+  }
+  if (Array.isArray(state.settings?.tenants)) {
+    for (const tenant of state.settings.tenants) {
+      if (tenant) tenants.add(normalizeTenantKey(tenant));
+    }
+  }
+  return [...tenants].filter(Boolean);
+}
+
 function ensureOnboardingDefaultGroups(task = getCurrentTask()) {
   if (!task) return;
   if (state.onboardingGroupSelectionTouched) return;
   task.entraGroups = getDefaultGroupsForTask(task);
+}
+
+async function loadOnboardingDefaultGroupNames(task = getCurrentTask()) {
+  if (!task) return;
+  const groups = getTaskGroups(task);
+  const tenant = getOnboardingTenantForGroups(task);
+  if (!tenant || groups.length === 0) return;
+
+  const missingIds = groups
+    .filter((group) => group.id && !group.displayName)
+    .map((group) => normalizeGroupId(group.id));
+  const uniqueIds = [...new Set(missingIds)].filter(Boolean);
+  if (uniqueIds.length === 0) return;
+
+  try {
+    const data = await api(
+      `/tasks/meta/groups?tenant=${encodeURIComponent(tenant)}&ids=${encodeURIComponent(uniqueIds.join(","))}`
+    );
+    const byId = new Map((Array.isArray(data?.groups) ? data.groups : []).map((group) => [normalizeGroupId(group.id), String(group.displayName || "").trim()]));
+    const updated = groups.map((group) => {
+      const displayName = String(group.displayName || byId.get(group.id) || "").trim();
+      return displayName ? { ...group, displayName } : group;
+    });
+    if (updated.some((group, index) => group.displayName !== groups[index].displayName)) {
+      task.entraGroups = updated;
+      renderOnboardingGroups(task);
+    }
+  } catch (error) {
+    console.warn("Failed to load onboarding group display names", error);
+  }
 }
 
 function renderOnboardingGroups(task = getCurrentTask()) {
@@ -1203,6 +1248,7 @@ function selectTask(id) {
   setInputValue("assetsBody", task.assetsMail?.body || buildDefaultAssetsBody());
   renderSelectedSnipeitAssets(task);
   renderOnboardingGroups(task);
+  loadOnboardingDefaultGroupNames(task).catch(() => {});
   refreshMailVisibilityAndPreview();
 }
 
@@ -2119,14 +2165,7 @@ function setupActions() {
         el("status").textContent = "Unable to resolve tenant for current user";
         return;
       }
-      const tenants = [
-        resolvedTenant,
-        ...new Set(
-          (Array.isArray(state.settings?.tenants) ? state.settings.tenants : [])
-            .map((x) => normalizeTenantKey(x))
-            .filter(Boolean)
-        )
-      ].filter(Boolean);
+      const tenants = getOnboardingGroupPickerTenants(task);
 
       openGroupPickerModal({
         title: "Choose Group",
@@ -2584,16 +2623,19 @@ function setupActions() {
 
   el("companyDomain").addEventListener("change", () => {
     updateEmailFromDomain();
-    state.onboardingGroupSelectionTouched = false;
-    renderOnboardingGroups(getCurrentTask());
+    const task = getCurrentTask();
+    renderOnboardingGroups(task);
+    loadOnboardingDefaultGroupNames(task).catch(() => {});
   });
   el("company").addEventListener("change", () => {
-    state.onboardingGroupSelectionTouched = false;
-    renderOnboardingGroups(getCurrentTask());
+    const task = getCurrentTask();
+    renderOnboardingGroups(task);
+    loadOnboardingDefaultGroupNames(task).catch(() => {});
   });
   el("email").addEventListener("input", () => {
-    state.onboardingGroupSelectionTouched = false;
-    renderOnboardingGroups(getCurrentTask());
+    const task = getCurrentTask();
+    renderOnboardingGroups(task);
+    loadOnboardingDefaultGroupNames(task).catch(() => {});
   });
 
   el("saveBtn").onclick = async () => {

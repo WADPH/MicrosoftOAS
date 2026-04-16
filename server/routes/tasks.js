@@ -161,7 +161,19 @@ router.get("/meta/groups", async (req, res) => {
     if (!tenant) {
       return res.status(400).json({ ok: false, error: "tenant is required" });
     }
-    const groups = await listGroups(String(req.query.search || ""), 200, tenant);
+    const ids = String(req.query.ids || "")
+      .split(",")
+      .map((id) => String(id || "").trim())
+      .filter(Boolean);
+
+    let groups = [];
+    if (ids.length > 0) {
+      groups = await Promise.all(ids.map((id) => getGroupById(id, tenant)));
+      groups = groups.filter(Boolean);
+    } else {
+      groups = await listGroups(String(req.query.search || ""), 200, tenant);
+    }
+
     return res.json({
       ok: true,
       groups: groups.map((group) => ({
