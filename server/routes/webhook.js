@@ -186,11 +186,11 @@ router.post("/teams", async (req, res) => {
   console.log(`[webhook] Task created: ${result.task.id} for ${result.task.fullName}`);
 
   // Create Zammad ticket asynchronously (non-blocking)
-  const fromId = req.body?.from?.id;
-  if (fromId) {
-    result.task.from = { id: fromId };
-  }
-  createOnboardingTicket(result.task).catch((error) => {
+  const ticketBody = extractMessageText(req.body) || flattenPayloadStrings(req.body) || "Onboarding request created from Microsoft OAS";
+  createOnboardingTicket(result.task, {
+    webhookPayload: req.body,
+    ticketBody
+  }).catch((error) => {
     console.error(`[webhook] Zammad ticket creation failed: ${error.message}`);
   });
 
