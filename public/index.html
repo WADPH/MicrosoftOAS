@@ -388,6 +388,8 @@
             <li><code>DEFAULT_USAGE_LOCATION — For example 'EN'</code></li>
             <li><code>SNIPEIT_URL — Base URL of your Snipe-IT instance</code></li>
             <li><code>SNIPEIT_API_KEY — API key from Snipe-IT</code></li>
+            <li><code>ZAMMAD_URL — Base URL of your Zammad instance</code></li>
+            <li><code>ZAMMAD_API_TOKEN — API token from Zammad</code></li>
           </ul>
         </div>
 
@@ -436,6 +438,31 @@
                 <input id="settingAssetsCc" type="text" title="ASSETS_REQUEST_CC" placeholder="cc@example.com" />
               </div>
             </div>
+          </div>
+        </div>
+
+        <div class="settingsSection">
+          <h3>Zammad Integration</h3>
+          <div class="grid2">
+            <div class="field">
+              <label class="switch">
+                <input id="settingZammadEnabled" type="checkbox" />
+                <span class="switchTrack" aria-hidden="true"><span class="switchThumb"></span></span>
+                <span class="switchText">Enable Zammad Integration</span>
+              </label>
+            </div>
+            <div class="field">
+              <label for="settingZammadDefaultCustomer" title="ZAMMAD_DEFAULT_CUSTOMER">Default Customer</label>
+              <input id="settingZammadDefaultCustomer" type="email" title="ZAMMAD_DEFAULT_CUSTOMER" placeholder="eigsystem@outlook.com" />
+            </div>
+          </div>
+          <div class="settingsRestricted">
+            <div class="restrictedTitle" title="ZAMMAD_URL">Zammad URL</div>
+            <p class="metaSmall">This value must be configured in <code>.env</code> for security reasons.</p>
+          </div>
+          <div class="settingsRestricted">
+            <div class="restrictedTitle" title="ZAMMAD_API_TOKEN">Zammad API Token</div>
+            <p class="metaSmall">This value must be configured in <code>.env</code> for security reasons.</p>
           </div>
         </div>
 

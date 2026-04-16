@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const { extractMessageText, flattenPayloadStrings, parseOnboardingMessage, inferDomain, inferCompanyCode } = require("../parser");
 const { addTask, NOT_SPECIFIED } = require("../services/taskStore");
 const { findUserByDisplayName } = require("../services/graph");
+const { createOnboardingTicket } = require("../services/zammad.service");
 
 const router = express.Router();
 
@@ -183,6 +184,16 @@ router.post("/teams", async (req, res) => {
   }
 
   console.log(`[webhook] Task created: ${result.task.id} for ${result.task.fullName}`);
+
+  // Create Zammad ticket asynchronously (non-blocking)
+  const fromId = req.body?.from?.id;
+  if (fromId) {
+    result.task.from = { id: fromId };
+  }
+  createOnboardingTicket(result.task).catch((error) => {
+    console.error(`[webhook] Zammad ticket creation failed: ${error.message}`);
+  });
+
   return res.status(200).json({
     type: "message",
     text: `Task created for ${result.task.fullName}.`

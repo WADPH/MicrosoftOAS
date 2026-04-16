@@ -12,7 +12,9 @@ const EDITABLE_KEYS = [
   "ASSETS_REQUEST_CC",
   "SNIPEIT_ENABLED",
   "SNIPEIT_LAPTOP_PREFIX",
-  "SNIPEIT_MONITOR_PREFIX"
+  "SNIPEIT_MONITOR_PREFIX",
+  "ZAMMAD_ENABLED",
+  "ZAMMAD_DEFAULT_CUSTOMER"
 ];
 
 const RESTRICTED_KEYS = [
@@ -24,7 +26,9 @@ const RESTRICTED_KEYS = [
   "DEFAULT_USAGE_LOCATION",
   "SESSION_SECRET",
   "SNIPEIT_URL",
-  "SNIPEIT_API_KEY"
+  "SNIPEIT_API_KEY",
+  "ZAMMAD_URL",
+  "ZAMMAD_API_TOKEN"
 ];
 
 const FALLBACK_LEGACY_TENANT_KEY = "EIGROUP";
@@ -210,6 +214,44 @@ function validateUpdates(updates) {
     const value = String(updates.SNIPEIT_MONITOR_PREFIX || "").trim();
     if (!value) {
       const error = new Error("SNIPEIT_MONITOR_PREFIX is required");
+      error.status = 400;
+      throw error;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "ZAMMAD_ENABLED")) {
+    const value = String(updates.ZAMMAD_ENABLED || "").trim().toLowerCase();
+    if (!["true", "false"].includes(value)) {
+      const error = new Error("ZAMMAD_ENABLED must be true or false");
+      error.status = 400;
+      throw error;
+    }
+    if (value === "true") {
+      const url = String(process.env.ZAMMAD_URL || "").trim();
+      const token = String(process.env.ZAMMAD_API_TOKEN || "").trim();
+      if (!url || !token) {
+        const error = new Error("ZAMMAD_URL and ZAMMAD_API_TOKEN must be configured in .env before enabling");
+        error.status = 400;
+        throw error;
+      }
+      let parsed;
+      try {
+        parsed = new URL(url);
+      } catch {
+        const error = new Error("ZAMMAD_URL must be a valid URL");
+        error.status = 400;
+        throw error;
+      }
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        const error = new Error("ZAMMAD_URL must use http or https protocol");
+        error.status = 400;
+        throw error;
+      }
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "ZAMMAD_DEFAULT_CUSTOMER")) {
+    const value = String(updates.ZAMMAD_DEFAULT_CUSTOMER || "").trim();
+    if (value && !isValidEmail(value)) {
+      const error = new Error("ZAMMAD_DEFAULT_CUSTOMER must be a valid email address");
       error.status = 400;
       throw error;
     }

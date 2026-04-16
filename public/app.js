@@ -1890,6 +1890,8 @@ function fillSettingsForm(values = {}) {
   el("settingSnipeitEnabled").checked = String(values.SNIPEIT_ENABLED || "false").toLowerCase() === "true";
   el("settingSnipeitLaptopPrefix").value = String(values.SNIPEIT_LAPTOP_PREFIX || state.snipeitConfig.laptopPrefix || "PC-");
   el("settingSnipeitMonitorPrefix").value = String(values.SNIPEIT_MONITOR_PREFIX || state.snipeitConfig.monitorPrefix || "MN-");
+  el("settingZammadEnabled").checked = String(values.ZAMMAD_ENABLED || "false").toLowerCase() === "true";
+  el("settingZammadDefaultCustomer").value = String(values.ZAMMAD_DEFAULT_CUSTOMER || "");
   const companies = values.companies || values.companyMatcher || [];
   renderCompanyMatcher(companies, values.tenants || []);
   state.snipeitConfig.enabled = el("settingSnipeitEnabled").checked;
@@ -1908,6 +1910,8 @@ function readSettingsForm() {
     SNIPEIT_ENABLED: String(Boolean(el("settingSnipeitEnabled").checked)),
     SNIPEIT_LAPTOP_PREFIX: el("settingSnipeitLaptopPrefix").value.trim(),
     SNIPEIT_MONITOR_PREFIX: el("settingSnipeitMonitorPrefix").value.trim(),
+    ZAMMAD_ENABLED: String(Boolean(el("settingZammadEnabled").checked)),
+    ZAMMAD_DEFAULT_CUSTOMER: el("settingZammadDefaultCustomer").value.trim(),
     companyMatcher: companyMatcher.map((row) => ({
       key: normalizeCompanyMatcherKey(row.key),
       patterns: row.patterns
@@ -1939,6 +1943,9 @@ function validateSettingsPayload(payload) {
   }
   if (!payload.SNIPEIT_MONITOR_PREFIX) {
     throw new Error("Monitor Prefix is required");
+  }
+  if (payload.ZAMMAD_DEFAULT_CUSTOMER && !isValidEmail(payload.ZAMMAD_DEFAULT_CUSTOMER)) {
+    throw new Error("Zammad Default Customer must be a valid email address");
   }
 
   const entries = payload._companyMatcherMeta || [];
