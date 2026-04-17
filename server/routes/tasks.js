@@ -232,7 +232,7 @@ router.get("/:id", (req, res) => {
   return res.json(task);
 });
 
-router.patch("/:id", (req, res) => {
+router.patch("/:id", async (req, res) => {
   const payload = req.body || {};
 
   const allowedKeys = [
@@ -273,13 +273,28 @@ router.patch("/:id", (req, res) => {
     if (!Array.isArray(updates.entraGroups)) {
       return res.status(400).json({ error: "entraGroups must be an array" });
     }
-    updates.entraGroups = updates.entraGroups
-      .map((group) => ({
-        id: String(group?.id || group || "").trim(),
-        displayName: String(group?.displayName || "").trim(),
-        tenant: String(group?.tenant || "").trim().toUpperCase()
-      }))
-      .filter((group) => group.id);
+    updates.entraGroups = await Promise.all(
+      updates.entraGroups
+        .map(async (group) => {
+          const normalized = {
+            id: String(group?.id || group || "").trim(),
+            displayName: String(group?.displayName || "").trim(),
+            tenant: String(group?.tenant || "").trim().toUpperCase()
+          };
+          if (normalized.id && normalized.tenant && !normalized.displayName) {
+            try {
+              const found = await getGroupById(normalized.id, normalized.tenant);
+              if (found && found.displayName) {
+                normalized.displayName = String(found.displayName || "").trim();
+              }
+            } catch (error) {
+              console.warn(`[tasks] Failed to resolve group metadata ${normalized.id} tenant=${normalized.tenant}: ${error.message}`);
+            }
+          }
+          return normalized;
+        })
+    );
+    updates.entraGroups = updates.entraGroups.filter((group) => group.id);
   }
 
   const updated = updateTaskById(req.params.id, updates);

@@ -882,6 +882,8 @@ function getOnboardingGroupPickerTenants(task = getCurrentTask()) {
 function ensureOnboardingDefaultGroups(task = getCurrentTask()) {
   if (!task) return;
   if (state.onboardingGroupSelectionTouched) return;
+  const existing = Array.isArray(task.entraGroups) ? task.entraGroups.filter((group) => normalizeGroupId(group.id)) : [];
+  if (existing.length > 0) return;
   task.entraGroups = getDefaultGroupsForTask(task);
 }
 
@@ -951,7 +953,7 @@ function renderOnboardingGroups(task = getCurrentTask()) {
     item.title = tooltip || displayName;
     item.setAttribute("data-tenant", sourceTenant || "");
 
-    const styles = getTenantTagStyles(sourceTenant || tenant);
+    const styles = getTenantTagStyles(sourceTenant);
     if (styles.background) item.style.backgroundColor = styles.background;
     if (styles.border) item.style.borderColor = styles.border;
     if (styles.color) item.style.color = styles.color;
@@ -1813,9 +1815,11 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
     for (const group of groupsToRender) {
       const displayName = String(group.displayName || group.id || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
       const id = String(group.id || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+      const tenantString = normalizeTenantKey(tenant || "");
       const tag = document.createElement("div");
       tag.className = "groupTag";
-      const styles = getTenantTagStyles(tenant);
+      tag.title = [id, tenantString].filter(Boolean).join(" | ");
+      const styles = getTenantTagStyles(tenantString);
       if (styles.background) tag.style.backgroundColor = styles.background;
       if (styles.border) tag.style.borderColor = styles.border;
       if (styles.color) tag.style.color = styles.color;
