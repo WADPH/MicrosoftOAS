@@ -224,7 +224,7 @@ async function createOnboardingTicket(task, options = {}) {
     }
 
     const title = `New employee - ${normalizeString(task.firstName)} ${normalizeString(task.lastName)}`.trim();
-    const body = normalizeString(options.ticketBody || extractMessageText(webhookPayload) || flattenPayloadStrings(webhookPayload) || "Onboarding request created from Microsoft OAS");
+    const body = normalizeString(options.ticketBody) || "Onboarding request created from Microsoft OAS";
 
     const ticketData = {
       title,

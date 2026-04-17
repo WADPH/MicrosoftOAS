@@ -262,7 +262,7 @@ function normalizeGroupId(value) {
 function normalizeTaskGroup(group) {
   return {
     id: normalizeGroupId(group?.id || group || ""),
-    displayName: String(group?.displayName || "").trim(),
+    displayName: String(group?.displayName || "").trim() || "Unnamed group",
     tenant: normalizeTenantKey(group?.tenant || "")
   };
 }
@@ -892,7 +892,7 @@ async function loadOnboardingDefaultGroupNames(task = getCurrentTask()) {
   if (!tenant || groups.length === 0) return;
 
   const missingIds = groups
-    .filter((group) => group.id && !group.displayName)
+    .filter((group) => group.id && (!group.displayName || group.displayName === "Unnamed group"))
     .map((group) => normalizeGroupId(group.id));
   const uniqueIds = [...new Set(missingIds)].filter(Boolean);
   if (uniqueIds.length === 0) return;
@@ -903,10 +903,14 @@ async function loadOnboardingDefaultGroupNames(task = getCurrentTask()) {
     );
     const byId = new Map((Array.isArray(data?.groups) ? data.groups : []).map((group) => [normalizeGroupId(group.id), String(group.displayName || "").trim()]));
     const updated = groups.map((group) => {
-      const displayName = String(group.displayName || byId.get(group.id) || "").trim();
-      return displayName ? { ...group, displayName } : group;
+      const loadedName = byId.get(group.id);
+      if (loadedName && (!group.displayName || group.displayName === "Unnamed group")) {
+        return { ...group, displayName: loadedName, tenant };
+      }
+      return group;
     });
-    if (updated.some((group, index) => group.displayName !== groups[index].displayName)) {
+    const changed = updated.some((group, index) => group.displayName !== groups[index].displayName || group.tenant !== groups[index].tenant);
+    if (changed) {
       task.entraGroups = updated;
       renderOnboardingGroups(task);
     }
@@ -962,10 +966,16 @@ function renderOnboardingGroups(task = getCurrentTask()) {
   list.innerHTML = "";
   list.appendChild(wrap);
 
-  // Load display names if any group is unnamed
-  const hasUnnamed = groups.some(g => g.displayName === "Unnamed group");
-  if (hasUnnamed) {
-    loadOnboardingDefaultGroupNames(task).then(() => renderOnboardingGroups(task)).catch(() => {});
+  // Always load display names if any group doesn't have them
+  const needsLoading = groups.some(g => !g.displayName || g.displayName === "Unnamed group" || g.displayName === "");
+  if (needsLoading) {
+    // Debounce to avoid multiple rapid calls
+    if (!task._groupNameLoadTimeout) {
+      task._groupNameLoadTimeout = setTimeout(() => {
+        delete task._groupNameLoadTimeout;
+        loadOnboardingDefaultGroupNames(task).then(() => renderOnboardingGroups(task)).catch(() => {});
+      }, 100);
+    }
   }
 }
 
@@ -2135,8 +2145,8 @@ function buildPatchPayload() {
     snipeitAssets: selectedSnipeitAssets,
     entraGroups: getTaskGroups().map((group) => ({
       id: group.id,
-      displayName: group.displayName,
-      tenant: group.tenant
+      displayName: String(group.displayName || "").replace(/^Unnamed group$/, ""),
+      tenant: group.tenant || getOnboardingTenantForGroups()
     }))
   };
   return payload;
