@@ -961,6 +961,12 @@ function renderOnboardingGroups(task = getCurrentTask()) {
 
   list.innerHTML = "";
   list.appendChild(wrap);
+
+  // Load display names if any group is unnamed
+  const hasUnnamed = groups.some(g => g.displayName === "Unnamed group");
+  if (hasUnnamed) {
+    loadOnboardingDefaultGroupNames(task).then(() => renderOnboardingGroups(task)).catch(() => {});
+  }
 }
 
 function updateOnboardingGroupsFromSelection(groups = []) {
