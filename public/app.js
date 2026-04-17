@@ -1764,6 +1764,9 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
     keyInput.value = normalizeCompanyMatcherKey(keyInput.value);
     syncTooltips();
   });
+  tenantInput.addEventListener("change", () => {
+    renderGroups();
+  });
   syncTooltips();
 
   const parseStoredGroupIds = () =>
@@ -1789,9 +1792,6 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
     groupsList.innerHTML = "";
     if (groupsToRender.length === 0) {
       groupsList.innerHTML = `<span class="metaSmall">No default groups</span>`;
-      if (!selectedGroups && tenant) {
-        loadGroupMetadataForTenant(tenant).then(() => renderGroups()).catch(() => {});
-      }
       return;
     }
     for (const group of groupsToRender) {
@@ -1799,13 +1799,18 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
       const id = String(group.id || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
       const tag = document.createElement("div");
       tag.className = "groupTag";
+      const styles = getTenantTagStyles(tenant);
+      if (styles.background) tag.style.backgroundColor = styles.background;
+      if (styles.border) tag.style.borderColor = styles.border;
+      if (styles.color) tag.style.color = styles.color;
       tag.innerHTML = `
         <span class="groupTagName">${displayName}</span>
         <button type="button" class="groupTagRemove" data-group-id="${id}" title="Remove">×</button>
       `;
       groupsList.appendChild(tag);
     }
-    if (!selectedGroups && tenant) {
+    // Only load metadata if some groups don't have display names and no selectedGroups (initial render)
+    if (!selectedGroups && tenant && groupsToRender.some(g => !g.displayName || g.displayName === g.id)) {
       loadGroupMetadataForTenant(tenant).then(() => renderGroups()).catch(() => {});
     }
   };
