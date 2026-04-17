@@ -5,3 +5,4 @@ services:
       - "3000:3000"
     volumes:
       - ./.env:/app/.env
+      - ./server/db/tasks.json:/app/server/db/
