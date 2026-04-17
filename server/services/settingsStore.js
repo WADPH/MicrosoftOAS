@@ -408,6 +408,8 @@ function getCurrentSettings() {
     SNIPEIT_ENABLED: normalizeEnvStoredValue(envMap.SNIPEIT_ENABLED || process.env.SNIPEIT_ENABLED || "false") || "false",
     SNIPEIT_LAPTOP_PREFIX: normalizeEnvStoredValue(envMap.SNIPEIT_LAPTOP_PREFIX || process.env.SNIPEIT_LAPTOP_PREFIX || "PC-") || "PC-",
     SNIPEIT_MONITOR_PREFIX: normalizeEnvStoredValue(envMap.SNIPEIT_MONITOR_PREFIX || process.env.SNIPEIT_MONITOR_PREFIX || "MN-") || "MN-",
+    ZAMMAD_ENABLED: normalizeEnvStoredValue(envMap.ZAMMAD_ENABLED || process.env.ZAMMAD_ENABLED || "false") || "false",
+    ZAMMAD_DEFAULT_CUSTOMER: normalizeEnvStoredValue(envMap.ZAMMAD_DEFAULT_CUSTOMER || process.env.ZAMMAD_DEFAULT_CUSTOMER || ""),
     tenants,
     companies: parseCompanyMatchersFromEnvMap(envMap, tenants),
     companyMatcher: parseCompanyMatchersFromEnvMap(envMap, tenants)

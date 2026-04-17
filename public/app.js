@@ -29,6 +29,7 @@ const state = {
     selectedTenant: "",
     tenants: [],
     groups: [],
+    groupCacheByTenant: {},
     loading: false,
     tenantLocked: false
   },
@@ -972,6 +973,37 @@ function updateOnboardingGroupsFromSelection(groups = []) {
   renderOnboardingGroups(task);
 }
 
+function getGroupDisplayNameFromCache(tenant, id) {
+  const normalizedTenant = normalizeTenantKey(tenant || "");
+  const normalizedId = normalizeGroupId(id);
+  if (!normalizedTenant || !normalizedId) return String(id || "");
+
+  const groups = Array.isArray(state.groupPicker.groupCacheByTenant?.[normalizedTenant])
+    ? state.groupPicker.groupCacheByTenant[normalizedTenant]
+    : [];
+  const found = groups.find((group) => normalizeGroupId(group.id) === normalizedId);
+  return String(found?.displayName || id || "");
+}
+
+async function loadGroupMetadataForTenant(tenant) {
+  const normalizedTenant = normalizeTenantKey(tenant || "");
+  if (!normalizedTenant) return [];
+  state.groupPicker.groupCacheByTenant = state.groupPicker.groupCacheByTenant || {};
+  if (Array.isArray(state.groupPicker.groupCacheByTenant[normalizedTenant])) {
+    return state.groupPicker.groupCacheByTenant[normalizedTenant];
+  }
+
+  try {
+    const data = await api(`/tasks/meta/groups?tenant=${encodeURIComponent(normalizedTenant)}`);
+    const groups = Array.isArray(data?.groups) ? data.groups : [];
+    state.groupPicker.groupCacheByTenant[normalizedTenant] = groups;
+    return groups;
+  } catch (error) {
+    state.groupPicker.groupCacheByTenant[normalizedTenant] = [];
+    return [];
+  }
+}
+
 async function loadGroupPickerGroups() {
   const tenant = normalizeTenantKey(state.groupPicker.selectedTenant || "");
   const status = el("groupPickerStatus");
@@ -979,6 +1011,19 @@ async function loadGroupPickerGroups() {
   state.groupPicker.loading = true;
   const data = await api(`/tasks/meta/groups?tenant=${encodeURIComponent(tenant)}`);
   state.groupPicker.groups = Array.isArray(data?.groups) ? data.groups : [];
+  state.groupPicker.groupCacheByTenant = state.groupPicker.groupCacheByTenant || {};
+  state.groupPicker.groupCacheByTenant[tenant] = state.groupPicker.groups;
+  state.groupPicker.selected = state.groupPicker.selected.map((selected) => {
+    const existing = state.groupPicker.groups.find((group) => normalizeGroupId(group.id) === normalizeGroupId(selected.id));
+    if (existing) {
+      return {
+        ...selected,
+        displayName: String(existing.displayName || selected.displayName || ""),
+        tenant
+      };
+    }
+    return selected;
+  });
   state.groupPicker.loading = false;
   renderGroupPickerList();
   if (status) status.textContent = `${state.groupPicker.groups.length} groups loaded`;
@@ -1727,21 +1772,41 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
       .map((id) => normalizeGroupId(id))
       .filter(Boolean);
 
-  const renderGroups = () => {
-    const ids = parseStoredGroupIds();
+  const renderGroups = (selectedGroups = null) => {
+    const tenant = normalizeTenantKey(tenantInput.value || "");
+    const groupsToRender = Array.isArray(selectedGroups)
+      ? selectedGroups
+          .map((group) => ({
+            id: normalizeGroupId(group.id),
+            displayName: String(group.displayName || getGroupDisplayNameFromCache(tenant, group.id) || group.id || "")
+          }))
+          .filter((group) => group.id)
+      : parseStoredGroupIds().map((id) => ({
+          id,
+          displayName: getGroupDisplayNameFromCache(tenant, id)
+        }));
+
     groupsList.innerHTML = "";
-    if (ids.length === 0) {
+    if (groupsToRender.length === 0) {
       groupsList.innerHTML = `<span class="metaSmall">No default groups</span>`;
+      if (!selectedGroups && tenant) {
+        loadGroupMetadataForTenant(tenant).then(() => renderGroups()).catch(() => {});
+      }
       return;
     }
-    for (const id of ids) {
+    for (const group of groupsToRender) {
+      const displayName = String(group.displayName || group.id || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+      const id = String(group.id || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
       const tag = document.createElement("div");
       tag.className = "groupTag";
       tag.innerHTML = `
-        <span class="groupTagName">${id.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>
+        <span class="groupTagName">${displayName}</span>
         <button type="button" class="groupTagRemove" data-group-id="${id}" title="Remove">×</button>
       `;
       groupsList.appendChild(tag);
+    }
+    if (!selectedGroups && tenant) {
+      loadGroupMetadataForTenant(tenant).then(() => renderGroups()).catch(() => {});
     }
   };
   renderGroups();
@@ -1770,7 +1835,7 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
       selected: parseStoredGroupIds().map((id) => ({ id, tenant })),
       onApply: ({ selected }) => {
         groupsInput.value = selected.map((group) => normalizeGroupId(group.id)).filter(Boolean).join(",");
-        renderGroups();
+        renderGroups(selected);
       }
     });
   });
