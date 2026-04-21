@@ -7,6 +7,11 @@ const { createOnboardingTicket, createOffboardingTicket } = require("../services
 
 const router = express.Router();
 
+// Teams may probe webhook URL with GET during webhook setup/validation.
+router.get("/teams", (req, res) => {
+  return res.status(200).send("OK");
+});
+
 function parseHmacFromAuthorization(headerValue) {
   const raw = String(headerValue || "").trim();
   if (!raw) return "";
