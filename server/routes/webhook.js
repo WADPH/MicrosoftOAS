@@ -110,7 +110,7 @@ router.post("/teams", async (req, res) => {
   }
 
   const combinedText = glueText;
-  const hasOffboardingMarker = /^Offboarding\s*-\s*/i.test(combinedText) || /^Offboarding\s*-\s*/i.test(messageText) || /^Offboarding\s*-\s*/i.test(flattened) || /^Offboarding\s*-\s*/i.test(String(req.body?.text || "")) || /^Offboarding\s*-\s*/i.test(String(req.body?.subject || "")) || /^Offboarding\s*-\s*/i.test(String(activity?.text || "")) || /^Offboarding\s*-\s*/i.test(String(activity?.subject || "")) || /^Offboarding\s*-\s*/i.test(String(req.body?.body?.content || "")) || /^Offboarding\s*-\s*/i.test(String(activity?.body?.content || ""));
+  const hasOffboardingMarker = /Offboarding\s*-\s*/i.test(combinedText) || /Offboarding\s*-\s*/i.test(messageText) || /Offboarding\s*-\s*/i.test(flattened) || /Offboarding\s*-\s*/i.test(String(req.body?.text || "")) || /Offboarding\s*-\s*/i.test(String(req.body?.subject || "")) || /Offboarding\s*-\s*/i.test(String(activity?.text || "")) || /Offboarding\s*-\s*/i.test(String(activity?.subject || "")) || /Offboarding\s*-\s*/i.test(String(req.body?.body?.content || "")) || /Offboarding\s*-\s*/i.test(String(activity?.body?.content || ""));
 
   const hasOnboardingMarker = /\bnew\s*[-\s]*employee\b/i.test(combinedText);
   const hasOnboardingStructure =
