@@ -554,10 +554,61 @@ function parseOnboardingMessage(messageText) {
   };
 }
 
+function parseOffboardingMessage(messageText) {
+  const text = insertLineBreaksBeforeLabels(sanitizeText(messageText));
+
+  function findField(label) {
+    const escaped = label.replace(/\s+/g, "\\s+");
+    const others = LABELS.filter((x) => x !== label).map((x) => x.replace(/\s+/g, "\\s+"));
+    const pattern = new RegExp(
+      `(?:^|\\n|\\s)${escaped}\\s*:\\s*(.+?)(?=(?:\\n|\\s)(?:${others.join("|")})\\s*:|$)`,
+      "i"
+    );
+    const match = text.match(pattern);
+    return cleanInlineField(match?.[1]);
+  }
+
+  // Extract name from title or Name field
+  const titleMatch = text.match(/^Offboarding\s*-\s*(.+?)(?:\n|$)/i);
+  const labeledName = (() => {
+    const escaped = "Name".replace(/\s+/g, "\\s+");
+    const others = ["Company"].map((x) => x.replace(/\s+/g, "\\s+"));
+    const pattern = new RegExp(
+      `(?:^|\\n|\\s)${escaped}\\s*:\\s*(.+?)(?=(?:\\n|\\s)(?:${others.join("|")})\\s*:|$)`,
+      "i"
+    );
+    return cleanInlineField(text.match(pattern)?.[1]);
+  })();
+  let fullName = labeledName || cleanInlineField(titleMatch?.[1]) || "";
+
+  let company = findField("Company");
+
+  const loose = { fullName, company };
+  fillFromLabeledLines(text, loose);
+  fullName = loose.fullName || fullName;
+  company = company || loose.company;
+
+  const { firstName, lastName } = splitName(fullName);
+
+  return {
+    fullName,
+    firstName,
+    lastName,
+    company,
+    companyCode: inferCompanyCode(company),
+    position: "",
+    phone: "",
+    manager: "",
+    startDate: "",
+    email: generateEmail(firstName, lastName, company)
+  };
+}
+
 module.exports = {
   extractMessageText,
   flattenPayloadStrings,
   parseOnboardingMessage,
+  parseOffboardingMessage,
   inferDomain,
   inferCompanyCode,
   resolveTenantKeyByEmail,

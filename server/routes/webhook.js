@@ -1,9 +1,9 @@
 const express = require("express");
 const crypto = require("crypto");
-const { extractMessageText, flattenPayloadStrings, parseOnboardingMessage, inferDomain, inferCompanyCode } = require("../parser");
+const { extractMessageText, flattenPayloadStrings, parseOnboardingMessage, parseOffboardingMessage, inferDomain, inferCompanyCode } = require("../parser");
 const { addTask, NOT_SPECIFIED } = require("../services/taskStore");
 const { findUserByDisplayName } = require("../services/graph");
-const { createOnboardingTicket } = require("../services/zammad.service");
+const { createOnboardingTicket, createOffboardingTicket } = require("../services/zammad.service");
 
 const router = express.Router();
 
@@ -109,21 +109,9 @@ router.post("/teams", async (req, res) => {
     });
   }
 
-  const parseCandidates = [
-    parseOnboardingMessage(glueText),
-    parseOnboardingMessage(messageText),
-    parseOnboardingMessage(flattened),
-    parseOnboardingMessage(String(req.body?.text || "")),
-    parseOnboardingMessage(String(req.body?.subject || "")),
-    parseOnboardingMessage(String(activity?.text || "")),
-    parseOnboardingMessage(String(activity?.subject || "")),
-    parseOnboardingMessage(String(req.body?.body?.content || "")),
-    parseOnboardingMessage(String(activity?.body?.content || "")),
-    parseOnboardingMessage(JSON.stringify(req.body))
-  ];
-  const parsed = mergeParsed(parseCandidates);
-
   const combinedText = glueText;
+  const hasOffboardingMarker = /^Offboarding\s*-\s*/i.test(combinedText) || /^Offboarding\s*-\s*/i.test(messageText) || /^Offboarding\s*-\s*/i.test(flattened) || /^Offboarding\s*-\s*/i.test(String(req.body?.text || "")) || /^Offboarding\s*-\s*/i.test(String(req.body?.subject || "")) || /^Offboarding\s*-\s*/i.test(String(activity?.text || "")) || /^Offboarding\s*-\s*/i.test(String(activity?.subject || "")) || /^Offboarding\s*-\s*/i.test(String(req.body?.body?.content || "")) || /^Offboarding\s*-\s*/i.test(String(activity?.body?.content || ""));
+
   const hasOnboardingMarker = /\bnew\s*[-\s]*employee\b/i.test(combinedText);
   const hasOnboardingStructure =
     /will\s+join\s+us\s+on/i.test(combinedText) ||
@@ -132,72 +120,164 @@ router.post("/teams", async (req, res) => {
     /line\s*manager\s*:/i.test(combinedText) ||
     /mobile\s*number\s*:/i.test(combinedText);
 
-  if (!hasOnboardingMarker && !hasOnboardingStructure) {
+  if (hasOffboardingMarker) {
+    console.log("[webhook] Detected offboarding message");
+    const parseCandidates = [
+      parseOffboardingMessage(glueText),
+      parseOffboardingMessage(messageText),
+      parseOffboardingMessage(flattened),
+      parseOffboardingMessage(String(req.body?.text || "")),
+      parseOffboardingMessage(String(req.body?.subject || "")),
+      parseOffboardingMessage(String(activity?.text || "")),
+      parseOffboardingMessage(String(activity?.subject || "")),
+      parseOffboardingMessage(String(req.body?.body?.content || "")),
+      parseOffboardingMessage(String(activity?.body?.content || "")),
+      parseOffboardingMessage(JSON.stringify(req.body))
+    ];
+    const parsed = mergeParsed(parseCandidates);
+
+    const company = String(parsed.company || "").trim() || NOT_SPECIFIED;
+    const companyCode = inferCompanyCode(company);
+    const tenantKey = companyCode !== NOT_SPECIFIED ? require("../services/tenantConfig").normalizeTenantKey(companyCode) : require("../services/tenantConfig").getDefaultTenantKey();
+
+    console.log(`[webhook] Parsed name: ${parsed.fullName}, company: ${company}, tenant: ${tenantKey}`);
+
+    const normalized = {
+      taskType: "offboarding",
+      fullName: String(parsed.fullName || "").trim() || NOT_SPECIFIED,
+      firstName: String(parsed.firstName || "").trim() || NOT_SPECIFIED,
+      lastName: String(parsed.lastName || "").trim() || NOT_SPECIFIED,
+      company,
+      companyCode,
+      position: "",
+      phone: "",
+      manager: "",
+      startDate: "",
+      email: String(parsed.email || "").trim() || NOT_SPECIFIED,
+      offboarding: {}
+    };
+
+    // Find user in Entra ID
+    let matchedUser = null;
+    if (normalized.fullName && normalized.fullName !== NOT_SPECIFIED) {
+      try {
+        matchedUser = await findUserByDisplayName(normalized.fullName, tenantKey);
+        if (matchedUser) {
+          console.log(`[webhook] User found: ${matchedUser.displayName} (${matchedUser.mail})`);
+          normalized.offboarding.user = {
+            id: matchedUser.id,
+            tenant: tenantKey,
+            displayName: matchedUser.displayName,
+            mail: matchedUser.mail,
+            userPrincipalName: matchedUser.userPrincipalName,
+            userType: matchedUser.userType
+          };
+        } else {
+          console.log(`[webhook] User not found in tenant ${tenantKey}`);
+        }
+      } catch (error) {
+        console.warn(`[webhook] User lookup failed: ${error.message}`);
+      }
+    }
+
+    const result = addTask(normalized);
+
+    console.log(`[webhook] Offboarding task created: ${result.task.id} for ${result.task.fullName}`);
+
+    // Create Zammad ticket asynchronously
+    createOffboardingTicket(result.task, {
+      senderEmail: normalized.email !== NOT_SPECIFIED ? normalized.email : null,
+      ticketBody: messageText,
+      webhookPayload: req.body
+    }).catch((error) => {
+      console.error(`[webhook] Zammad ticket creation failed: ${error.message}`);
+    });
+
+    return res.status(200).json({
+      type: "message",
+      text: `Offboarding task created for ${result.task.fullName}.`
+    });
+  } else if (!hasOnboardingMarker && !hasOnboardingStructure) {
     console.warn("[webhook] Parse failed. Extracted text:", messageText);
     return res.status(200).json({
       type: "message",
       text: "Message ignored. Onboarding marker not found."
     });
-  }
+  } else {
+    // Onboarding logic
+    const parseCandidates = [
+      parseOnboardingMessage(glueText),
+      parseOnboardingMessage(messageText),
+      parseOnboardingMessage(flattened),
+      parseOnboardingMessage(String(req.body?.text || "")),
+      parseOnboardingMessage(String(req.body?.subject || "")),
+      parseOnboardingMessage(String(activity?.text || "")),
+      parseOnboardingMessage(String(activity?.subject || "")),
+      parseOnboardingMessage(String(req.body?.body?.content || "")),
+      parseOnboardingMessage(String(activity?.body?.content || "")),
+      parseOnboardingMessage(JSON.stringify(req.body))
+    ];
+    const parsed = mergeParsed(parseCandidates);
 
-  const company = String(parsed.company || "").trim() || NOT_SPECIFIED;
-  const companyDomain = inferDomain(company);
-  const companyCode = inferCompanyCode(company);
-  const normalized = {
-    fullName: String(parsed.fullName || "").trim() || NOT_SPECIFIED,
-    firstName: String(parsed.firstName || "").trim() || NOT_SPECIFIED,
-    lastName: String(parsed.lastName || "").trim() || NOT_SPECIFIED,
-    company,
-    companyCode,
-    companyDomain,
-    position: String(parsed.position || "").trim() || NOT_SPECIFIED,
-    phone: String(parsed.phone || "").trim() || NOT_SPECIFIED,
-    manager: String(parsed.manager || "").trim() || NOT_SPECIFIED,
-    startDate: String(parsed.startDate || "").trim() || NOT_SPECIFIED,
-    email:
-      String(parsed.email || "").trim() &&
-      !String(parsed.email || "").includes("new.user@") &&
-      String(parsed.fullName || "").trim()
-        ? String(parsed.email).trim()
-        : NOT_SPECIFIED
-  };
+    const company = String(parsed.company || "").trim() || NOT_SPECIFIED;
+    const companyDomain = inferDomain(company);
+    const companyCode = inferCompanyCode(company);
+    const normalized = {
+      fullName: String(parsed.fullName || "").trim() || NOT_SPECIFIED,
+      firstName: String(parsed.firstName || "").trim() || NOT_SPECIFIED,
+      lastName: String(parsed.lastName || "").trim() || NOT_SPECIFIED,
+      company,
+      companyCode,
+      companyDomain,
+      position: String(parsed.position || "").trim() || NOT_SPECIFIED,
+      phone: String(parsed.phone || "").trim() || NOT_SPECIFIED,
+      manager: String(parsed.manager || "").trim() || NOT_SPECIFIED,
+      startDate: String(parsed.startDate || "").trim() || NOT_SPECIFIED,
+      email:
+        String(parsed.email || "").trim() &&
+        !String(parsed.email || "").includes("new.user@") &&
+        String(parsed.fullName || "").trim()
+          ? String(parsed.email).trim()
+          : NOT_SPECIFIED
+    };
 
-  if (normalized.manager && normalized.manager !== NOT_SPECIFIED) {
-    try {
-      const matchedManager = await findUserByDisplayName(normalized.manager);
-      if (matchedManager && matchedManager.displayName) {
-        console.log(`[webhook] Line Manager selected: ${normalized.manager}`);
-        normalized.manager = String(matchedManager.displayName).trim();
+    if (normalized.manager && normalized.manager !== NOT_SPECIFIED) {
+      try {
+        const matchedManager = await findUserByDisplayName(normalized.manager);
+        if (matchedManager && matchedManager.displayName) {
+          console.log(`[webhook] Line Manager selected: ${normalized.manager}`);
+          normalized.manager = String(matchedManager.displayName).trim();
+        }
+      } catch (error) {
+        console.warn(`[webhook] Manager lookup failed: ${error.message}`);
       }
-    } catch (error) {
-      console.warn(`[webhook] Manager lookup failed: ${error.message}`);
     }
-  }
 
-  const result = addTask(normalized);
+    const result = addTask(normalized);
 
-  if (result.duplicate) {
+    if (result.duplicate) {
+      return res.status(200).json({
+        type: "message",
+        text: `Duplicate ignored: ${normalized.fullName} (${normalized.startDate}) already exists.`
+      });
+    }
+
+    console.log(`[webhook] Task created: ${result.task.id} for ${result.task.fullName}`);
+
+    // Create Zammad ticket asynchronously (non-blocking)
+    // Use the original extracted message text, not the webhook payload
+    createOnboardingTicket(result.task, {
+      senderEmail: normalized.email !== NOT_SPECIFIED ? normalized.email : null,
+      ticketBody: messageText
+    }).catch((error) => {
+      console.error(`[webhook] Zammad ticket creation failed: ${error.message}`);
+    });
+
     return res.status(200).json({
       type: "message",
-      text: `Duplicate ignored: ${normalized.fullName} (${normalized.startDate}) already exists.`
+      text: `Task created for ${result.task.fullName}.`
     });
   }
-
-  console.log(`[webhook] Task created: ${result.task.id} for ${result.task.fullName}`);
-
-  // Create Zammad ticket asynchronously (non-blocking)
-  // Use the original extracted message text, not the webhook payload
-  createOnboardingTicket(result.task, {
-    senderEmail: normalized.email !== NOT_SPECIFIED ? normalized.email : null,
-    ticketBody: messageText
-  }).catch((error) => {
-    console.error(`[webhook] Zammad ticket creation failed: ${error.message}`);
-  });
-
-  return res.status(200).json({
-    type: "message",
-    text: `Task created for ${result.task.fullName}.`
-  });
 });
 
 module.exports = router;

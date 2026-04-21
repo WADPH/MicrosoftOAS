@@ -247,9 +247,62 @@ async function createOnboardingTicket(task, options = {}) {
   }
 }
 
+async function createOffboardingTicket(task, options = {}) {
+  if (!process.env.ZAMMAD_ENABLED || process.env.ZAMMAD_ENABLED.toLowerCase() !== "true") {
+    console.log(`[Zammad] Integration disabled`);
+    return;
+  }
+
+  try {
+    const webhookPayload = options.webhookPayload || {};
+    let customerEmail = options.senderEmail || null;
+
+    if (!customerEmail) {
+      customerEmail = await resolveTeamsUserEmail(webhookPayload);
+    }
+
+    let customer = null;
+    if (customerEmail) {
+      customer = await findUserByEmail(customerEmail);
+    }
+
+    if (!customer) {
+      const defaultCustomer = normalizeString(process.env.ZAMMAD_DEFAULT_CUSTOMER || "eigsystem@outlook.com");
+      console.log(`[Zammad] Using default customer: ${defaultCustomer}`);
+      customer = await findUserByEmail(defaultCustomer);
+      if (!customer) {
+        throw new Error(`Default customer ${defaultCustomer} not found in Zammad`);
+      }
+    }
+
+    const title = `Offboarding - ${normalizeString(task.firstName)} ${normalizeString(task.lastName)}`.trim();
+    const body = normalizeString(options.ticketBody) || "Offboarding request created from Microsoft OAS";
+
+    const ticketData = {
+      title,
+      type: "MicrosoftOAS",
+      group: "Not Sorted",
+      customer_id: customer.id,
+      priority: "2 normal",
+      article: {
+        subject: title,
+        body,
+        type: "note",
+        internal: false
+      }
+    };
+
+    await createTicket(ticketData);
+  } catch (error) {
+    console.error(`[Zammad] Failed to create offboarding ticket: ${error.message}`);
+    // Don't throw - this is non-blocking
+  }
+}
+
 module.exports = {
   findUserByEmail,
   createTicket,
   resolveTeamsUserEmail,
-  createOnboardingTicket
+  createOnboardingTicket,
+  createOffboardingTicket
 };
