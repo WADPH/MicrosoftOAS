@@ -503,7 +503,10 @@
         <div id="snipeitPendingSection" class="settingsSection hidden">
           <div class="settingsSectionRow">
             <h3>Pending Assign Tasks</h3>
-            <button id="refreshSnipeitTasksBtn" type="button" class="ghost small">Refresh</button>
+            <div class="pendingHeaderActions">
+              <button id="viewAllSnipeitTasksBtn" type="button" class="ghost small">View all</button>
+              <button id="refreshSnipeitTasksBtn" type="button" class="ghost small">Refresh</button>
+            </div>
           </div>
           <div id="snipeitPendingTasks" class="snipeitPendingList"></div>
         </div>
@@ -522,6 +525,20 @@
           <button id="settingsCancelBtn" class="ghost" type="button">Cancel</button>
         </div>
         <p id="settingsStatus" class="meta"></p>
+      </div>
+    </div>
+
+    <div id="snipeitAllTasksModal" class="modal hidden" aria-hidden="true">
+      <div id="snipeitAllTasksModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="snipeitAllTasksModalTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="snipeitAllTasksModalTitle">All SnipeIT Assign Tasks</h3>
+            <p class="metaSmall">Includes pending, completed and failed tasks.</p>
+          </div>
+          <button id="snipeitAllTasksModalClose" type="button" aria-label="Close">×</button>
+        </div>
+        <div id="snipeitAllTasksList" class="snipeitPendingList"></div>
       </div>
     </div>
 

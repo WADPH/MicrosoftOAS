@@ -37,7 +37,14 @@ router.get("/assets", async (req, res) => {
 });
 
 router.get("/assign-tasks", (req, res) => {
-  const tasks = listAssignTasks().filter((task) => task.status === "pending");
+  const status = String(req.query.status || "pending").trim().toLowerCase();
+  const allTasks = listAssignTasks();
+  let tasks = allTasks;
+
+  if (status !== "all") {
+    tasks = allTasks.filter((task) => String(task.status || "").toLowerCase() === status);
+  }
+
   return res.json({ ok: true, tasks, checkIntervalMs: CHECK_INTERVAL_MS });
 });
 

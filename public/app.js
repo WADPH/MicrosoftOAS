@@ -1636,14 +1636,15 @@ function formatRelativeTime(ms) {
 }
 
 async function loadSnipeitAssignTasks() {
-  if (!state.snipeitConfig.enabled) return;
-  const data = await api("/snipeit/assign-tasks");
-  const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
-  const list = el("snipeitPendingTasks");
+  return loadSnipeitAssignTasksList();
+}
+
+function renderSnipeitAssignTasksList(listId, tasks, emptyText) {
+  const list = el(listId);
   if (!list) return;
   list.innerHTML = "";
-  if (tasks.length === 0) {
-    list.innerHTML = `<div class="managerEmpty">No pending assign tasks.</div>`;
+  if (!Array.isArray(tasks) || tasks.length === 0) {
+    list.innerHTML = `<div class="managerEmpty">${emptyText}</div>`;
     return;
   }
 
@@ -1652,19 +1653,52 @@ async function loadSnipeitAssignTasks() {
     row.className = "snipeitPendingItem";
     const nextAt = Date.parse(task.nextAttemptAt || 0);
     const eta = Number.isNaN(nextAt) ? "-" : formatRelativeTime(nextAt - Date.now());
+    const safeEmail = String(task.email || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    const safeAssets = (task.assets || []).map((x) => x.asset_tag).join(", ").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    const safeStatus = String(task.status || "pending").toLowerCase();
+    const canForce = safeStatus !== "completed";
     row.innerHTML = `
       <div class="pendingMain">
-        <div class="assetTag">${String(task.email || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
-        <div class="assetMeta">${(task.assets || []).map((x) => x.asset_tag).join(", ").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+        <div class="assetTag">${safeEmail}</div>
+        <div class="assetMeta">${safeAssets}</div>
         <div class="assetMeta">Created: ${task.createdAt || "-"} | Next check: ${task.nextAttemptAt || "-"} (${eta}) | Status: ${task.status || "pending"}</div>
       </div>
       <div class="pendingActions">
-        <button type="button" class="ghost small" data-action="force" data-id="${task.id}">Force Assign</button>
+        ${canForce ? `<button type="button" class="ghost small" data-action="force" data-id="${task.id}">Force Assign</button>` : ""}
         <button type="button" class="danger small" data-action="delete" data-id="${task.id}">Delete</button>
       </div>
     `;
     list.appendChild(row);
   }
+}
+
+async function loadSnipeitAssignTasksList({ includeAll = false, listId = "snipeitPendingTasks" } = {}) {
+  if (!state.snipeitConfig.enabled) return;
+  const url = includeAll ? "/snipeit/assign-tasks?status=all" : "/snipeit/assign-tasks";
+  const data = await api(url);
+  const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+  renderSnipeitAssignTasksList(
+    listId,
+    tasks,
+    includeAll ? "No SnipeIT assign tasks found." : "No pending assign tasks."
+  );
+}
+
+function openSnipeitAllTasksModal() {
+  if (!state.snipeitConfig.enabled) {
+    el("settingsStatus").textContent = "Snipe-IT is disabled";
+    return;
+  }
+  el("snipeitAllTasksModal").classList.remove("hidden");
+  el("snipeitAllTasksModal").setAttribute("aria-hidden", "false");
+  loadSnipeitAssignTasksList({ includeAll: true, listId: "snipeitAllTasksList" }).catch((error) => {
+    el("settingsStatus").textContent = `Failed to load Snipe-IT tasks: ${error.message}`;
+  });
+}
+
+function closeSnipeitAllTasksModal() {
+  el("snipeitAllTasksModal").classList.add("hidden");
+  el("snipeitAllTasksModal").setAttribute("aria-hidden", "true");
 }
 
 async function handleSnipeitPendingAction(event) {
@@ -1682,7 +1716,11 @@ async function handleSnipeitPendingAction(event) {
     if (action === "delete") {
       await api(`/snipeit/assign-tasks/${encodeURIComponent(id)}`, { method: "DELETE" });
     }
-    await loadSnipeitAssignTasks();
+    await loadSnipeitAssignTasksList({ includeAll: false, listId: "snipeitPendingTasks" });
+    const allTasksModal = el("snipeitAllTasksModal");
+    if (allTasksModal && !allTasksModal.classList.contains("hidden")) {
+      await loadSnipeitAssignTasksList({ includeAll: true, listId: "snipeitAllTasksList" });
+    }
   } catch (error) {
     el("settingsStatus").textContent = `Snipe-IT task action failed: ${error.message}`;
   } finally {
@@ -2696,6 +2734,13 @@ function setupActions() {
     });
   }
 
+  const snipeitAllTasksList = el("snipeitAllTasksList");
+  if (snipeitAllTasksList) {
+    snipeitAllTasksList.addEventListener("click", (event) => {
+      handleSnipeitPendingAction(event);
+    });
+  }
+
   const refreshSnipeitTasksBtn = el("refreshSnipeitTasksBtn");
   if (refreshSnipeitTasksBtn) {
     refreshSnipeitTasksBtn.onclick = async () => {
@@ -2705,6 +2750,21 @@ function setupActions() {
         el("settingsStatus").textContent = `Failed to load Snipe-IT tasks: ${error.message}`;
       }
     };
+  }
+
+  const viewAllSnipeitTasksBtn = el("viewAllSnipeitTasksBtn");
+  if (viewAllSnipeitTasksBtn) {
+    viewAllSnipeitTasksBtn.onclick = () => openSnipeitAllTasksModal();
+  }
+
+  const snipeitAllTasksModalClose = el("snipeitAllTasksModalClose");
+  if (snipeitAllTasksModalClose) {
+    snipeitAllTasksModalClose.onclick = () => closeSnipeitAllTasksModal();
+  }
+
+  const snipeitAllTasksModalOverlay = el("snipeitAllTasksModalOverlay");
+  if (snipeitAllTasksModalOverlay) {
+    snipeitAllTasksModalOverlay.onclick = () => closeSnipeitAllTasksModal();
   }
 
   const settingsSaveBtn = el("settingsSaveBtn");

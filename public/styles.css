@@ -588,6 +588,12 @@ body[data-theme="dark"] .iconBtn .moon {
   align-items: center;
 }
 
+.pendingHeaderActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .settingsModalContent {
   width: min(860px, 100%);
   scrollbar-width: thin;
