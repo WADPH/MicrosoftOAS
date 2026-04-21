@@ -612,6 +612,7 @@ module.exports = {
   inferDomain,
   inferCompanyCode,
   resolveTenantKeyByEmail,
+  findCompanyMatcher,
   findCompanyMatcherByHints,
   getCompanyMatcherOptions,
   buildCompanyMatchers,

@@ -1,6 +1,6 @@
 const express = require("express");
 const crypto = require("crypto");
-const { extractMessageText, flattenPayloadStrings, parseOnboardingMessage, parseOffboardingMessage, inferDomain, inferCompanyCode } = require("../parser");
+const { extractMessageText, flattenPayloadStrings, parseOnboardingMessage, parseOffboardingMessage, inferDomain, inferCompanyCode, findCompanyMatcher } = require("../parser");
 const { addTask, NOT_SPECIFIED } = require("../services/taskStore");
 const { findUserByDisplayName } = require("../services/graph");
 const { createOnboardingTicket, createOffboardingTicket } = require("../services/zammad.service");
@@ -142,7 +142,20 @@ router.post("/teams", async (req, res) => {
 
     const company = String(parsed.company || "").trim() || NOT_SPECIFIED;
     const companyCode = inferCompanyCode(company);
-    const tenantKey = companyCode !== NOT_SPECIFIED ? require("../services/tenantConfig").normalizeTenantKey(companyCode) : require("../services/tenantConfig").getDefaultTenantKey();
+    
+    // Use company matcher to get correct tenant (e.g., DRL -> EIGROUP)
+    let tenantKey = null;
+    if (company && company !== NOT_SPECIFIED) {
+      const matcher = findCompanyMatcher(company);
+      if (matcher && matcher.tenant) {
+        tenantKey = matcher.tenant;
+        console.log(`[webhook] Offboarding - Company matcher: ${company} -> tenant ${tenantKey}`);
+      }
+    }
+    if (!tenantKey) {
+      tenantKey = require("../services/tenantConfig").getDefaultTenantKey();
+      console.log(`[webhook] Offboarding - Using default tenant: ${tenantKey}`);
+    }
 
     console.log(`[webhook] Offboarding - Parsed name: ${parsed.fullName}, company: ${company}, tenant: ${tenantKey}`);
 
@@ -189,8 +202,9 @@ router.post("/teams", async (req, res) => {
     console.log(`[webhook] Offboarding task created: ${result.task.id} for ${result.task.fullName}`);
 
     // Create Zammad ticket asynchronously
+    // DO NOT pass senderEmail - let Zammad resolve Teams sender from webhook payload
+    // Customer should be the person who sent the Teams message, not the offboarding person
     createOffboardingTicket(result.task, {
-      senderEmail: normalized.email !== NOT_SPECIFIED ? normalized.email : null,
       ticketBody: messageText,
       webhookPayload: req.body
     }).catch((error) => {
