@@ -110,7 +110,9 @@ router.post("/teams", async (req, res) => {
   }
 
   const combinedText = glueText;
-  const hasOffboardingMarker = /Offboarding\s*-\s*/i.test(combinedText) || /Offboarding\s*-\s*/i.test(messageText) || /Offboarding\s*-\s*/i.test(flattened) || /Offboarding\s*-\s*/i.test(String(req.body?.text || "")) || /Offboarding\s*-\s*/i.test(String(req.body?.subject || "")) || /Offboarding\s*-\s*/i.test(String(activity?.text || "")) || /Offboarding\s*-\s*/i.test(String(activity?.subject || "")) || /Offboarding\s*-\s*/i.test(String(req.body?.body?.content || "")) || /Offboarding\s*-\s*/i.test(String(activity?.body?.content || ""));
+  console.log(`[webhook] Message detection - combined text preview: ${combinedText.substring(0, 200)}`);
+  
+  const hasOffboardingMarker = /offboarding/i.test(combinedText) || /offboarding/i.test(messageText) || /offboarding/i.test(flattened) || /offboarding/i.test(String(req.body?.text || "")) || /offboarding/i.test(String(req.body?.subject || "")) || /offboarding/i.test(String(activity?.text || "")) || /offboarding/i.test(String(activity?.subject || "")) || /offboarding/i.test(String(req.body?.body?.content || "")) || /offboarding/i.test(String(activity?.body?.content || ""));
 
   const hasOnboardingMarker = /\bnew\s*[-\s]*employee\b/i.test(combinedText);
   const hasOnboardingStructure =
@@ -119,6 +121,8 @@ router.post("/teams", async (req, res) => {
     /position\s*:/i.test(combinedText) ||
     /line\s*manager\s*:/i.test(combinedText) ||
     /mobile\s*number\s*:/i.test(combinedText);
+
+  console.log(`[webhook] Detection flags - offboarding: ${hasOffboardingMarker}, onboarding_marker: ${hasOnboardingMarker}, onboarding_structure: ${hasOnboardingStructure}`);
 
   if (hasOffboardingMarker) {
     console.log("[webhook] Detected offboarding message");
@@ -140,7 +144,7 @@ router.post("/teams", async (req, res) => {
     const companyCode = inferCompanyCode(company);
     const tenantKey = companyCode !== NOT_SPECIFIED ? require("../services/tenantConfig").normalizeTenantKey(companyCode) : require("../services/tenantConfig").getDefaultTenantKey();
 
-    console.log(`[webhook] Parsed name: ${parsed.fullName}, company: ${company}, tenant: ${tenantKey}`);
+    console.log(`[webhook] Offboarding - Parsed name: ${parsed.fullName}, company: ${company}, tenant: ${tenantKey}`);
 
     const normalized = {
       taskType: "offboarding",
@@ -163,7 +167,7 @@ router.post("/teams", async (req, res) => {
       try {
         matchedUser = await findUserByDisplayName(normalized.fullName, tenantKey);
         if (matchedUser) {
-          console.log(`[webhook] User found: ${matchedUser.displayName} (${matchedUser.mail})`);
+          console.log(`[webhook] Offboarding - User found: ${matchedUser.displayName} (${matchedUser.mail})`);
           normalized.offboarding.user = {
             id: matchedUser.id,
             tenant: tenantKey,
@@ -173,10 +177,10 @@ router.post("/teams", async (req, res) => {
             userType: matchedUser.userType
           };
         } else {
-          console.log(`[webhook] User not found in tenant ${tenantKey}`);
+          console.log(`[webhook] Offboarding - User not found in tenant ${tenantKey}`);
         }
       } catch (error) {
-        console.warn(`[webhook] User lookup failed: ${error.message}`);
+        console.warn(`[webhook] Offboarding - User lookup failed: ${error.message}`);
       }
     }
 
@@ -190,7 +194,7 @@ router.post("/teams", async (req, res) => {
       ticketBody: messageText,
       webhookPayload: req.body
     }).catch((error) => {
-      console.error(`[webhook] Zammad ticket creation failed: ${error.message}`);
+      console.error(`[webhook] Zammad offboarding ticket creation failed: ${error.message}`);
     });
 
     return res.status(200).json({
@@ -201,9 +205,9 @@ router.post("/teams", async (req, res) => {
     console.warn("[webhook] Parse failed. Extracted text:", messageText);
     return res.status(200).json({
       type: "message",
-      text: "Message ignored. Onboarding marker not found."
+      text: "Message ignored. No onboarding or offboarding marker found."
     });
-  } else {
+  } else if (hasOnboardingMarker || hasOnboardingStructure) {
     // Onboarding logic
     const parseCandidates = [
       parseOnboardingMessage(glueText),
