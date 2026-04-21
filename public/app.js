@@ -567,14 +567,14 @@ function resetOffboardingState() {
   renderCurrentTaskList();
 }
 
-function selectOffboardingTask(id) {
+async function selectOffboardingTask(id) {
   const task = state.offboardingTasks.find((row) => row.id === id);
   if (!task) return;
   state.offboardingSelectedId = id;
   renderCurrentTaskList();
 
   const payload = task.offboarding || {};
-  state.offboarding.selectedTenant = String(payload.tenant || state.offboarding.selectedTenant || "").trim();
+  state.offboarding.selectedTenant = String(payload.tenant || payload.user?.tenant || state.offboarding.selectedTenant || "").trim();
   if (!state.offboarding.selectedTenant && state.offboarding.tenants.length > 0) {
     state.offboarding.selectedTenant = state.offboarding.tenants[0];
   }
@@ -603,6 +603,24 @@ function selectOffboardingTask(id) {
   renderOffboardingAccounts();
   renderOffboardingAssets();
   fillOffboardingLicenseCancelMailFromState();
+
+  const shouldAutoLoadRelatedData =
+    Boolean(state.offboarding.selectedUser) &&
+    state.offboarding.relatedAccounts.length === 0 &&
+    state.offboarding.snipeitAssets.length === 0 &&
+    (!payload.tenant || !payload.email);
+
+  if (shouldAutoLoadRelatedData) {
+    try {
+      el("offboardingStatus").textContent = "Loading related accounts and assets...";
+      await loadOffboardingAccountAndAssets();
+      el("offboardingStatus").textContent = `Loaded offboarding task ${task.id} (auto-detected related data)`;
+    } catch (error) {
+      el("offboardingStatus").textContent = `Loaded offboarding task ${task.id}, but related data failed: ${error.message}`;
+    }
+    return;
+  }
+
   el("offboardingStatus").textContent = `Loaded offboarding task ${task.id}`;
 }
 
@@ -1237,7 +1255,11 @@ function renderOffboardingTasks() {
         <div class="statusPill ${cls(task.status)}">${String(task.status || "pending").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
       </div>
     `;
-    li.onclick = () => selectOffboardingTask(task.id);
+    li.onclick = () => {
+      selectOffboardingTask(task.id).catch((error) => {
+        el("offboardingStatus").textContent = `Failed to load offboarding task: ${error.message}`;
+      });
+    };
     list.appendChild(li);
   }
 }
@@ -1388,7 +1410,7 @@ async function loadOffboardingTasks() {
   }
   renderCurrentTaskList();
   if (state.offboardingSelectedId) {
-    selectOffboardingTask(state.offboardingSelectedId);
+    await selectOffboardingTask(state.offboardingSelectedId);
   }
 }
 
