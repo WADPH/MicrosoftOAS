@@ -586,9 +586,11 @@ async function selectOffboardingTask(id) {
   state.offboarding.sendLicenseCancelEmail = payload.sendLicenseCancelEmail !== false;
   state.offboarding.userEditedLicenseSubject = true;
   state.offboarding.userEditedLicenseBody = true;
+  const payloadLicenseTo = Array.isArray(payload.licenseCancelMail?.to) ? payload.licenseCancelMail.to : [];
+  const payloadLicenseCc = Array.isArray(payload.licenseCancelMail?.cc) ? payload.licenseCancelMail.cc : [];
   state.offboarding.licenseCancelMail = {
-    to: Array.isArray(payload.licenseCancelMail?.to) ? payload.licenseCancelMail.to : [...state.offboarding.licenseDefaults.to],
-    cc: Array.isArray(payload.licenseCancelMail?.cc) ? payload.licenseCancelMail.cc : [...state.offboarding.licenseDefaults.cc],
+    to: payloadLicenseTo.length > 0 ? payloadLicenseTo : [...state.offboarding.licenseDefaults.to],
+    cc: payloadLicenseCc.length > 0 ? payloadLicenseCc : [...state.offboarding.licenseDefaults.cc],
     subject: String(payload.licenseCancelMail?.subject || buildDefaultOffboardingLicenseSubject()),
     body: String(payload.licenseCancelMail?.body || buildDefaultOffboardingLicenseBody())
   };
