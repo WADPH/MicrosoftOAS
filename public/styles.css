@@ -97,6 +97,19 @@ h3 {
   font-size: 26px;
 }
 
+.topbarBrand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.topbarBrand img {
+  height: 0.95em;
+  width: auto;
+  display: inline-block;
+  vertical-align: baseline;
+}
+
 .topbarRight {
   display: flex;
   align-items: center;
@@ -1035,6 +1048,18 @@ button.danger {
   font-size: 28px;
   color: #e6eefc;
   letter-spacing: -0.02em;
+}
+
+.loginBrand {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.loginBrand img {
+  max-width: 280px;
+  width: 100%;
+  height: auto;
 }
 
 .loginBox .loginMeta {
