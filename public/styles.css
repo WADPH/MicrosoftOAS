@@ -104,6 +104,8 @@ h3 {
 }
 
 .topbarBrand img {
+  margin-left: 6px;
+  margin-top: 10px;
   height: 1.05em;
   width: auto;
   display: inline-block;
@@ -1073,7 +1075,6 @@ button.danger {
 }
 
 .loginBrand img {
-  max-width: 280px;
   width: 100%;
   height: auto;
 }
