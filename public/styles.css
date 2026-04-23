@@ -99,15 +99,31 @@ h3 {
 
 .topbarBrand {
   display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 0;
 }
 
 .topbarBrand img {
-  height: 0.95em;
+  height: 1.05em;
   width: auto;
   display: inline-block;
-  vertical-align: baseline;
+  vertical-align: middle;
+}
+
+.topbarBrand .logoLight {
+  display: inline-block;
+}
+
+.topbarBrand .logoDark {
+  display: none;
+}
+
+body[data-theme="dark"] .topbarBrand .logoLight {
+  display: none;
+}
+
+body[data-theme="dark"] .topbarBrand .logoDark {
+  display: inline-block;
 }
 
 .topbarRight {
