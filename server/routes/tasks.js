@@ -9,7 +9,7 @@ const {
   DOMAIN_OPTIONS,
   COMPANY_CODE_OPTIONS
 } = require("../services/taskStore");
-const { getCompanyMatcherOptions, resolveTenantKeyByEmail, buildCompanyMatchers, findCompanyMatcherByHints } = require("../parser");
+const { getCompanyMatcherOptions, resolveTenantKeyByEmail, buildCompanyMatchers } = require("../parser");
 const {
   getUserByEmail,
   createUser,
@@ -413,15 +413,7 @@ router.post("/:id/approve", async (req, res) => {
     try {
       const userObjectId = String(user?.id || "").trim();
       const selectedGroups = Array.isArray(task.entraGroups) ? task.entraGroups : [];
-      const matcherDefaults = findCompanyMatcherByHints({
-        companyCode: task.companyCode,
-        companyDomain: task.companyDomain,
-        email: task.email
-      });
-      const defaultGroupIds = Array.isArray(matcherDefaults?.groups) ? matcherDefaults.groups : [];
-      const groupsToAssign = selectedGroups.length > 0
-        ? selectedGroups.map((group) => String(group.id || "").trim()).filter(Boolean)
-        : defaultGroupIds;
+      const groupsToAssign = selectedGroups.map((group) => String(group.id || "").trim()).filter(Boolean);
 
       if (!userObjectId || groupsToAssign.length === 0) {
         steps.push({ step: "groups", action: groupsToAssign.length > 0 ? "skipped_no_user_id" : "skipped_no_groups", success: true });

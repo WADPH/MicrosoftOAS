@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { findCompanyMatcherByHints } = require("../parser");
 
 const DB_PATH = path.join(__dirname, "..", "db", "tasks.json");
 const NOT_SPECIFIED = "not specified";
@@ -253,9 +254,41 @@ function isDuplicateTask(tasks, fullName, startDate) {
 }
 
 function addTask(parsedData, options = {}) {
+  const taskType = String(parsedData?.taskType || TASK_TYPE_ONBOARDING).toLowerCase() === TASK_TYPE_OFFBOARDING
+    ? TASK_TYPE_OFFBOARDING
+    : TASK_TYPE_ONBOARDING;
+  const providedGroups = Array.isArray(parsedData?.entraGroups)
+    ? parsedData.entraGroups
+        .map((group) => ({
+          id: String(group?.id || group || "").trim(),
+          displayName: String(group?.displayName || "").trim(),
+          tenant: String(group?.tenant || "").trim().toUpperCase()
+        }))
+        .filter((group) => group.id)
+    : [];
+  let initialGroups = providedGroups;
+  if (taskType === TASK_TYPE_ONBOARDING && providedGroups.length === 0) {
+    const matcher = findCompanyMatcherByHints({
+      companyCode: parsedData?.companyCode,
+      companyDomain: parsedData?.companyDomain,
+      email: parsedData?.email
+    });
+    const matcherGroups = Array.isArray(matcher?.groups) ? matcher.groups : [];
+    const matcherTenant = String(matcher?.tenant || "").trim().toUpperCase();
+    initialGroups = matcherGroups
+      .map((groupId) => ({
+        id: String(groupId || "").trim(),
+        displayName: "",
+        tenant: matcherTenant
+      }))
+      .filter((group) => group.id);
+  }
+
   const tasks = readTasks();
   const normalizedTask = normalizeTask({
     ...parsedData,
+    taskType,
+    entraGroups: initialGroups,
     assets: parsedData.assets || {
       laptop: false,
       keyboard: false,

@@ -899,14 +899,6 @@ function getOnboardingGroupPickerTenants(task = getCurrentTask()) {
   return [...tenants].filter(Boolean);
 }
 
-function ensureOnboardingDefaultGroups(task = getCurrentTask()) {
-  if (!task) return;
-  if (state.onboardingGroupSelectionTouched) return;
-  const existing = Array.isArray(task.entraGroups) ? task.entraGroups.filter((group) => normalizeGroupId(group.id)) : [];
-  if (existing.length > 0) return;
-  task.entraGroups = getDefaultGroupsForTask(task);
-}
-
 async function loadOnboardingDefaultGroupNames(task = getCurrentTask()) {
   if (!task) return;
   const groups = getTaskGroups(task);
@@ -951,7 +943,6 @@ function renderOnboardingGroups(task = getCurrentTask()) {
     return;
   }
 
-  ensureOnboardingDefaultGroups(task);
   const groups = getTaskGroups(task);
   const tenant = getOnboardingTenantForGroups(task) || "-";
   if (tenantMeta) tenantMeta.textContent = `Tenant: ${tenant}`;
@@ -1009,6 +1000,12 @@ function updateOnboardingGroupsFromSelection(groups = []) {
     .filter((group) => group.id);
   state.onboardingGroupSelectionTouched = true;
   renderOnboardingGroups(task);
+}
+
+function resetOnboardingGroupsToDefault() {
+  const task = getCurrentTask();
+  if (!task) return;
+  updateOnboardingGroupsFromSelection(getDefaultGroupsForTask(task));
 }
 
 function getGroupDisplayNameFromCache(tenant, id) {
@@ -2336,6 +2333,13 @@ function setupActions() {
           updateOnboardingGroupsFromSelection(selected);
         }
       });
+    };
+  }
+
+  const resetOnboardingGroupBtn = el("resetOnboardingGroupBtn");
+  if (resetOnboardingGroupBtn) {
+    resetOnboardingGroupBtn.onclick = () => {
+      resetOnboardingGroupsToDefault();
     };
   }
 
