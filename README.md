@@ -160,17 +160,17 @@ ALLOWED_EMAILS=user1@company.com,user2@company.com,admin@company.com
 REDIRECT_URI=https://your-app-domain.com/auth/callback
 
 # Multi-Tenant Setup
-TENANTS=EIGROUP,WAVERITY
+TENANTS=COMPANY1,COMPANY2
 
-# Tenant 1: EIGROUP
-EIGROUP_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-EIGROUP_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-EIGROUP_CLIENT_SECRET=your-client-secret-here
+# Tenant 1: COMPANY1
+COMPANY1_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+COMPANY1_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+COMPANY1_CLIENT_SECRET=your-client-secret-here
 
-# Tenant 2: WAVERITY
-WAVERITY_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-WAVERITY_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-WAVERITY_CLIENT_SECRET=your-client-secret-here
+# Tenant 2: COMPANY2
+COMPANY2_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+COMPANY2_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+COMPANY2_CLIENT_SECRET=your-client-secret-here
 
 # Default License Usage Location (e.g., US, AZ, GB)
 DEFAULT_USAGE_LOCATION=US
@@ -231,28 +231,28 @@ Each tenant key in `TENANTS` must have corresponding `{KEY}_TENANT_ID`, `{KEY}_C
 Map incoming requests to specific Azure AD tenants and configure company-specific settings:
 
 ```env
-COMPANY_MATCHER_KEYS=EIGROUP,NEOTECH,WAVERITY
+COMPANY_MATCHER_KEYS=COMPANY1,COMPANY3,COMPANY2
 
-# EIGROUP Configuration
-COMPANY_MATCHER_EIGROUP_PATTERNS=eigroup,eigroup llc,ei-group
-COMPANY_MATCHER_EIGROUP_DOMAIN=eigroup.az
-COMPANY_MATCHER_EIGROUP_CODE=EIG
-COMPANY_MATCHER_EIGROUP_TENANT=EIGROUP
-COMPANY_MATCHER_EIGROUP_GROUPS=
+# COMPANY1 Configuration
+COMPANY_MATCHER_COMPANY1_PATTERNS=COMPANY1,COMPANY1 llc,ei-group
+COMPANY_MATCHER_COMPANY1_DOMAIN=COMPANY1.az
+COMPANY_MATCHER_COMPANY1_CODE=EIG
+COMPANY_MATCHER_COMPANY1_TENANT=COMPANY1
+COMPANY_MATCHER_COMPANY1_GROUPS=
 
-# NEOTECH Configuration
-COMPANY_MATCHER_NEOTECH_PATTERNS=neotech,neotech llc
-COMPANY_MATCHER_NEOTECH_DOMAIN=neotech.az
-COMPANY_MATCHER_NEOTECH_CODE=NEO
-COMPANY_MATCHER_NEOTECH_TENANT=COMPANY1
-COMPANY_MATCHER_NEOTECH_GROUPS=group-id-1,group-id-2
+# COMPANY3 Configuration
+COMPANY_MATCHER_COMPANY3_PATTERNS=COMPANY3,COMPANY3 llc
+COMPANY_MATCHER_COMPANY3_DOMAIN=COMPANY3.az
+COMPANY_MATCHER_COMPANY3_CODE=NEO
+COMPANY_MATCHER_COMPANY3_TENANT=COMPANY1
+COMPANY_MATCHER_COMPANY3_GROUPS=group-id-1,group-id-2
 
-# WAVERITY Configuration
-COMPANY_MATCHER_WAVERITY_PATTERNS=waverity,waverity corp
-COMPANY_MATCHER_WAVERITY_DOMAIN=waverity.az
-COMPANY_MATCHER_WAVERITY_CODE=WAV
-COMPANY_MATCHER_WAVERITY_TENANT=COMPANY2
-COMPANY_MATCHER_WAVERITY_GROUPS=
+# COMPANY2 Configuration
+COMPANY_MATCHER_COMPANY2_PATTERNS=COMPANY2,COMPANY2 corp
+COMPANY_MATCHER_COMPANY2_DOMAIN=COMPANY2.az
+COMPANY_MATCHER_COMPANY2_CODE=WAV
+COMPANY_MATCHER_COMPANY2_TENANT=COMPANY2
+COMPANY_MATCHER_COMPANY2_GROUPS=
 ```
 
 **Configuration Fields:**
@@ -347,7 +347,7 @@ Receives onboarding/offboarding requests from Microsoft Teams.
 **Payload Example:**
 ```json
 {
-  "text": "New employee - John Smith\nJohn Smith will join us on April 15, 2026.\nCompany: Neotech LLC\nPosition: Senior Developer\nName: John Smith\nMobile number: +994 70 000 00 00\nLine Manager: Jane Doe"
+  "text": "New employee - John Smith\nJohn Smith will join us on April 15, 2026.\nCompany: COMPANY3 LLC\nPosition: Senior Developer\nName: John Smith\nMobile number: +994 70 000 00 00\nLine Manager: Jane Doe"
 }
 ```
 
@@ -464,7 +464,7 @@ OAS/
 curl -X POST "http://localhost:3000/webhook/teams" \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "New employee - John Smith\nJohn Smith will join us on April 15, 2026.\nCompany: Neotech LLC\nPosition: Senior Developer\nName: John Smith\nMobile number: +994 70 000 00 00\nLine Manager: Jane Doe"
+    "text": "New employee - John Smith\nJohn Smith will join us on April 15, 2026.\nCompany: COMPANY3 LLC\nPosition: Senior Developer\nName: John Smith\nMobile number: +994 70 000 00 00\nLine Manager: Jane Doe"
   }'
 ```
 
