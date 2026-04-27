@@ -79,7 +79,7 @@ function buildOffboardingTaskPayload(payload = {}) {
       subject: String(licenseCancelMail.subject || `License cancel for ${tenant}`).trim(),
       body: String(
         licenseCancelMail.body ||
-          `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license for the tenant ${tenant}.\n\nBest regards,\nIT Team`
+          `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license (Monthly) for the tenant ${tenant}.\n\nBest regards,\nIT Team`
       )
     },
     user,

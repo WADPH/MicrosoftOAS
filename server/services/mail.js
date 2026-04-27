@@ -129,7 +129,7 @@ function buildLicenseCancellationMail(offboarding = {}) {
     subject: String(mail.subject || `License cancel for ${tenantName}`),
     body: String(
       mail.body ||
-        `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license for the tenant ${tenantName}.\n\nBest regards,\nIT Team`
+        `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium (Monthly) license for the tenant ${tenantName}.\n\nBest regards,\nIT Team`
     )
   };
 }

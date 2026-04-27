@@ -287,9 +287,18 @@ function resolveMatcherForCurrentTask(task = getCurrentTask()) {
   const matchers = Array.isArray(state.companyMatchers) ? state.companyMatchers : [];
   if (!task || matchers.length === 0) return null;
 
-  const code = String(task.companyCode || el("company")?.value || "").trim().toUpperCase();
-  const domain = String(task.companyDomain || el("companyDomain")?.value || "").trim().toLowerCase();
-  const emailDomain = parseEmailDomain(task.email || el("email")?.value || "");
+  const selectedTaskId = String(state.selectedId || "").trim();
+  const isActiveTask = selectedTaskId && String(task.id || "").trim() === selectedTaskId;
+
+  // For the currently opened task, the form values are the source of truth.
+  // This keeps default-group resolution in sync with unsaved Company Domain changes.
+  const code = String(isActiveTask ? (el("company")?.value || task.companyCode || "") : (task.companyCode || ""))
+    .trim()
+    .toUpperCase();
+  const domain = String(isActiveTask ? (el("companyDomain")?.value || task.companyDomain || "") : (task.companyDomain || ""))
+    .trim()
+    .toLowerCase();
+  const emailDomain = parseEmailDomain(String(isActiveTask ? (el("email")?.value || task.email || "") : (task.email || "")));
 
   if (code) {
     const byCode = matchers.find((matcher) => String(matcher.code || "").trim().toUpperCase() === code);
@@ -512,7 +521,7 @@ function buildDefaultOffboardingLicenseSubject() {
 
 function buildDefaultOffboardingLicenseBody() {
   const tenant = String(state.offboarding.selectedTenant || "").trim().toUpperCase();
-  return `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license for the tenant ${tenant}.\n\nBest regards,\nIT Team`;
+  return `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license (Monthly) for the tenant ${tenant}.\n\nBest regards,\nIT Team`;
 }
 
 function refreshOffboardingLicenseCancelVisibility() {
