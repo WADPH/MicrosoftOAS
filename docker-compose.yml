@@ -1,6 +1,7 @@
 services:
   microsoft-oas:
     build: .
+    container_name: MicrosoftOAS
     ports:
       - "3000:3000"
     volumes:
