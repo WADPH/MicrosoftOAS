@@ -423,6 +423,16 @@ body[data-theme="dark"] .iconBtn .moon {
   align-items: center;
 }
 
+.sectionDivider {
+  height: 1px;
+  background: var(--line);
+  margin: 8px 0 12px;
+}
+
+.readonlySection {
+  opacity: 0.6;
+}
+
 .modal {
   position: fixed;
   inset: 0;
@@ -1009,6 +1019,10 @@ button:hover {
   gap: 10px;
   margin-top: auto;
   flex-shrink: 0;
+}
+
+.pushRight {
+  margin-left: auto;
 }
 
 button.primary {

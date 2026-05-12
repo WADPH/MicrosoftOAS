@@ -10,6 +10,9 @@ const state = {
   userEditedLicenseBody: false,
   userEditedAssetsSubject: false,
   userEditedAssetsBody: false,
+  zammadEnabled: false,
+  zammadAgents: [],
+  selectedZammadAgentId: null,
   settings: null,
   snipeitConfig: {
     enabled: false,
@@ -149,6 +152,7 @@ async function initApp() {
 
   showAppScreen();
   await loadMeta();
+  await loadZammadAvailability().catch(() => {});
   await loadSnipeitConfig();
   await loadOffboardingMeta().catch(() => {});
   await loadTasks();
@@ -841,12 +845,21 @@ function buildDefaultAssetsBody() {
 
 function refreshMailVisibilityAndPreview() {
   const licenseSection = el("licenseMailSection");
+  const licenseControlsWrap = el("licenseControlsWrap");
   const assetsSection = el("assetsMailSection");
   const licenseRequired = el("licenseRequired").checked;
+  const skipLicense = Boolean(el("skipLicense")?.checked);
   const anyAsset = hasAnyAssetSelected();
 
   licenseSection.classList.toggle("hidden", !licenseRequired);
   assetsSection.classList.toggle("hidden", !anyAsset);
+  if (licenseControlsWrap) {
+    licenseControlsWrap.classList.toggle("readonlySection", skipLicense);
+    const controls = licenseControlsWrap.querySelectorAll("input, textarea, select, button");
+    for (const control of controls) {
+      control.disabled = skipLicense;
+    }
+  }
 
   if (!state.userEditedLicenseSubject) {
     el("licenseSubject").value = buildDefaultLicenseSubject();
@@ -1343,6 +1356,7 @@ function selectTask(id) {
   renderDomainOptions(task.companyDomain || state.companyDomains[2]);
   renderCompanyCodeOptions(task.companyCode || state.companyCodes[2]);
 
+  setCheckbox("skipLicense", task.skipLicense);
   setCheckbox("licenseRequired", task.licenseRequired);
 
   setCheckbox("assetLaptop", task.assets?.laptop);
@@ -1364,6 +1378,7 @@ function selectTask(id) {
   renderOnboardingGroups(task);
   loadOnboardingDefaultGroupNames(task).catch(() => {});
   refreshMailVisibilityAndPreview();
+  applyZammadUiVisibility();
 }
 
 async function loadMeta() {
@@ -1505,6 +1520,93 @@ function closeManagerModal() {
   el("managerModal").setAttribute("aria-hidden", "true");
 }
 
+function renderZammadAgentList() {
+  const list = el("zammadAgentList");
+  if (!list) return;
+  list.innerHTML = "";
+  const rows = Array.isArray(state.zammadAgents) ? state.zammadAgents : [];
+  if (rows.length === 0) {
+    list.innerHTML = `<div class="managerEmpty">No agent users found.</div>`;
+    return;
+  }
+  for (const agent of rows) {
+    const id = Number(agent.id);
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "managerItem";
+    item.innerHTML = `
+      <strong>${String(agent.displayName || "Unnamed agent").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</strong>
+      <span class="subtitle">${String(agent.email || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>
+    `;
+    if (Number(state.selectedZammadAgentId) === id) {
+      item.style.borderColor = "var(--accent)";
+      item.style.background = "color-mix(in srgb, var(--accent) 8%, var(--input))";
+    }
+    item.onclick = () => {
+      state.selectedZammadAgentId = id;
+      renderZammadAgentList();
+    };
+    list.appendChild(item);
+  }
+}
+
+function closeZammadAgentModal() {
+  el("zammadAgentModal")?.classList.add("hidden");
+  el("zammadAgentModal")?.setAttribute("aria-hidden", "true");
+}
+
+async function openZammadAgentModal() {
+  if (!state.selectedId) {
+    el("status").textContent = "Select onboarding task first";
+    return;
+  }
+  const status = el("zammadAgentStatus");
+  if (status) status.textContent = "Loading agents...";
+  state.zammadAgents = [];
+  state.selectedZammadAgentId = null;
+  renderZammadAgentList();
+  el("zammadAgentModal")?.classList.remove("hidden");
+  el("zammadAgentModal")?.setAttribute("aria-hidden", "false");
+  try {
+    const data = await api(`/tasks/${encodeURIComponent(state.selectedId)}/zammad/agents`);
+    state.zammadAgents = Array.isArray(data?.agents) ? data.agents : [];
+    if (state.zammadAgents.length > 0) {
+      state.selectedZammadAgentId = Number(state.zammadAgents[0].id);
+    }
+    renderZammadAgentList();
+    if (status) status.textContent = `${state.zammadAgents.length} agents loaded`;
+  } catch (error) {
+    if (status) status.textContent = `Failed to load agents: ${error.message}`;
+  }
+}
+
+async function createZammadOnboardingTicket() {
+  if (!state.selectedId) return;
+  const ownerId = Number(state.selectedZammadAgentId);
+  if (!Number.isFinite(ownerId)) {
+    const status = el("zammadAgentStatus");
+    if (status) status.textContent = "Choose an agent first";
+    return;
+  }
+  const createBtn = el("zammadAgentCreateBtn");
+  const status = el("zammadAgentStatus");
+  try {
+    if (createBtn) createBtn.disabled = true;
+    if (status) status.textContent = "Creating ticket...";
+    const result = await api(`/tasks/${encodeURIComponent(state.selectedId)}/zammad/ticket`, {
+      method: "POST",
+      body: JSON.stringify({ ownerId })
+    });
+    const ticketId = result?.ticket?.id;
+    closeZammadAgentModal();
+    el("status").textContent = ticketId ? `Zammad ticket created: #${ticketId}` : "Zammad ticket created";
+  } catch (error) {
+    if (status) status.textContent = `Create failed: ${error.message}`;
+  } finally {
+    if (createBtn) createBtn.disabled = false;
+  }
+}
+
 async function loadSnipeitConfig() {
   try {
     const data = await api("/snipeit/config");
@@ -1544,6 +1646,15 @@ function applySnipeitUiVisibility() {
   if (pendingSection) pendingSection.classList.toggle("hidden", !enabled);
   const offboardingSnipeitSection = el("offboardingSnipeitSection");
   if (offboardingSnipeitSection) offboardingSnipeitSection.classList.toggle("hidden", !enabled);
+}
+
+function applyZammadUiVisibility() {
+  const btn = el("createZammadTicketBtn");
+  if (!btn) return;
+  const enabled = Boolean(state.zammadEnabled);
+  const hasTask = Boolean(state.selectedId);
+  btn.classList.toggle("hidden", !enabled);
+  btn.disabled = !enabled || !hasTask;
 }
 
 function renderSelectedSnipeitAssets(task = getCurrentTask()) {
@@ -2139,9 +2250,22 @@ function validateSettingsPayload(payload) {
 async function loadSettings() {
   const data = await api("/settings");
   state.settings = data?.values || {};
+  state.zammadEnabled = String(state.settings?.ZAMMAD_ENABLED || "false").toLowerCase() === "true";
   fillSettingsForm(state.settings);
+  applyZammadUiVisibility();
   await loadSnipeitAssignTasks().catch(() => {});
   return state.settings;
+}
+
+async function loadZammadAvailability() {
+  try {
+    const data = await api("/settings");
+    const values = data?.values || {};
+    state.zammadEnabled = String(values.ZAMMAD_ENABLED || "false").toLowerCase() === "true";
+  } catch (error) {
+    state.zammadEnabled = false;
+  }
+  applyZammadUiVisibility();
 }
 
 function openSettingsModal() {
@@ -2216,6 +2340,7 @@ function buildPatchPayload() {
     phone: el("phone").value.trim(),
     manager: el("manager").value.trim(),
     userTempPass: el("userTempPass").value,
+    skipLicense: el("skipLicense").checked,
     licenseRequired: el("licenseRequired").checked,
     assets: {
       laptop: el("assetLaptop").checked,
@@ -2294,6 +2419,7 @@ async function deleteTask() {
 
 function setupActions() {
   const livePreviewInputs = [
+    "skipLicense",
     "licenseRequired",
     "assetLaptop",
     "assetKeyboard",
@@ -2879,6 +3005,35 @@ function setupActions() {
     }
   };
 
+  const createZammadTicketBtn = el("createZammadTicketBtn");
+  if (createZammadTicketBtn) {
+    createZammadTicketBtn.onclick = async () => {
+      await openZammadAgentModal();
+    };
+  }
+
+  const zammadAgentModalClose = el("zammadAgentModalClose");
+  if (zammadAgentModalClose) {
+    zammadAgentModalClose.onclick = () => closeZammadAgentModal();
+  }
+
+  const zammadAgentModalOverlay = el("zammadAgentModalOverlay");
+  if (zammadAgentModalOverlay) {
+    zammadAgentModalOverlay.onclick = () => closeZammadAgentModal();
+  }
+
+  const zammadAgentCancelBtn = el("zammadAgentCancelBtn");
+  if (zammadAgentCancelBtn) {
+    zammadAgentCancelBtn.onclick = () => closeZammadAgentModal();
+  }
+
+  const zammadAgentCreateBtn = el("zammadAgentCreateBtn");
+  if (zammadAgentCreateBtn) {
+    zammadAgentCreateBtn.onclick = async () => {
+      await createZammadOnboardingTicket();
+    };
+  }
+
   el("refreshBtn").onclick = async () => {
     try {
       if (state.taskMode === "offboarding") {
@@ -2909,9 +3064,15 @@ function setupActions() {
     };
   }
 
+  const skipLicense = el("skipLicense");
+  if (skipLicense) {
+    skipLicense.addEventListener("change", () => refreshMailVisibilityAndPreview());
+  }
+
   renderOffboardingSelectedUser();
   renderOffboardingAccounts();
   renderOffboardingAssets();
+  applyZammadUiVisibility();
   setTaskMode("onboarding");
 }
 

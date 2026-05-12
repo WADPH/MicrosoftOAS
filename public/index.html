@@ -163,6 +163,16 @@
             </div>
 
             <div class="field">
+              <label class="switch">
+                <input id="skipLicense" type="checkbox" />
+                <span class="switchTrack" aria-hidden="true"><span class="switchThumb"></span></span>
+                <span class="switchText">Skip License</span>
+              </label>
+            </div>
+
+            <div class="sectionDivider"></div>
+
+            <div id="licenseControlsWrap">
               <div class="rowBetween">
                 <label class="switch">
                   <input id="licenseRequired" type="checkbox" />
@@ -203,6 +213,7 @@
                 <label for="licenseBody">Body</label>
                 <textarea id="licenseBody" rows="4"></textarea>
               </div>
+            </div>
             </div>
           </div>
 
@@ -284,6 +295,7 @@
             <button id="saveBtn">Save</button>
             <button id="approveBtn" class="primary">Approve</button>
             <button id="deleteBtn" class="danger">Delete Task</button>
+            <button id="createZammadTicketBtn" type="button" class="ghost pushRight hidden">Create Ticket</button>
           </div>
 
           <p id="status" class="meta"></p>
@@ -649,6 +661,25 @@
           <button id="groupPickerCancelBtn" class="ghost" type="button">Cancel</button>
         </div>
         <p id="groupPickerStatus" class="meta"></p>
+      </div>
+    </div>
+
+    <div id="zammadAgentModal" class="modal hidden" aria-hidden="true">
+      <div id="zammadAgentModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="zammadAgentModalTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="zammadAgentModalTitle">Create Zammad Ticket</h3>
+            <p class="metaSmall">Choose an agent who will own the ticket.</p>
+          </div>
+          <button id="zammadAgentModalClose" type="button" aria-label="Close">×</button>
+        </div>
+        <div id="zammadAgentList" class="managerList"></div>
+        <div class="actions">
+          <button id="zammadAgentCreateBtn" class="primary" type="button">Create</button>
+          <button id="zammadAgentCancelBtn" class="ghost" type="button">Cancel</button>
+        </div>
+        <p id="zammadAgentStatus" class="meta"></p>
       </div>
     </div>
     <script src="/app.js"></script>

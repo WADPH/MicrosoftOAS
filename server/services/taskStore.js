@@ -162,6 +162,7 @@ function normalizeTask(task = {}) {
     userTempPass: String(task.userTempPass ?? process.env.USER_TEMP_PASS ?? "").trim(),
     startDate: normalizeString(task.startDate),
     email: normalizeString(task.email),
+    skipLicense: Boolean(task.skipLicense),
     licenseRequired: task.licenseRequired !== false,
     assets,
     snipeitAssets: Array.isArray(task.snipeitAssets)

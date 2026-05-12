@@ -195,6 +195,93 @@ async function createTicket(data) {
   }
 }
 
+function normalizeAgentRow(user = {}) {
+  const firstName = normalizeString(user.firstname || user.first_name || "");
+  const lastName = normalizeString(user.lastname || user.last_name || "");
+  const displayName = normalizeString([firstName, lastName].filter(Boolean).join(" ")) || normalizeString(user.login || user.email || "");
+  return {
+    id: Number(user.id),
+    displayName,
+    email: normalizeString(user.email || ""),
+    active: user.active !== false
+  };
+}
+
+async function listAgents() {
+  console.log("[Zammad] Loading agent users");
+  try {
+    const [roles, users] = await Promise.all([
+      zammadRequest("GET", "/api/v1/roles"),
+      zammadRequest("GET", "/api/v1/users?per_page=200&page=1")
+    ]);
+
+    const roleRows = Array.isArray(roles) ? roles : [];
+    const agentRole = roleRows.find((role) => String(role?.name || "").trim().toLowerCase() === "agent");
+    const agentRoleId = Number(agentRole?.id || 2);
+
+    const userRows = Array.isArray(users) ? users : [];
+    const agents = userRows
+      .filter((user) => {
+        const roleIds = Array.isArray(user?.role_ids) ? user.role_ids.map((id) => Number(id)) : [];
+        return user?.active !== false && roleIds.includes(agentRoleId);
+      })
+      .map(normalizeAgentRow)
+      .filter((row) => Number.isFinite(row.id));
+
+    console.log(`[Zammad] Loaded ${agents.length} agents`);
+    return agents.sort((a, b) => String(a.displayName || "").localeCompare(String(b.displayName || ""), undefined, { sensitivity: "base" }));
+  } catch (error) {
+    console.error(`[Zammad] Failed to load agents: ${error.message}`);
+    throw error;
+  }
+}
+
+async function createManualOnboardingTicket(task = {}, ownerId) {
+  if (!process.env.ZAMMAD_ENABLED || process.env.ZAMMAD_ENABLED.toLowerCase() !== "true") {
+    throw new Error("Zammad integration is disabled");
+  }
+
+  const normalizedOwnerId = Number(ownerId);
+  if (!Number.isFinite(normalizedOwnerId)) {
+    throw new Error("ownerId must be a valid number");
+  }
+
+  const defaultCustomerEmail = normalizeString(process.env.ZAMMAD_DEFAULT_CUSTOMER || "");
+  if (!defaultCustomerEmail) {
+    throw new Error("ZAMMAD_DEFAULT_CUSTOMER is not configured");
+  }
+
+  console.log(`[Zammad] Manual onboarding ticket requested for task=${task.id || "n/a"} owner=${normalizedOwnerId}`);
+
+  const customer = await findUserByEmail(defaultCustomerEmail);
+  if (!customer?.id) {
+    throw new Error(`Default customer ${defaultCustomerEmail} not found in Zammad`);
+  }
+
+  const employeeName = normalizeString(task.fullName) || normalizeString([task.firstName, task.lastName].filter(Boolean).join(" ")) || "Employee";
+  const title = `Onboarding ${employeeName}`.trim();
+  const body = "Set up the equipment (laptop, monitor, keyboard, mouse, and headphones) for the new user and prepare their workstation";
+
+  const ticketData = {
+    title,
+    type: "MicrosoftOAS",
+    group: "Not Sorted",
+    owner_id: normalizedOwnerId,
+    customer_id: customer.id,
+    priority: "2 normal",
+    article: {
+      subject: title,
+      body,
+      type: "note",
+      internal: false
+    }
+  };
+
+  const ticket = await createTicket(ticketData);
+  console.log(`[Zammad] Manual onboarding ticket created task=${task.id || "n/a"} ticket=${ticket?.id || "n/a"} owner=${normalizedOwnerId}`);
+  return ticket;
+}
+
 async function createOnboardingTicket(task, options = {}) {
   if (!process.env.ZAMMAD_ENABLED || process.env.ZAMMAD_ENABLED.toLowerCase() !== "true") {
     console.log(`[Zammad] Integration disabled`);
@@ -302,6 +389,8 @@ async function createOffboardingTicket(task, options = {}) {
 module.exports = {
   findUserByEmail,
   createTicket,
+  listAgents,
+  createManualOnboardingTicket,
   resolveTeamsUserEmail,
   createOnboardingTicket,
   createOffboardingTicket

@@ -29,6 +29,7 @@ const { sendLicenseRequestMail, sendAssetsMail } = require("../services/mail");
 const { isEnabled } = require("../services/snipeit.service");
 const { addAssignTask } = require("../services/snipeitAssignStore");
 const { processPendingAssignTasks } = require("../services/snipeitAssignWorker");
+const { listAgents, createManualOnboardingTicket } = require("../services/zammad.service");
 
 const router = express.Router();
 
@@ -98,6 +99,7 @@ router.post("/new", (req, res) => {
     manager: base.manager || "",
     startDate: base.startDate || "",
     email: base.email || "",
+    skipLicense: false,
     licenseRequired: true,
     assets: {
       laptop: false,
@@ -239,6 +241,7 @@ router.patch("/:id", async (req, res) => {
     "email",
     "company",
     "companyDomain",
+    "skipLicense",
     "licenseRequired",
     "assets",
     "position",
@@ -370,43 +373,50 @@ router.post("/:id/approve", async (req, res) => {
       }
     }
 
+    // skipLicense = true   → skip all license actions completely
+    // skipLicense = false  → follow licenseRequired behavior below
     // licenseRequired = true  → only procurement email (do not assign from pool)
     // licenseRequired = false → try to assign Business Premium from tenant; if no seat, send procurement email
-    try {
-      if (task.licenseRequired) {
-        console.log("[approve] License: request procurement email only (checkbox on)");
-        await sendLicenseRequestMail(task);
-        console.log("[approve] License request email sent");
-        steps.push({ step: "license", action: "email_request", success: true });
-      } else {
-        console.log("[approve] License: assign from tenant pool only (checkbox off)");
-        const skus = await getSubscribedSkus(tenantKey);
-        const premiumSku = findBusinessPremiumSku(skus);
-
-        if (premiumSku && hasAvailableSeats(premiumSku)) {
-          const licenseTarget = String(user?.id || task.email || "").trim();
-          const desiredUsageLocation = String(process.env.DEFAULT_USAGE_LOCATION || "AZ").trim().toUpperCase();
-          await updateUserUsageLocation(licenseTarget, desiredUsageLocation, tenantKey);
-          await assignLicenseWithRetry(licenseTarget, premiumSku.skuId, 5, tenantKey);
-          console.log(`[approve] Business Premium assigned for ${task.email}`);
-          steps.push({
-            step: "license",
-            action: "assign",
-            success: true,
-            skuPartNumber: String(premiumSku.skuPartNumber || ""),
-            skuId: String(premiumSku.skuId || "")
-          });
+    if (task.skipLicense) {
+      console.log("[approve] License step skipped by Skip License toggle");
+      steps.push({ step: "license", action: "skipped_by_toggle", success: true });
+    } else {
+      try {
+        if (task.licenseRequired) {
+          console.log("[approve] License: request procurement email only (checkbox on)");
+          await sendLicenseRequestMail(task);
+          console.log("[approve] License request email sent");
+          steps.push({ step: "license", action: "email_request", success: true });
         } else {
-          console.warn("[approve] Business Premium not assigned: no free seat or SKU not found");
-          stepErrors.push({
-            step: "license",
-            message: "Business Premium not assigned: no free seat or SKU not found"
-          });
+          console.log("[approve] License: assign from tenant pool only (checkbox off)");
+          const skus = await getSubscribedSkus(tenantKey);
+          const premiumSku = findBusinessPremiumSku(skus);
+
+          if (premiumSku && hasAvailableSeats(premiumSku)) {
+            const licenseTarget = String(user?.id || task.email || "").trim();
+            const desiredUsageLocation = String(process.env.DEFAULT_USAGE_LOCATION || "AZ").trim().toUpperCase();
+            await updateUserUsageLocation(licenseTarget, desiredUsageLocation, tenantKey);
+            await assignLicenseWithRetry(licenseTarget, premiumSku.skuId, 5, tenantKey);
+            console.log(`[approve] Business Premium assigned for ${task.email}`);
+            steps.push({
+              step: "license",
+              action: "assign",
+              success: true,
+              skuPartNumber: String(premiumSku.skuPartNumber || ""),
+              skuId: String(premiumSku.skuId || "")
+            });
+          } else {
+            console.warn("[approve] Business Premium not assigned: no free seat or SKU not found");
+            stepErrors.push({
+              step: "license",
+              message: "Business Premium not assigned: no free seat or SKU not found"
+            });
+          }
         }
+      } catch (licenseError) {
+        console.error("[approve] License step failed", licenseError);
+        stepErrors.push({ step: "license", message: licenseError.message || "unknown license error" });
       }
-    } catch (licenseError) {
-      console.error("[approve] License step failed", licenseError);
-      stepErrors.push({ step: "license", message: licenseError.message || "unknown license error" });
     }
 
     task = getTaskById(existingTask.id) || task;
@@ -523,6 +533,48 @@ router.post("/:id/approve", async (req, res) => {
     console.error("[approve] Failed", error);
     const failedTask = updateTaskById(existingTask.id, { status: "failed" });
     return res.status(500).json({ error: "Approval failed", details: error.message, task: failedTask });
+  }
+});
+
+router.get("/:id/zammad/agents", async (req, res) => {
+  const task = getTaskById(req.params.id);
+  if (!task) {
+    return res.status(404).json({ ok: false, error: "Task not found" });
+  }
+  if (String(process.env.ZAMMAD_ENABLED || "").trim().toLowerCase() !== "true") {
+    return res.status(400).json({ ok: false, error: "Zammad integration is disabled" });
+  }
+  try {
+    console.log(`[zammad] Loading agents for task ${task.id}`);
+    const agents = await listAgents();
+    return res.json({ ok: true, agents });
+  } catch (error) {
+    console.error(`[zammad] Failed to load agents for task ${task.id}: ${error.message}`);
+    return res.status(500).json({ ok: false, error: error.message || "Failed to load Zammad agents" });
+  }
+});
+
+router.post("/:id/zammad/ticket", async (req, res) => {
+  const task = getTaskById(req.params.id);
+  if (!task) {
+    return res.status(404).json({ ok: false, error: "Task not found" });
+  }
+  if (String(process.env.ZAMMAD_ENABLED || "").trim().toLowerCase() !== "true") {
+    return res.status(400).json({ ok: false, error: "Zammad integration is disabled" });
+  }
+  const ownerId = Number(req.body?.ownerId);
+  if (!Number.isFinite(ownerId)) {
+    return res.status(400).json({ ok: false, error: "ownerId must be a valid number" });
+  }
+
+  try {
+    console.log(`[zammad] Manual ticket create requested task=${task.id} owner=${ownerId}`);
+    const ticket = await createManualOnboardingTicket(task, ownerId);
+    console.log(`[zammad] Manual ticket created task=${task.id} ticket=${ticket?.id || "n/a"} owner=${ownerId}`);
+    return res.json({ ok: true, ticket });
+  } catch (error) {
+    console.error(`[zammad] Manual ticket failed task=${task.id} owner=${ownerId}: ${error.message}`);
+    return res.status(500).json({ ok: false, error: error.message || "Failed to create ticket" });
   }
 });
 
