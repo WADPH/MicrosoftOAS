@@ -860,6 +860,13 @@ function refreshMailVisibilityAndPreview() {
       control.disabled = skipLicense;
     }
   }
+  if (licenseSection) {
+    licenseSection.classList.toggle("readonlySection", skipLicense);
+    const emailControls = licenseSection.querySelectorAll("input, textarea, select, button");
+    for (const control of emailControls) {
+      control.disabled = skipLicense;
+    }
+  }
 
   if (!state.userEditedLicenseSubject) {
     el("licenseSubject").value = buildDefaultLicenseSubject();

@@ -236,6 +236,31 @@ async function listAgents() {
   }
 }
 
+async function listGroups() {
+  console.log("[Zammad] Loading groups");
+  try {
+    const groups = await zammadRequest("GET", "/api/v1/groups");
+    const rows = Array.isArray(groups) ? groups : [];
+    return rows
+      .map((group) => ({
+        id: Number(group?.id),
+        name: normalizeString(group?.name || "")
+      }))
+      .filter((group) => Number.isFinite(group.id) && group.name);
+  } catch (error) {
+    console.error(`[Zammad] Failed to load groups: ${error.message}`);
+    throw error;
+  }
+}
+
+async function resolveAgentGroupId(agentDisplayName) {
+  const targetName = normalizeString(agentDisplayName);
+  if (!targetName) return null;
+  const groups = await listGroups();
+  const exact = groups.find((group) => group.name.toLowerCase() === targetName.toLowerCase());
+  return exact?.id || null;
+}
+
 async function createManualOnboardingTicket(task = {}, ownerId) {
   if (!process.env.ZAMMAD_ENABLED || process.env.ZAMMAD_ENABLED.toLowerCase() !== "true") {
     throw new Error("Zammad integration is disabled");
@@ -253,9 +278,21 @@ async function createManualOnboardingTicket(task = {}, ownerId) {
 
   console.log(`[Zammad] Manual onboarding ticket requested for task=${task.id || "n/a"} owner=${normalizedOwnerId}`);
 
-  const customer = await findUserByEmail(defaultCustomerEmail);
+  const [customer, users] = await Promise.all([
+    findUserByEmail(defaultCustomerEmail),
+    zammadRequest("GET", "/api/v1/users?per_page=200&page=1")
+  ]);
   if (!customer?.id) {
     throw new Error(`Default customer ${defaultCustomerEmail} not found in Zammad`);
+  }
+  const ownerUser = (Array.isArray(users) ? users : []).find((row) => Number(row?.id) === normalizedOwnerId);
+  if (!ownerUser) {
+    throw new Error(`Owner user ${normalizedOwnerId} not found in Zammad`);
+  }
+  const ownerDisplayName = normalizeAgentRow(ownerUser).displayName;
+  const ownerGroupId = await resolveAgentGroupId(ownerDisplayName);
+  if (!ownerGroupId) {
+    throw new Error(`Group not found for agent "${ownerDisplayName}"`);
   }
 
   const employeeName = normalizeString(task.fullName) || normalizeString([task.firstName, task.lastName].filter(Boolean).join(" ")) || "Employee";
@@ -265,7 +302,7 @@ async function createManualOnboardingTicket(task = {}, ownerId) {
   const ticketData = {
     title,
     type: "MicrosoftOAS",
-    group: "Not Sorted",
+    group_id: ownerGroupId,
     owner_id: normalizedOwnerId,
     customer_id: customer.id,
     priority: "2 normal",
