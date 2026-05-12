@@ -214,6 +214,7 @@ function generateInitialPassword() {
 
 async function createUser(task, tenantKey) {
   const usageLocation = String(process.env.DEFAULT_USAGE_LOCATION || "AZ").trim().toUpperCase();
+  const configuredTempPassword = String(task?.userTempPass || process.env.USER_TEMP_PASS || "").trim();
   const payload = {
     accountEnabled: true,
     displayName: task.fullName,
@@ -227,7 +228,7 @@ async function createUser(task, tenantKey) {
     mobilePhone: task.phone || undefined,
     passwordProfile: {
       forceChangePasswordNextSignIn: true,
-      password: generateInitialPassword()
+      password: configuredTempPassword || generateInitialPassword()
     }
   };
 

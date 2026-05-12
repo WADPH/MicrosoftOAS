@@ -1295,6 +1295,19 @@ function setTextValue(id, value) {
   if (node) node.textContent = value;
 }
 
+function setupPasswordToggle(inputId, buttonId) {
+  const input = el(inputId);
+  const button = el(buttonId);
+  if (!input || !button) return;
+
+  button.addEventListener("click", () => {
+    const showing = input.type === "text";
+    input.type = showing ? "password" : "text";
+    button.textContent = showing ? "Show" : "Hide";
+    button.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+  });
+}
+
 function selectTask(id) {
   state.selectedId = id;
   renderTasks();
@@ -1318,6 +1331,14 @@ function selectTask(id) {
   setInputValue("position", task.position || "");
   setInputValue("phone", task.phone || "");
   setInputValue("manager", task.manager || "");
+  setInputValue("userTempPass", task.userTempPass || "");
+  const passInput = el("userTempPass");
+  const passToggle = el("toggleUserTempPassBtn");
+  if (passInput) passInput.type = "password";
+  if (passToggle) {
+    passToggle.textContent = "Show";
+    passToggle.setAttribute("aria-label", "Show password");
+  }
 
   renderDomainOptions(task.companyDomain || state.companyDomains[2]);
   renderCompanyCodeOptions(task.companyCode || state.companyCodes[2]);
@@ -2194,6 +2215,7 @@ function buildPatchPayload() {
     position: el("position").value.trim(),
     phone: el("phone").value.trim(),
     manager: el("manager").value.trim(),
+    userTempPass: el("userTempPass").value,
     licenseRequired: el("licenseRequired").checked,
     assets: {
       laptop: el("assetLaptop").checked,
@@ -2302,6 +2324,7 @@ function setupActions() {
   if (managerButton) {
     managerButton.onclick = () => openManagerModal();
   }
+  setupPasswordToggle("userTempPass", "toggleUserTempPassBtn");
 
   const managerSearch = el("managerSearch");
   if (managerSearch) {

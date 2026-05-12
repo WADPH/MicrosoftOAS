@@ -244,6 +244,7 @@ router.patch("/:id", async (req, res) => {
     "position",
     "phone",
     "manager",
+    "userTempPass",
     "startDate",
     "firstName",
     "lastName",
@@ -257,7 +258,7 @@ router.patch("/:id", async (req, res) => {
 
   for (const key of allowedKeys) {
     if (Object.prototype.hasOwnProperty.call(payload, key)) {
-      updates[key] = payload[key];
+      updates[key] = key === "userTempPass" ? String(payload[key] || "").trim() : payload[key];
     }
   }
 

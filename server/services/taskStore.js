@@ -159,6 +159,7 @@ function normalizeTask(task = {}) {
     position: normalizeString(task.position),
     phone: normalizeString(task.phone),
     manager: normalizeString(task.manager),
+    userTempPass: String(task.userTempPass ?? process.env.USER_TEMP_PASS ?? "").trim(),
     startDate: normalizeString(task.startDate),
     email: normalizeString(task.email),
     licenseRequired: task.licenseRequired !== false,
