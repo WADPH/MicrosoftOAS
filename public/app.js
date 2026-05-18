@@ -60,7 +60,8 @@ const state = {
     },
     userEditedLicenseSubject: false,
     userEditedLicenseBody: false
-  }
+  },
+  sessionExpiredNotified: false
 };
 
 function serverLog(message, level = "INFO") {
@@ -171,6 +172,17 @@ async function api(path, options = {}) {
     },
     ...options
   });
+
+  if (response.status === 401 || response.status === 403) {
+    if (!state.sessionExpiredNotified) {
+      state.sessionExpiredNotified = true;
+      const message = "Your session has expired. Please reload the page to go back to the login screen.";
+      if (el("status")) el("status").textContent = message;
+      if (el("offboardingStatus")) el("offboardingStatus").textContent = message;
+      alert(message);
+    }
+    throw new Error("Session expired. Reload the page and sign in again.");
+  }
 
   if (!response.ok) {
     const body = await response.text();
