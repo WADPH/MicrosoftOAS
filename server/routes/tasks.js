@@ -332,6 +332,12 @@ router.post("/:id/approve", async (req, res) => {
   updateTaskById(existingTask.id, { status: "processing" });
 
   try {
+    const bodyPassword = String(req.body?.userTempPass || "").trim();
+    if (bodyPassword) {
+      updateTaskById(existingTask.id, { userTempPass: bodyPassword });
+    }
+    const taskForProvision = getTaskById(existingTask.id) || existingTask;
+
     console.log(`[approve] Started for ${existingTask.fullName} (${existingTask.email})`);
     const tenantKey = resolveTenantKeyByEmail(existingTask.email);
     console.log(`[approve] Resolved tenant ${tenantKey || "default"} for ${existingTask.email}`);
@@ -340,7 +346,7 @@ router.post("/:id/approve", async (req, res) => {
 
     if (!user) {
       console.log(`[approve] User not found, creating ${existingTask.email}`);
-      user = await createUser(existingTask, tenantKey);
+      user = await createUser(taskForProvision, tenantKey);
       // Wait until the directory starts returning this user reliably
       try {
         user = await waitForUserProvisioning(existingTask.email, 10, tenantKey);

@@ -5,6 +5,10 @@ function normalizeString(value) {
   return String(value || "").trim();
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
@@ -92,17 +96,18 @@ async function zammadRequest(method, path, body) {
 }
 
 async function findUserByEmail(email) {
-  console.log(`[Zammad] Searching Zammad user by email: ${email}`);
+  const normalizedEmail = normalizeEmail(email);
+  console.log(`[Zammad] Searching Zammad user by email: ${normalizedEmail}`);
   try {
-    const users = await zammadRequest("GET", `/api/v1/users/search?query=${encodeURIComponent(email)}`);
+    const users = await zammadRequest("GET", `/api/v1/users/search?query=${encodeURIComponent(normalizedEmail)}`);
     if (Array.isArray(users) && users.length > 0) {
-      const user = users.find(u => u.email === email);
+      const user = users.find((u) => normalizeEmail(u?.email) === normalizedEmail);
       if (user) {
         console.log(`[Zammad] Found Zammad user: ${user.id} (${user.email})`);
         return user;
       }
     }
-    console.log(`[Zammad] No Zammad user found for email: ${email}`);
+    console.log(`[Zammad] No Zammad user found for email: ${normalizedEmail}`);
     return null;
   } catch (error) {
     console.error(`[Zammad] Error searching user by email: ${error.message}`);

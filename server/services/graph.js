@@ -207,14 +207,12 @@ function buildMailNickname(email) {
     .replace(/[^a-zA-Z0-9._-]/g, "");
 }
 
-function generateInitialPassword() {
-  const stamp = Date.now().toString(36).slice(-6);
-  return `Temp#${stamp}Aa1!`;
-}
-
 async function createUser(task, tenantKey) {
   const usageLocation = String(process.env.DEFAULT_USAGE_LOCATION || "AZ").trim().toUpperCase();
   const configuredTempPassword = String(task?.userTempPass || process.env.USER_TEMP_PASS || "").trim();
+  if (!configuredTempPassword) {
+    throw new Error("Temporary password is required. Set USER_TEMP_PASS or provide password in UI.");
+  }
   const payload = {
     accountEnabled: true,
     displayName: task.fullName,
@@ -228,7 +226,7 @@ async function createUser(task, tenantKey) {
     mobilePhone: task.phone || undefined,
     passwordProfile: {
       forceChangePasswordNextSignIn: true,
-      password: configuredTempPassword || generateInitialPassword()
+      password: configuredTempPassword
     }
   };
 

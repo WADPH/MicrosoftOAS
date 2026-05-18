@@ -2397,7 +2397,10 @@ async function approveTask() {
   await saveTask();
 
   const result = await api(`/tasks/${state.selectedId}/approve`, {
-    method: "POST"
+    method: "POST",
+    body: JSON.stringify({
+      userTempPass: el("userTempPass")?.value || ""
+    })
   });
 
   await loadTasks();
