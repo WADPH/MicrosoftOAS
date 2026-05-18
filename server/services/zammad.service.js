@@ -202,6 +202,19 @@ async function createTicket(data) {
   }
 }
 
+async function fetchPaginatedRows(basePath, perPage = 200, maxPages = 20) {
+  const rows = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const separator = basePath.includes("?") ? "&" : "?";
+    const path = `${basePath}${separator}per_page=${perPage}&page=${page}`;
+    const chunk = await zammadRequest("GET", path);
+    const list = Array.isArray(chunk) ? chunk : [];
+    rows.push(...list);
+    if (list.length < perPage) break;
+  }
+  return rows;
+}
+
 function normalizeAgentRow(user = {}) {
   const firstName = normalizeString(user.firstname || user.first_name || "");
   const lastName = normalizeString(user.lastname || user.last_name || "");
@@ -219,7 +232,7 @@ async function listAgents() {
   try {
     const [roles, users] = await Promise.all([
       zammadRequest("GET", "/api/v1/roles"),
-      zammadRequest("GET", "/api/v1/users?per_page=200&page=1")
+      fetchPaginatedRows("/api/v1/users")
     ]);
 
     const roleRows = Array.isArray(roles) ? roles : [];
@@ -246,7 +259,7 @@ async function listAgents() {
 async function listGroups() {
   console.log("[Zammad] Loading groups");
   try {
-    const groups = await zammadRequest("GET", "/api/v1/groups");
+    const groups = await fetchPaginatedRows("/api/v1/groups");
     const rows = Array.isArray(groups) ? groups : [];
     return rows
       .map((group) => ({
@@ -319,7 +332,7 @@ async function createManualOnboardingTicket(task = {}, ownerId) {
 
   const [customer, users] = await Promise.all([
     findUserByEmail(defaultCustomerEmail),
-    zammadRequest("GET", "/api/v1/users?per_page=200&page=1")
+    fetchPaginatedRows("/api/v1/users")
   ]);
   if (!customer?.id) {
     throw new Error(`Default customer ${defaultCustomerEmail} not found in Zammad`);
@@ -333,6 +346,7 @@ async function createManualOnboardingTicket(task = {}, ownerId) {
   if (!ownerGroupId) {
     throw new Error(`Group not found for agent "${ownerDisplayName}"`);
   }
+  console.log(`[Zammad] Owner resolved: id=${normalizedOwnerId}, displayName="${ownerDisplayName}", groupId=${ownerGroupId}`);
 
   const employeeName = normalizeString(task.fullName) || normalizeString([task.firstName, task.lastName].filter(Boolean).join(" ")) || "Employee";
   const title = `Onboarding ${employeeName}`.trim();
