@@ -84,7 +84,9 @@ async function zammadRequest(method, path, body) {
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`Zammad request failed ${method} ${path}: ${response.status} ${errText}`);
+      const error = new Error(`Zammad request failed ${method} ${path}: ${response.status} ${errText}`);
+      error.status = response.status;
+      throw error;
     }
 
     if (response.status === 204) return null;
@@ -266,6 +268,38 @@ async function resolveAgentGroupId(agentDisplayName) {
   return exact?.id || null;
 }
 
+async function resolveOwnerGroup(ownerUser = {}) {
+  const groups = await listGroups();
+  const ownerDisplayName = normalizeAgentRow(ownerUser).displayName;
+  const ownerLogin = normalizeString(ownerUser.login || "");
+  const ownerEmail = normalizeEmail(ownerUser.email || "");
+  const ownerGroupIds = new Set(
+    (Array.isArray(ownerUser.group_ids) ? ownerUser.group_ids : [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id))
+  );
+
+  const isNameMatch = (groupName, target) => normalizeString(groupName).toLowerCase() === normalizeString(target).toLowerCase();
+
+  // Primary: "Agent Name" group by name and membership.
+  const byDisplayName = groups.find((group) => ownerGroupIds.has(group.id) && isNameMatch(group.name, ownerDisplayName));
+  if (byDisplayName) return byDisplayName.id;
+
+  // Fallback: match group name to login local-part/email local-part.
+  const loginLocal = ownerLogin.includes("@") ? ownerLogin.split("@")[0] : ownerLogin;
+  const emailLocal = ownerEmail.includes("@") ? ownerEmail.split("@")[0] : ownerEmail;
+  const byLogin = groups.find((group) => ownerGroupIds.has(group.id) && isNameMatch(group.name, loginLocal));
+  if (byLogin) return byLogin.id;
+  const byEmail = groups.find((group) => ownerGroupIds.has(group.id) && isNameMatch(group.name, emailLocal));
+  if (byEmail) return byEmail.id;
+
+  // Last fallback: any owner group except "Users", else first owner group.
+  const ownerGroups = groups.filter((group) => ownerGroupIds.has(group.id));
+  const nonUsersGroup = ownerGroups.find((group) => normalizeString(group.name).toLowerCase() !== "users");
+  if (nonUsersGroup) return nonUsersGroup.id;
+  return ownerGroups[0]?.id || null;
+}
+
 async function createManualOnboardingTicket(task = {}, ownerId) {
   if (!process.env.ZAMMAD_ENABLED || process.env.ZAMMAD_ENABLED.toLowerCase() !== "true") {
     throw new Error("Zammad integration is disabled");
@@ -295,7 +329,7 @@ async function createManualOnboardingTicket(task = {}, ownerId) {
     throw new Error(`Owner user ${normalizedOwnerId} not found in Zammad`);
   }
   const ownerDisplayName = normalizeAgentRow(ownerUser).displayName;
-  const ownerGroupId = await resolveAgentGroupId(ownerDisplayName);
+  const ownerGroupId = await resolveOwnerGroup(ownerUser);
   if (!ownerGroupId) {
     throw new Error(`Group not found for agent "${ownerDisplayName}"`);
   }
