@@ -256,6 +256,12 @@ async function listAgents() {
   }
 }
 
+async function updateTicket(ticketId, data) {
+  const id = Number(ticketId);
+  if (!Number.isFinite(id)) throw new Error("ticketId must be a valid number");
+  return zammadRequest("PUT", `/api/v1/tickets/${id}`, data);
+}
+
 async function listGroups() {
   console.log("[Zammad] Loading groups");
   try {
@@ -381,11 +387,9 @@ async function createManualOnboardingTicket(task = {}, ownerId) {
   const title = `Onboarding ${employeeName}`.trim();
   const body = "Set up the equipment (laptop, monitor, keyboard, mouse, and headphones) for the new user and prepare their workstation";
 
-  const ticketData = {
+  const baseTicketData = {
     title,
-    type: "MicrosoftOAS",
     group_id: ownerGroupId,
-    owner_id: normalizedOwnerId,
     customer_id: customer.id,
     priority: "2 normal",
     article: {
@@ -395,8 +399,44 @@ async function createManualOnboardingTicket(task = {}, ownerId) {
       internal: false
     }
   };
+  const ticketDataPrimary = {
+    ...baseTicketData,
+    type: "MicrosoftOAS",
+    owner_id: normalizedOwnerId
+  };
+  const ticketDataNoOwner = {
+    ...baseTicketData,
+    type: "MicrosoftOAS"
+  };
+  const ticketDataMinimal = {
+    ...baseTicketData
+  };
 
-  const ticket = await createTicket(ticketData);
+  let ticket = null;
+  try {
+    ticket = await createTicket(ticketDataPrimary);
+  } catch (errorPrimary) {
+    if (Number(errorPrimary?.status) !== 422) throw errorPrimary;
+    console.warn(`[Zammad] Primary manual ticket create failed with 422, retrying without owner_id`);
+    try {
+      ticket = await createTicket(ticketDataNoOwner);
+    } catch (errorNoOwner) {
+      if (Number(errorNoOwner?.status) !== 422) throw errorNoOwner;
+      console.warn(`[Zammad] Manual ticket create without owner_id failed with 422, retrying without type`);
+      ticket = await createTicket(ticketDataMinimal);
+    }
+  }
+
+  // If ticket was created without owner_id, attempt explicit owner assignment.
+  if (ticket?.id && Number(ticket?.owner_id) !== normalizedOwnerId) {
+    try {
+      await updateTicket(ticket.id, { owner_id: normalizedOwnerId, group_id: ownerGroupId });
+      console.log(`[Zammad] Owner assigned after create: ticket=${ticket.id}, owner=${normalizedOwnerId}, group=${ownerGroupId}`);
+    } catch (ownerAssignError) {
+      console.warn(`[Zammad] Post-create owner assignment failed for ticket=${ticket.id}: ${ownerAssignError.message}`);
+    }
+  }
+
   console.log(`[Zammad] Manual onboarding ticket created task=${task.id || "n/a"} ticket=${ticket?.id || "n/a"} owner=${normalizedOwnerId}`);
   return ticket;
 }
