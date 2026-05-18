@@ -273,6 +273,17 @@ async function listGroups() {
   }
 }
 
+async function getUserById(userId) {
+  const id = Number(userId);
+  if (!Number.isFinite(id)) return null;
+  try {
+    return await zammadRequest("GET", `/api/v1/users/${id}`);
+  } catch (error) {
+    console.warn(`[Zammad] Failed to load user by id=${id}: ${error.message}`);
+    return null;
+  }
+}
+
 async function resolveAgentGroupId(agentDisplayName) {
   const targetName = normalizeString(agentDisplayName);
   if (!targetName) return null;
@@ -346,14 +357,16 @@ async function createManualOnboardingTicket(task = {}, ownerId) {
 
   console.log(`[Zammad] Manual onboarding ticket requested for task=${task.id || "n/a"} owner=${normalizedOwnerId}`);
 
-  const [customer, users] = await Promise.all([
+  const [customer, users, ownerUserDirect] = await Promise.all([
     findUserByEmail(defaultCustomerEmail),
-    fetchPaginatedRows("/api/v1/users")
+    fetchPaginatedRows("/api/v1/users"),
+    getUserById(normalizedOwnerId)
   ]);
   if (!customer?.id) {
     throw new Error(`Default customer ${defaultCustomerEmail} not found in Zammad`);
   }
-  const ownerUser = (Array.isArray(users) ? users : []).find((row) => Number(row?.id) === normalizedOwnerId);
+  const ownerUserFromList = (Array.isArray(users) ? users : []).find((row) => Number(row?.id) === normalizedOwnerId);
+  const ownerUser = ownerUserDirect || ownerUserFromList;
   if (!ownerUser) {
     throw new Error(`Owner user ${normalizedOwnerId} not found in Zammad`);
   }
