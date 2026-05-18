@@ -294,6 +294,13 @@ async function resolveOwnerGroup(ownerUser = {}) {
 
   const isNameMatch = (groupName, target) => normalizeString(groupName).toLowerCase() === normalizeString(target).toLowerCase();
 
+  console.log(`[Zammad] Owner candidate: id=${Number(ownerUser?.id)}, displayName="${ownerDisplayName}", login="${ownerLogin}", email="${ownerEmail}"`);
+  console.log(`[Zammad] Owner group_ids: ${Array.from(ownerGroupIds).join(", ") || "(empty)"}`);
+  console.log("[Zammad] All groups loaded:");
+  for (const group of groups) {
+    console.log(`[Zammad] Group: id=${group.id}, name="${group.name}"`);
+  }
+
   // Primary: "Agent Name" group by name and membership.
   const byDisplayName = groups.find((group) => ownerGroupIds.has(group.id) && isNameMatch(group.name, ownerDisplayName));
   if (byDisplayName) return byDisplayName.id;
