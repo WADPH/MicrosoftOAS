@@ -61,7 +61,8 @@ const state = {
     userEditedLicenseSubject: false,
     userEditedLicenseBody: false
   },
-  sessionExpiredNotified: false
+  sessionExpiredNotified: false,
+  sessionWatchTimer: null
 };
 
 function serverLog(message, level = "INFO") {
@@ -152,6 +153,28 @@ async function initApp() {
   }
 
   showAppScreen();
+  if (state.sessionWatchTimer) {
+    clearInterval(state.sessionWatchTimer);
+  }
+  state.sessionWatchTimer = setInterval(() => {
+    checkAuthStatus()
+      .then((session) => {
+        if (!session?.authenticated) {
+          showSessionExpiredNotice();
+        }
+      })
+      .catch(() => {});
+  }, 15000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    checkAuthStatus()
+      .then((session) => {
+        if (!session?.authenticated) {
+          showSessionExpiredNotice();
+        }
+      })
+      .catch(() => {});
+  });
   await loadMeta();
   await loadZammadAvailability().catch(() => {});
   await loadSnipeitConfig();
@@ -174,13 +197,7 @@ async function api(path, options = {}) {
   });
 
   if (response.status === 401 || response.status === 403) {
-    if (!state.sessionExpiredNotified) {
-      state.sessionExpiredNotified = true;
-      const message = "Your session has expired. Please reload the page to go back to the login screen.";
-      if (el("status")) el("status").textContent = message;
-      if (el("offboardingStatus")) el("offboardingStatus").textContent = message;
-      alert(message);
-    }
+    showSessionExpiredNotice();
     throw new Error("Session expired. Reload the page and sign in again.");
   }
 
@@ -194,6 +211,41 @@ async function api(path, options = {}) {
 
 function el(id) {
   return document.getElementById(id);
+}
+
+function showSessionExpiredNotice() {
+  if (state.sessionExpiredNotified) return;
+  state.sessionExpiredNotified = true;
+
+  const message = "Session expired. Please reload the page to continue and sign in again.";
+  if (el("status")) el("status").textContent = message;
+  if (el("offboardingStatus")) el("offboardingStatus").textContent = message;
+
+  let modal = document.getElementById("sessionExpiredModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "sessionExpiredModal";
+    modal.style.position = "fixed";
+    modal.style.inset = "0";
+    modal.style.zIndex = "99999";
+    modal.style.background = "rgba(0,0,0,0.45)";
+    modal.style.display = "grid";
+    modal.style.placeItems = "center";
+    modal.innerHTML = `
+      <div style="max-width:480px;width:92%;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow);">
+        <h3 style="margin:0 0 10px;">Session Expired</h3>
+        <p style="margin:0 0 14px;color:var(--muted);line-height:1.45;">Your session is no longer valid (for example after a service restart). Reload the page to open the login screen.</p>
+        <div style="display:flex;justify-content:flex-end;gap:8px;">
+          <button id="sessionExpiredReloadBtn" class="primary" type="button">Reload Page</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const reloadBtn = document.getElementById("sessionExpiredReloadBtn");
+    if (reloadBtn) {
+      reloadBtn.addEventListener("click", () => window.location.reload());
+    }
+  }
 }
 
 function parseCommaSeparatedEmails(value) {
