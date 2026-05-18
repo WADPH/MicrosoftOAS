@@ -305,6 +305,11 @@ async function resolveOwnerGroup(ownerUser = {}) {
   const byDisplayName = groups.find((group) => ownerGroupIds.has(group.id) && isNameMatch(group.name, ownerDisplayName));
   if (byDisplayName) return byDisplayName.id;
 
+  // Fallback: some Zammad user payloads do not include group_ids for agents.
+  // In that case, resolve directly by group name (Agent Name == Group Name).
+  const byDisplayNameWithoutMembership = groups.find((group) => isNameMatch(group.name, ownerDisplayName));
+  if (byDisplayNameWithoutMembership) return byDisplayNameWithoutMembership.id;
+
   // Fallback: match group name to login local-part/email local-part.
   const loginLocal = ownerLogin.includes("@") ? ownerLogin.split("@")[0] : ownerLogin;
   const emailLocal = ownerEmail.includes("@") ? ownerEmail.split("@")[0] : ownerEmail;
@@ -312,6 +317,10 @@ async function resolveOwnerGroup(ownerUser = {}) {
   if (byLogin) return byLogin.id;
   const byEmail = groups.find((group) => ownerGroupIds.has(group.id) && isNameMatch(group.name, emailLocal));
   if (byEmail) return byEmail.id;
+  const byLoginWithoutMembership = groups.find((group) => isNameMatch(group.name, loginLocal));
+  if (byLoginWithoutMembership) return byLoginWithoutMembership.id;
+  const byEmailWithoutMembership = groups.find((group) => isNameMatch(group.name, emailLocal));
+  if (byEmailWithoutMembership) return byEmailWithoutMembership.id;
 
   // Last fallback: any owner group except "Users", else first owner group.
   const ownerGroups = groups.filter((group) => ownerGroupIds.has(group.id));
