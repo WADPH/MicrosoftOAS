@@ -461,8 +461,16 @@ function setTaskMode(mode) {
   el("offboardingRefreshBtn")?.classList.toggle("hidden", !isOffboarding);
   el("offboardingNewBtn")?.classList.toggle("hidden", !isOffboarding);
   el("offboardingTaskListHint")?.classList.toggle("hidden", !isOffboarding);
-  el("onboardingDetails")?.classList.toggle("hidden", isOffboarding);
-  el("offboardingDetails")?.classList.toggle("hidden", !isOffboarding);
+  const onboardingBlocks = Array.from(document.querySelectorAll("#onboardingDetails"));
+  const offboardingBlocks = Array.from(document.querySelectorAll("#offboardingDetails"));
+  for (const block of onboardingBlocks) {
+    block.classList.toggle("hidden", isOffboarding);
+    block.style.display = isOffboarding ? "none" : "";
+  }
+  for (const block of offboardingBlocks) {
+    block.classList.toggle("hidden", !isOffboarding);
+    block.style.display = isOffboarding ? "" : "none";
+  }
   const title = el("detailsTitle");
   if (title) title.textContent = isOffboarding ? "Offboarding Details" : "Onboarding Details";
   renderCurrentTaskList();
@@ -645,6 +653,9 @@ function resetOffboardingState() {
 }
 
 async function selectOffboardingTask(id) {
+  if (state.taskMode !== "offboarding") {
+    setTaskMode("offboarding");
+  }
   const task = state.offboardingTasks.find((row) => row.id === id);
   if (!task) return;
   state.offboardingSelectedId = id;
