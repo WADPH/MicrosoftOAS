@@ -230,6 +230,29 @@ body[data-theme="dark"] .iconBtn .moon {
   flex-shrink: 0;
 }
 
+.statusControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.statusControls #taskStatusSelect {
+  min-width: 150px;
+}
+
+#taskStatusHelpBtn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+}
+
+#taskStatusHelpBody {
+  font-size: 14px;
+  line-height: 1.65;
+}
+
 .tasksTabs {
   display: flex;
   gap: 8px;
