@@ -3172,7 +3172,7 @@ function setupActions() {
       if (body) {
         body.innerHTML = state.taskMode === "offboarding"
           ? "Error: execution failed.<br>Pending: task created, no execution yet.<br>Done: offboarding executed successfully."
-          : "Error: onboarding failed; detailed error is shown below details.<br>Pending: task created, no actions yet.<br>Unlicensed: license skipped, requested by email, or no seat available.<br>Provisioned: provisioning and license assignment completed successfully.<br>Done: Create Ticket completed.";
+          : "Error: onboarding failed; detailed error is shown below details.<br>Pending: task created, no actions yet.<br>Unlicensed: license skipped, requested by email, or no seat available.<br>Provisioned: provisioning and license assignment completed successfully.<br>Done: Create Zammad Ticket completed and employee fully onboarded.";
       }
       el("taskStatusHelpModal")?.classList.remove("hidden");
       el("taskStatusHelpModal")?.setAttribute("aria-hidden", "false");
