@@ -88,7 +88,14 @@
           </section>
 
           <section class="panel details">
-            <h2 id="detailsTitle">Onboarding Details</h2>
+            <div class="panelHeader">
+              <h2 id="detailsTitle">Onboarding Details</h2>
+              <div class="inlineRow">
+                <label for="taskStatusSelect" class="metaSmall">Status</label>
+                <select id="taskStatusSelect"></select>
+                <button id="taskStatusHelpBtn" class="ghost small" type="button" aria-label="Status help">?</button>
+              </div>
+            </div>
             <div class="panelContent" id="detailsPanelContent">
               <div id="onboardingDetails">
               <!-- <div class="meta">ID: <span id="taskId">-</span></div> -->
@@ -386,7 +393,21 @@
             </div>
             <p id="offboardingStatus" class="meta"></p>
           </div>
+          <pre id="taskErrorDetails" class="meta hidden"></pre>
         </section>
+      </div>
+    </div>
+    <div id="taskStatusHelpModal" class="modal hidden" aria-hidden="true">
+      <div id="taskStatusHelpOverlay" class="modalOverlay"></div>
+      <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="taskStatusHelpTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="taskStatusHelpTitle">Task Status Guide</h3>
+            <p class="metaSmall">Meaning of each status in this system.</p>
+          </div>
+          <button id="taskStatusHelpClose" type="button" aria-label="Close">×</button>
+        </div>
+        <div id="taskStatusHelpBody" class="metaSmall"></div>
       </div>
     </div>
 

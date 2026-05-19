@@ -65,6 +65,9 @@ const state = {
   sessionWatchTimer: null
 };
 
+const ONBOARDING_STATUS_OPTIONS = ["error", "pending", "unlicensed", "provisioned", "done"];
+const OFFBOARDING_STATUS_OPTIONS = ["error", "pending", "done"];
+
 function serverLog(message, level = "INFO") {
   console.log(`[${level}] ${message}`);
   // Also send to server for debugging
@@ -473,6 +476,15 @@ function setTaskMode(mode) {
   }
   const title = el("detailsTitle");
   if (title) title.textContent = isOffboarding ? "Offboarding Details" : "Onboarding Details";
+  if (isOffboarding) {
+    const task = state.offboardingTasks.find((x) => x.id === state.offboardingSelectedId) || null;
+    renderTaskStatusOptions(task?.status || "pending", "offboarding");
+    updateTaskErrorView(task);
+  } else {
+    const task = state.tasks.find((x) => x.id === state.selectedId) || null;
+    renderTaskStatusOptions(task?.status || "pending", "onboarding");
+    updateTaskErrorView(task);
+  }
   renderCurrentTaskList();
   if (isOffboarding) {
     loadOffboardingTasks().catch(() => {});
@@ -658,6 +670,8 @@ async function selectOffboardingTask(id) {
   }
   const task = state.offboardingTasks.find((row) => row.id === id);
   if (!task) return;
+  renderTaskStatusOptions(task.status, "offboarding");
+  updateTaskErrorView(task);
   state.offboardingSelectedId = id;
   renderCurrentTaskList();
 
@@ -1302,7 +1316,9 @@ function renderTasks() {
   const cls = (status) => {
     const s = String(status || "").toLowerCase();
     if (s === "done") return "done";
-    if (s === "failed") return "failed";
+    if (s === "failed" || s === "error") return "error";
+    if (s === "unlicensed") return "unlicensed";
+    if (s === "provisioned") return "provisioned";
     if (s === "processing") return "processing";
     return "pending";
   };
@@ -1340,7 +1356,7 @@ function renderOffboardingTasks() {
   const cls = (status) => {
     const s = String(status || "").toLowerCase();
     if (s === "done") return "done";
-    if (s === "failed") return "failed";
+    if (s === "failed" || s === "error") return "error";
     if (s === "processing") return "processing";
     return "pending";
   };
@@ -1390,6 +1406,35 @@ function setTextValue(id, value) {
   if (node) node.textContent = value;
 }
 
+function updateTaskErrorView(task) {
+  const box = el("taskErrorDetails");
+  if (!box) return;
+  const status = String(task?.status || "").trim().toLowerCase();
+  const message = String(task?.errorMessage || "").trim();
+  if (status === "error" && message) {
+    box.textContent = `Error details:\n${message}`;
+    box.classList.remove("hidden");
+  } else {
+    box.textContent = "";
+    box.classList.add("hidden");
+  }
+}
+
+function renderTaskStatusOptions(status, mode) {
+  const select = el("taskStatusSelect");
+  if (!select) return;
+  const options = mode === "offboarding" ? OFFBOARDING_STATUS_OPTIONS : ONBOARDING_STATUS_OPTIONS;
+  const current = String(status || "").trim().toLowerCase();
+  select.innerHTML = "";
+  for (const value of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value[0].toUpperCase() + value.slice(1);
+    option.selected = value === current;
+    select.appendChild(option);
+  }
+}
+
 function setupPasswordToggle(inputId, buttonId) {
   const input = el(inputId);
   const button = el(buttonId);
@@ -1409,6 +1454,8 @@ function selectTask(id) {
 
   const task = state.tasks.find((x) => x.id === id);
   if (!task) return;
+  renderTaskStatusOptions(task.status, "onboarding");
+  updateTaskErrorView(task);
   state.userEditedLicenseSubject = false;
   state.userEditedLicenseBody = false;
   state.userEditedAssetsSubject = false;
@@ -1520,7 +1567,7 @@ async function loadTasks() {
 
   renderCurrentTaskList();
 
-  if (state.selectedId) {
+  if (state.taskMode === "onboarding" && state.selectedId) {
     selectTask(state.selectedId);
   }
 }
@@ -1535,7 +1582,7 @@ async function loadOffboardingTasks() {
     state.offboardingSelectedId = state.offboardingTasks[0].id;
   }
   renderCurrentTaskList();
-  if (state.offboardingSelectedId) {
+  if (state.taskMode === "offboarding" && state.offboardingSelectedId) {
     await selectOffboardingTask(state.offboardingSelectedId);
   }
 }
@@ -1680,6 +1727,8 @@ async function createZammadOnboardingTicket() {
       body: JSON.stringify({ ownerId })
     });
     const ticketId = result?.ticket?.id;
+    await loadTasks();
+    if (state.selectedId) selectTask(state.selectedId);
     closeZammadAgentModal();
     el("status").textContent = ticketId ? `Zammad ticket created: #${ticketId}` : "Zammad ticket created";
   } catch (error) {
@@ -3094,6 +3143,53 @@ function setupActions() {
   if (createZammadTicketBtn) {
     createZammadTicketBtn.onclick = async () => {
       await openZammadAgentModal();
+    };
+  }
+
+  const taskStatusSelect = el("taskStatusSelect");
+  if (taskStatusSelect) {
+    taskStatusSelect.addEventListener("change", async () => {
+      const id = state.taskMode === "offboarding" ? state.offboardingSelectedId : state.selectedId;
+      if (!id) return;
+      await api(`/tasks/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: String(taskStatusSelect.value || "").trim().toLowerCase() })
+      });
+      if (state.taskMode === "offboarding") {
+        await loadOffboardingTasks();
+        if (state.offboardingSelectedId) await selectOffboardingTask(state.offboardingSelectedId);
+      } else {
+        await loadTasks();
+        if (state.selectedId) selectTask(state.selectedId);
+      }
+    });
+  }
+
+  const taskStatusHelpBtn = el("taskStatusHelpBtn");
+  if (taskStatusHelpBtn) {
+    taskStatusHelpBtn.onclick = () => {
+      const body = el("taskStatusHelpBody");
+      if (body) {
+        body.innerHTML = state.taskMode === "offboarding"
+          ? "Error: execution failed.<br>Pending: task created, no execution yet.<br>Done: offboarding executed successfully."
+          : "Error: onboarding failed; detailed error is shown below details.<br>Pending: task created, no actions yet.<br>Unlicensed: license skipped, requested by email, or no seat available.<br>Provisioned: provisioning and license assignment completed successfully.<br>Done: Create Ticket completed.";
+      }
+      el("taskStatusHelpModal")?.classList.remove("hidden");
+      el("taskStatusHelpModal")?.setAttribute("aria-hidden", "false");
+    };
+  }
+  const taskStatusHelpClose = el("taskStatusHelpClose");
+  if (taskStatusHelpClose) {
+    taskStatusHelpClose.onclick = () => {
+      el("taskStatusHelpModal")?.classList.add("hidden");
+      el("taskStatusHelpModal")?.setAttribute("aria-hidden", "true");
+    };
+  }
+  const taskStatusHelpOverlay = el("taskStatusHelpOverlay");
+  if (taskStatusHelpOverlay) {
+    taskStatusHelpOverlay.onclick = () => {
+      el("taskStatusHelpModal")?.classList.add("hidden");
+      el("taskStatusHelpModal")?.setAttribute("aria-hidden", "true");
     };
   }
 

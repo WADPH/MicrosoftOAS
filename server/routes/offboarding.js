@@ -403,10 +403,10 @@ router.post("/execute", async (req, res) => {
       (steps.snipeit || []).some((x) => x.status === "failed");
     if (hasErrors) {
       console.warn("[offboarding] Offboarding task completed with errors");
-      task = updateTaskById(task.id, { status: "failed", offboarding });
+      task = updateTaskById(task.id, { status: "error", offboarding, errorMessage: "Offboarding completed with partial errors" });
     } else {
       console.log("[offboarding] Offboarding task completed");
-      task = updateTaskById(task.id, { status: "done", offboarding });
+      task = updateTaskById(task.id, { status: "done", offboarding, errorMessage: "" });
     }
 
     return res.json({ ok: true, steps, task });
@@ -414,7 +414,7 @@ router.post("/execute", async (req, res) => {
     console.error(`[offboarding] Offboarding task completed with errors: ${error.message || "unknown error"}`);
     if (task?.id) {
       try {
-        updateTaskById(String(task.id), { status: "failed" });
+        updateTaskById(String(task.id), { status: "error", errorMessage: error.message || "Offboarding execution failed" });
       } catch {
         // ignore
       }

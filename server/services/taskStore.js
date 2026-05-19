@@ -11,6 +11,17 @@ const COMPANY_CODE_OPTIONS = ["EILINK", "DRL", "EIG"];
 const DEFAULT_COMPANY_CODE = "EIG";
 const TASK_TYPE_ONBOARDING = "onboarding";
 const TASK_TYPE_OFFBOARDING = "offboarding";
+const ONBOARDING_STATUSES = new Set(["pending", "processing", "unlicensed", "provisioned", "done", "error"]);
+const OFFBOARDING_STATUSES = new Set(["pending", "processing", "done", "error"]);
+
+function normalizeStatus(value, taskType) {
+  const raw = String(value || "").trim().toLowerCase();
+  const normalized = raw === "failed" ? "error" : raw;
+  if (taskType === TASK_TYPE_OFFBOARDING) {
+    return OFFBOARDING_STATUSES.has(normalized) ? normalized : "pending";
+  }
+  return ONBOARDING_STATUSES.has(normalized) ? normalized : "pending";
+}
 
 function parseRecipients(rawValue) {
   if (!rawValue) return [];
@@ -149,7 +160,7 @@ function normalizeTask(task = {}) {
   const base = {
     id: task.id || crypto.randomUUID(),
     taskType,
-    status: task.status || "pending",
+    status: normalizeStatus(task.status || "pending", taskType),
     fullName: normalizeString(task.fullName),
     firstName: normalizeString(task.firstName),
     lastName: normalizeString(task.lastName),
@@ -160,6 +171,7 @@ function normalizeTask(task = {}) {
     phone: normalizeString(task.phone),
     manager: normalizeString(task.manager),
     userTempPass: String(task.userTempPass ?? process.env.USER_TEMP_PASS ?? "").trim(),
+    errorMessage: String(task.errorMessage || "").trim(),
     startDate: normalizeString(task.startDate),
     email: normalizeString(task.email),
     skipLicense: Boolean(task.skipLicense),

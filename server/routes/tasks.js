@@ -252,6 +252,8 @@ router.patch("/:id", async (req, res) => {
     "firstName",
     "lastName",
     "fullName",
+    "status",
+    "errorMessage",
     "licenseMail",
     "assetsMail",
     "snipeitAssets",
@@ -261,7 +263,11 @@ router.patch("/:id", async (req, res) => {
 
   for (const key of allowedKeys) {
     if (Object.prototype.hasOwnProperty.call(payload, key)) {
-      updates[key] = key === "userTempPass" ? String(payload[key] || "").trim() : payload[key];
+      if (key === "userTempPass" || key === "errorMessage") {
+        updates[key] = String(payload[key] || "").trim();
+      } else {
+        updates[key] = payload[key];
+      }
     }
   }
 
@@ -329,7 +335,7 @@ router.post("/:id/approve", async (req, res) => {
     return res.status(400).json({ error: "Task email is empty. Please update before approve." });
   }
 
-  updateTaskById(existingTask.id, { status: "processing" });
+  updateTaskById(existingTask.id, { status: "processing", errorMessage: "" });
 
   try {
     const bodyPassword = String(req.body?.userTempPass || "").trim();
@@ -520,11 +526,14 @@ router.post("/:id/approve", async (req, res) => {
         String(stepErrors[0].message || "").includes("no free seat or SKU not found");
 
       if (onlyUnlicensed) {
-        const unlicensedTask = updateTaskById(existingTask.id, { status: "unlicensed" });
+        const unlicensedTask = updateTaskById(existingTask.id, { status: "unlicensed", errorMessage: "" });
         return res.json({ task: unlicensedTask, steps, failedSteps: stepErrors });
       }
 
-      const failedTask = updateTaskById(existingTask.id, { status: "failed" });
+      const failedTask = updateTaskById(existingTask.id, {
+        status: "error",
+        errorMessage: stepErrors.map((x) => `[${x.step}] ${x.message}`).join("\n")
+      });
       return res.status(500).json({
         error: "Approval completed with errors",
         steps,
@@ -533,11 +542,12 @@ router.post("/:id/approve", async (req, res) => {
       });
     }
 
-    const doneTask = updateTaskById(existingTask.id, { status: "done" });
-    return res.json({ task: doneTask, steps });
+    const finalStatus = task.skipLicense || task.licenseRequired ? "unlicensed" : "provisioned";
+    const finalTask = updateTaskById(existingTask.id, { status: finalStatus, errorMessage: "" });
+    return res.json({ task: finalTask, steps });
   } catch (error) {
     console.error("[approve] Failed", error);
-    const failedTask = updateTaskById(existingTask.id, { status: "failed" });
+    const failedTask = updateTaskById(existingTask.id, { status: "error", errorMessage: error.message || "Approval failed" });
     return res.status(500).json({ error: "Approval failed", details: error.message, task: failedTask });
   }
 });
@@ -576,6 +586,7 @@ router.post("/:id/zammad/ticket", async (req, res) => {
   try {
     console.log(`[zammad] Manual ticket create requested task=${task.id} owner=${ownerId}`);
     const ticket = await createManualOnboardingTicket(task, ownerId);
+    updateTaskById(task.id, { status: "done", errorMessage: "" });
     console.log(`[zammad] Manual ticket created task=${task.id} ticket=${ticket?.id || "n/a"} owner=${ownerId}`);
     return res.json({ ok: true, ticket });
   } catch (error) {
