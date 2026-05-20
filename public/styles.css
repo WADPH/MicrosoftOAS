@@ -203,6 +203,71 @@ body[data-theme="dark"] .iconBtn .moon {
   overflow: hidden;
 }
 
+.progressScreen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.progressCard {
+  width: 100%;
+  min-height: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow-soft);
+  padding: 28px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.progressRoadmap {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 12px;
+  align-items: center;
+}
+
+.progressStep {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--input);
+  text-align: center;
+  font-size: 14px;
+}
+
+.progressStep.done {
+  border-color: color-mix(in srgb, #16a34a 35%, var(--line));
+  background: color-mix(in srgb, #16a34a 12%, var(--card));
+}
+
+.progressStep.active {
+  border-color: color-mix(in srgb, #0ea5e9 45%, var(--line));
+  background: color-mix(in srgb, #0ea5e9 14%, var(--card));
+  font-weight: 600;
+}
+
+.progressDescription {
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.progressAssetsWrap {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--input);
+  padding: 14px;
+}
+
+.progressAssetsList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .panel {
   background: var(--card);
   border: 1px solid var(--line);
@@ -802,6 +867,16 @@ body[data-theme="dark"] .iconBtn .moon {
   color: var(--ink);
 }
 
+.assetPill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--card);
+}
+
 button.small {
   padding: 8px 10px;
   font-size: 12px;
@@ -1176,6 +1251,10 @@ button.danger {
   }
 
   .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .progressRoadmap {
     grid-template-columns: 1fr;
   }
 

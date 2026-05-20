@@ -31,6 +31,7 @@
           </div>
           <div class="topbarRight">
             <div class="toolbarGroup">
+              <button id="progressToggleBtn" class="ghost small" type="button">Progress</button>
               <div class="toolbarLabel">Theme</div>
               <button id="themeBtn" class="iconBtn" type="button" aria-label="Toggle theme" title="Toggle theme">
                 <span class="icon sun" aria-hidden="true">
@@ -396,6 +397,19 @@
           <pre id="taskErrorDetails" class="meta hidden"></pre>
         </section>
       </div>
+      <section id="progressScreen" class="progressScreen hidden" aria-live="polite">
+        <div class="progressCard">
+          <h2 id="progressTitle">Onboarding Progress</h2>
+          <p id="progressSubtitle" class="metaSmall">Select onboarding task to see progress.</p>
+          <div id="progressRoadmap" class="progressRoadmap"></div>
+          <div id="progressDescription" class="progressDescription"></div>
+          <div id="progressAssetsWrap" class="progressAssetsWrap hidden">
+            <h3>Ordered Assets</h3>
+            <p class="metaSmall">Requested from procurement via email.</p>
+            <div id="progressAssetsList" class="progressAssetsList"></div>
+          </div>
+        </div>
+      </section>
     </div>
     <div id="taskStatusHelpModal" class="modal hidden" aria-hidden="true">
       <div id="taskStatusHelpOverlay" class="modalOverlay"></div>

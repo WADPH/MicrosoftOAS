@@ -62,6 +62,7 @@ const state = {
     userEditedLicenseBody: false
   },
   sessionExpiredNotified: false,
+  appView: "main",
   sessionWatchTimer: null
 };
 
@@ -449,6 +450,101 @@ function getCurrentTask() {
   return state.tasks.find((task) => task.id === state.selectedId) || null;
 }
 
+const PROGRESS_STEPS = ["Created", "Licensing", "Provisioned", "Completed"];
+
+function mapOnboardingStatusToProgressStage(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "done") return "Completed";
+  if (normalized === "provisioned") return "Provisioned";
+  if (normalized === "unlicensed") return "Licensing";
+  return "Created";
+}
+
+function getProgressTask() {
+  return getCurrentTask() || state.tasks[0] || null;
+}
+
+function getProgressDescription(stage) {
+  if (stage === "Created") return "Task is created and queued for onboarding actions.";
+  if (stage === "Licensing") return "Account is prepared, license purchase/request is in progress, waiting for available seat.";
+  if (stage === "Provisioned") return "Account and access are ready. Remaining step is workplace handoff to the employee.";
+  return "Onboarding is fully completed and the employee is already working.";
+}
+
+function getOrderedAssets(task) {
+  const assets = task?.assets || {};
+  const labels = {
+    laptop: "Laptop",
+    keyboard: "Keyboard",
+    mouse: "Mouse",
+    headphones: "Headphones",
+    monitor: "Monitor"
+  };
+  return Object.keys(labels).filter((key) => Boolean(assets[key])).map((key) => labels[key]);
+}
+
+function renderProgressView() {
+  const title = el("progressTitle");
+  const subtitle = el("progressSubtitle");
+  const roadmap = el("progressRoadmap");
+  const description = el("progressDescription");
+  const assetsWrap = el("progressAssetsWrap");
+  const assetsList = el("progressAssetsList");
+  if (!title || !subtitle || !roadmap || !description || !assetsWrap || !assetsList) return;
+
+  const task = getProgressTask();
+  if (!task) {
+    title.textContent = "Onboarding Progress";
+    subtitle.textContent = "No onboarding tasks yet.";
+    roadmap.innerHTML = "";
+    description.textContent = "";
+    assetsWrap.classList.add("hidden");
+    return;
+  }
+
+  const stage = mapOnboardingStatusToProgressStage(task.status);
+  const stageIndex = PROGRESS_STEPS.indexOf(stage);
+  title.textContent = `Onboarding Progress: ${task.fullName || task.email || "Employee"}`;
+  subtitle.textContent = `Current stage: ${stage}`;
+  description.textContent = getProgressDescription(stage);
+
+  roadmap.innerHTML = "";
+  PROGRESS_STEPS.forEach((item, index) => {
+    const step = document.createElement("div");
+    const done = index < stageIndex ? "done" : "";
+    const active = index === stageIndex ? "active" : "";
+    step.className = `progressStep ${done} ${active}`.trim();
+    step.textContent = item;
+    roadmap.appendChild(step);
+  });
+
+  const ordered = getOrderedAssets(task);
+  assetsList.innerHTML = "";
+  if (ordered.length === 0) {
+    assetsWrap.classList.add("hidden");
+    return;
+  }
+  assetsWrap.classList.remove("hidden");
+  for (const asset of ordered) {
+    const item = document.createElement("span");
+    item.className = "assetPill";
+    item.textContent = asset;
+    assetsList.appendChild(item);
+  }
+}
+
+function setAppView(view) {
+  state.appView = view === "progress" ? "progress" : "main";
+  const layout = document.querySelector(".layout");
+  const progressScreen = el("progressScreen");
+  const progressToggleBtn = el("progressToggleBtn");
+  const inProgress = state.appView === "progress";
+  if (layout) layout.classList.toggle("hidden", inProgress);
+  if (progressScreen) progressScreen.classList.toggle("hidden", !inProgress);
+  if (progressToggleBtn) progressToggleBtn.textContent = inProgress ? "Back" : "Progress";
+  if (inProgress) renderProgressView();
+}
+
 function getSelectedSnipeitAssets(task = getCurrentTask()) {
   return Array.isArray(task?.snipeitAssets) ? task.snipeitAssets : [];
 }
@@ -486,6 +582,7 @@ function setTaskMode(mode) {
     updateTaskErrorView(task);
   }
   renderCurrentTaskList();
+  renderProgressView();
   if (isOffboarding) {
     loadOffboardingTasks().catch(() => {});
   }
@@ -1508,6 +1605,7 @@ function selectTask(id) {
   loadOnboardingDefaultGroupNames(task).catch(() => {});
   refreshMailVisibilityAndPreview();
   applyZammadUiVisibility();
+  renderProgressView();
 }
 
 async function loadMeta() {
@@ -1570,6 +1668,7 @@ async function loadTasks() {
   if (state.taskMode === "onboarding" && state.selectedId) {
     selectTask(state.selectedId);
   }
+  renderProgressView();
 }
 
 async function loadOffboardingTasks() {
@@ -2552,6 +2651,13 @@ async function deleteTask() {
 }
 
 function setupActions() {
+  const progressToggleBtn = el("progressToggleBtn");
+  if (progressToggleBtn) {
+    progressToggleBtn.onclick = () => {
+      setAppView(state.appView === "progress" ? "main" : "progress");
+    };
+  }
+
   const livePreviewInputs = [
     "skipLicense",
     "licenseRequired",
@@ -2564,8 +2670,14 @@ function setupActions() {
     "company"
   ];
   for (const id of livePreviewInputs) {
-    el(id).addEventListener("input", refreshMailVisibilityAndPreview);
-    el(id).addEventListener("change", refreshMailVisibilityAndPreview);
+    el(id).addEventListener("input", () => {
+      refreshMailVisibilityAndPreview();
+      renderProgressView();
+    });
+    el(id).addEventListener("change", () => {
+      refreshMailVisibilityAndPreview();
+      renderProgressView();
+    });
   }
   el("licenseSubject").addEventListener("input", () => {
     state.userEditedLicenseSubject = true;
