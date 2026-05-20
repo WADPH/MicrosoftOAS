@@ -2654,7 +2654,7 @@ function setupActions() {
   const progressToggleBtn = el("progressToggleBtn");
   if (progressToggleBtn) {
     progressToggleBtn.onclick = () => {
-      setAppView(state.appView === "progress" ? "main" : "progress");
+      window.location.href = "/progress";
     };
   }
 

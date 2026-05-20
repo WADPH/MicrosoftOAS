@@ -222,6 +222,22 @@ body[data-theme="dark"] .iconBtn .moon {
   gap: 14px;
 }
 
+.progressList {
+  display: grid;
+  gap: 12px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.progressTaskCard {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--card);
+  display: grid;
+  gap: 10px;
+}
+
 .progressRoadmap {
   display: grid;
   grid-template-columns: repeat(4, minmax(120px, 1fr));

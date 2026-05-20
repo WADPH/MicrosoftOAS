@@ -50,6 +50,9 @@ app.use("/tasks", requireAuth, tasksRouter);
 app.use("/snipeit", requireAuth, snipeitRouter);
 app.use("/offboarding", requireAuth, offboardingRouter);
 app.use("/webhook", webhookRouter);
+app.get("/progress", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "views", "progress.html"));
+});
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
