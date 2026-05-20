@@ -53,7 +53,10 @@ app.use("/snipeit", requireAuth, requireMainAccess, snipeitRouter);
 app.use("/offboarding", requireAuth, requireMainAccess, offboardingRouter);
 app.use("/webhook", webhookRouter);
 
-app.get("/", requireAuth, requireMainAccess, (req, res) => {
+app.get("/", (req, res) => {
+  if (req.session?.user?.role === "spectator") {
+    return res.redirect("/progress");
+  }
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
