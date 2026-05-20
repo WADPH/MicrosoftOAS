@@ -10,7 +10,9 @@ const snipeitRouter = require("./routes/snipeit");
 const offboardingRouter = require("./routes/offboarding");
 const webhookRouter = require("./routes/webhook");
 const requireAuth = require("./middleware/requireAuth");
+const { requireMainAccess, requireProgressAccess } = require("./middleware/requireAuth");
 const { startSnipeitAssignWorker, processPendingAssignTasks } = require("./services/snipeitAssignWorker");
+const { getTasksByType } = require("./services/taskStore");
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -45,13 +47,21 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/auth", authRouter);
-app.use("/settings", requireAuth, settingsRouter);
-app.use("/tasks", requireAuth, tasksRouter);
-app.use("/snipeit", requireAuth, snipeitRouter);
-app.use("/offboarding", requireAuth, offboardingRouter);
+app.use("/settings", requireAuth, requireMainAccess, settingsRouter);
+app.use("/tasks", requireAuth, requireMainAccess, tasksRouter);
+app.use("/snipeit", requireAuth, requireMainAccess, snipeitRouter);
+app.use("/offboarding", requireAuth, requireMainAccess, offboardingRouter);
 app.use("/webhook", webhookRouter);
-app.get("/progress", requireAuth, (req, res) => {
+
+app.get("/", requireAuth, requireMainAccess, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+});
+
+app.get("/progress", requireAuth, requireProgressAccess, (req, res) => {
   res.sendFile(path.join(__dirname, "views", "progress.html"));
+});
+app.get("/progress/tasks", requireAuth, requireProgressAccess, (req, res) => {
+  res.json(getTasksByType("onboarding"));
 });
 
 app.use(express.static(path.join(__dirname, "..", "public")));

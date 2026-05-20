@@ -66,31 +66,40 @@ function parseUserFromToken(tokenResponse) {
   };
 }
 
-function isUserAllowed(user) {
-  const source = process.env.ALLOWED_EMAILS || process.env.ALLOWED_EMAIL || "";
-  const allowedEmails = String(source)
+function parseAllowedEmailList(source) {
+  return String(source || "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
+}
 
-  if (allowedEmails.length === 0) {
-    console.warn("[auth] ALLOWED_EMAILS not configured, denying all access");
-    return false;
+function resolveUserAccess(user) {
+  const adminSource = process.env.ALLOWED_EMAILS || process.env.ALLOWED_EMAIL || "";
+  const spectatorSource = process.env.ALLOWED_SPECTATORS || "";
+  const allowedAdmins = parseAllowedEmailList(adminSource);
+  const allowedSpectators = parseAllowedEmailList(spectatorSource);
+  const userEmail = String(user.email || "").toLowerCase();
+
+  if (allowedAdmins.includes(userEmail)) {
+    return { allowed: true, role: "admin" };
   }
 
-  const userEmail = String(user.email || "").toLowerCase();
-  const allowed = allowedEmails.includes(userEmail);
+  if (allowedSpectators.includes(userEmail)) {
+    return { allowed: true, role: "spectator" };
+  }
 
-  if (!allowed) {
+  if (allowedAdmins.length === 0 && allowedSpectators.length === 0) {
+    console.warn("[auth] ALLOWED_EMAILS/ALLOWED_SPECTATORS not configured, denying all access");
+  } else {
     console.warn(`[auth] User ${userEmail} not in whitelist`);
   }
 
-  return allowed;
+  return { allowed: false, role: null };
 }
 
 module.exports = {
   getAuthCodeUrl,
   handleAuthCallback,
   parseUserFromToken,
-  isUserAllowed
+  resolveUserAccess
 };

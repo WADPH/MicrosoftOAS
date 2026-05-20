@@ -74,6 +74,11 @@ function renderRoadmap(stage) {
 function renderTasks(tasks) {
   const list = byId("progressList");
   if (!list) return;
+  const openedTaskIds = new Set(
+    Array.from(list.querySelectorAll("details.progressTaskCard[open][data-task-id]"))
+      .map((node) => String(node.getAttribute("data-task-id") || "").trim())
+      .filter(Boolean)
+  );
   if (!Array.isArray(tasks) || tasks.length === 0) {
     list.innerHTML = `<div class="managerEmpty">No onboarding tasks yet.</div>`;
     return;
@@ -83,8 +88,10 @@ function renderTasks(tasks) {
     const stage = mapStatusToStage(task.status);
     const assets = orderedAssets(task);
     const employeeLabel = `${task.fullName || "Employee"}${task.email ? ` · ${task.email}` : ""}`;
+    const taskId = String(task.id || "").trim();
+    const openAttr = taskId && openedTaskIds.has(taskId) ? "open" : "";
     return `
-      <details class="progressTaskCard">
+      <details class="progressTaskCard" data-task-id="${esc(taskId)}" ${openAttr}>
         <summary class="progressTaskHeader">
           <span class="progressTaskEmployee">${esc(employeeLabel)}</span>
           <span class="pill">${esc(stage)}</span>
@@ -118,7 +125,7 @@ async function api(path) {
 }
 
 async function loadProgress() {
-  const data = await api("/tasks?type=onboarding");
+  const data = await api("/progress/tasks");
   renderTasks(Array.isArray(data) ? data : []);
 }
 

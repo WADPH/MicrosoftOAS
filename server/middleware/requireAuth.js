@@ -8,4 +8,21 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function requireMainAccess(req, res, next) {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).send("Forbidden");
+  }
+  next();
+}
+
+function requireProgressAccess(req, res, next) {
+  const role = String(req.user?.role || "");
+  if (role !== "admin" && role !== "spectator") {
+    return res.status(403).send("Forbidden");
+  }
+  next();
+}
+
 module.exports = requireAuth;
+module.exports.requireMainAccess = requireMainAccess;
+module.exports.requireProgressAccess = requireProgressAccess;

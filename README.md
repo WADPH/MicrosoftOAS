@@ -42,6 +42,7 @@ A self-hosted automation platform for managing employee onboarding and offboardi
 - **Zammad Integration**: Automatic ticket creation for IT support tasks
 - **Task Management**: Track and manage onboarding/offboarding tasks
 - **Web Dashboard**: User-friendly interface for monitoring and managing tasks
+- **Progress Dashboard**: HR-friendly read-only onboarding progress page (`/progress`)
 - **Settings Management**: Configure system settings and email recipients
 
 ---
@@ -157,6 +158,7 @@ TEAMS_OUTGOING_WEBHOOK_SECRET=your-teams-webhook-secret
 
 # SSO Configuration
 ALLOWED_EMAILS=user1@company.com,user2@company.com,admin@company.com
+ALLOWED_SPECTATORS=hr1@company.com,hr2@company.com
 REDIRECT_URI=https://your-app-domain.com/auth/callback
 
 # Multi-Tenant Setup
@@ -199,6 +201,9 @@ ZAMMAD_DEFAULT_CUSTOMER=support@company.com
 WEBHOOK_DEBUG=false
 TEST_RECIPIENT=  # Optional: redirect all emails to this address for testing
 ```
+
+`ALLOWED_EMAILS` users have full access to the main dashboard (`/`) and can also open `/progress`.
+`ALLOWED_SPECTATORS` users are redirected to `/progress` after login and can access only the progress dashboard.
 
 ---
 
@@ -377,6 +382,13 @@ GET /auth/callback           # OAuth callback
 POST /auth/logout            # Logout
 ```
 
+### Progress Dashboard
+
+```http
+GET /progress                # Read-only progress page (admin + spectator)
+GET /progress/tasks          # Onboarding tasks feed for progress page
+```
+
 ---
 
 ## Integrations
@@ -418,6 +430,7 @@ OAS/
 ├── public/                          # Frontend assets
 │   ├── index.html                  # Main HTML file
 │   ├── app.js                      # Frontend JavaScript
+│   ├── progress.js                 # Progress page JavaScript
 │   ├── styles.css                  # Frontend styles
 │   └── images/                     # Image assets
 ├── server/                          # Backend application
@@ -443,6 +456,8 @@ OAS/
 │   │   ├── tenantConfig.js         # Tenant configuration
 │   │   ├── settingsStore.js        # Settings storage
 │   │   ├── zammad.service.js       # Zammad ticketing service
+│   ├── views/
+│   │   └── progress.html           # Progress page template
 │   └── db/                          # Data storage
 │       ├── tasks.json              # Tasks database
 │       └── snipeit_assign.json     # Snipe-IT assignments database
@@ -497,6 +512,9 @@ Mobile number: [Phone]
 - Webhook validation uses Teams HMAC signature from `Authorization` header
 - Session secret should be a strong random string in production
 - All API endpoints (except `/health` and `/webhook/teams`) require authentication
+- Access model:
+  - `ALLOWED_EMAILS`: full dashboard access (`/`) + progress (`/progress`)
+  - `ALLOWED_SPECTATORS`: progress-only access (`/progress`)
 - In production, ensure `SESSION_SECRET` is set to a secure value
 
 ### Teams Webhook

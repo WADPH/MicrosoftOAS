@@ -1,5 +1,5 @@
 const express = require("express");
-const { getAuthCodeUrl, handleAuthCallback, parseUserFromToken, isUserAllowed } = require("../services/auth");
+const { getAuthCodeUrl, handleAuthCallback, parseUserFromToken, resolveUserAccess } = require("../services/auth");
 
 const router = express.Router();
 
@@ -31,19 +31,20 @@ router.get("/callback", async (req, res) => {
     const tokenResponse = await handleAuthCallback(code);
     const user = parseUserFromToken(tokenResponse);
 
-    if (!isUserAllowed(user)) {
+    const access = resolveUserAccess(user);
+    if (!access.allowed) {
       console.warn(`[auth] Access denied for ${user.email}`);
       return res.status(403).json({ error: "Access denied" });
     }
 
-    req.session.user = user;
-    console.log(`[auth] User authenticated: ${user.email}`);
+    req.session.user = { ...user, role: access.role };
+    console.log(`[auth] User authenticated: ${user.email} (${access.role})`);
     req.session.save((err) => {
       if (err) {
         console.error("[auth] Session save failed", err);
         return res.status(500).json({ error: "Session save failed" });
       }
-      res.redirect("/");
+      res.redirect(access.role === "spectator" ? "/progress" : "/");
     });
   } catch (error) {
     console.error("[auth] Callback processing failed", error.message);
