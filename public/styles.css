@@ -227,6 +227,29 @@ body[data-theme="dark"] .iconBtn .moon {
   gap: 12px;
   overflow: auto;
   padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent;
+}
+
+.progressList::-webkit-scrollbar {
+  width: 10px;
+}
+
+.progressList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.progressList::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+.progressList::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted) 36%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 .progressTaskCard {
@@ -234,6 +257,28 @@ body[data-theme="dark"] .iconBtn .moon {
   border-radius: 12px;
   padding: 14px;
   background: var(--card);
+}
+
+.progressTaskHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.progressTaskHeader::-webkit-details-marker {
+  display: none;
+}
+
+.progressTaskEmployee {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.progressTaskBody {
+  margin-top: 10px;
   display: grid;
   gap: 10px;
 }
@@ -279,6 +324,7 @@ body[data-theme="dark"] .iconBtn .moon {
 }
 
 .progressAssetsList {
+  padding-top: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;

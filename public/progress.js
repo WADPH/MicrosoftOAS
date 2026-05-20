@@ -81,22 +81,24 @@ function renderTasks(tasks) {
   const rows = tasks.map((task) => {
     const stage = mapStatusToStage(task.status);
     const assets = orderedAssets(task);
+    const employeeLabel = `${task.fullName || "Employee"}${task.email ? ` · ${task.email}` : ""}`;
     return `
-      <article class="progressTaskCard">
-        <div class="rowBetween">
-          <h3>${esc(task.fullName || task.email || "Employee")}</h3>
+      <details class="progressTaskCard">
+        <summary class="progressTaskHeader">
+          <span class="progressTaskEmployee">${esc(employeeLabel)}</span>
           <span class="pill">${esc(stage)}</span>
+        </summary>
+        <div class="progressTaskBody">
+          <div class="progressRoadmap">${renderRoadmap(stage)}</div>
+          <div class="progressDescription">${esc(stageDescription(stage))}</div>
+          ${assets.length > 0
+            ? `<div class="progressAssetsWrap">
+                <div class="metaSmall">Ordered assets (requested from procurement):</div>
+                <div class="progressAssetsList">${assets.map((asset) => `<span class="assetPill">${esc(asset)}</span>`).join("")}</div>
+              </div>`
+            : ""}
         </div>
-        <p class="metaSmall">${esc(task.email || "")}</p>
-        <div class="progressRoadmap">${renderRoadmap(stage)}</div>
-        <div class="progressDescription">${esc(stageDescription(stage))}</div>
-        ${assets.length > 0
-          ? `<div class="progressAssetsWrap">
-              <div class="metaSmall">Ordered assets (requested from procurement):</div>
-              <div class="progressAssetsList">${assets.map((asset) => `<span class="assetPill">${esc(asset)}</span>`).join("")}</div>
-            </div>`
-          : ""}
-      </article>
+      </details>
     `;
   });
   list.innerHTML = rows.join("");
