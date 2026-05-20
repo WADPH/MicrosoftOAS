@@ -310,6 +310,22 @@ body[data-theme="dark"] .iconBtn .moon {
   font-weight: 600;
 }
 
+.progressStep.pulsing {
+  animation: progressPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes progressPulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, #0ea5e9 34%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 10px color-mix(in srgb, #0ea5e9 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, #0ea5e9 0%, transparent);
+  }
+}
+
 .progressDescription {
   font-size: 14px;
   color: var(--ink);

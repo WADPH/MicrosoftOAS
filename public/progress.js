@@ -66,7 +66,8 @@ function renderRoadmap(stage) {
   return PROGRESS_STEPS.map((item, index) => {
     const done = index < stageIndex ? "done" : "";
     const active = index === stageIndex ? "active" : "";
-    return `<div class="progressStep ${done} ${active}">${esc(item)}</div>`;
+    const pulsing = index === stageIndex && stage !== "Completed" ? "pulsing" : "";
+    return `<div class="progressStep ${done} ${active} ${pulsing}">${esc(item)}</div>`;
   }).join("");
 }
 
