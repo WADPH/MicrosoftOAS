@@ -74,10 +74,10 @@ function renderRoadmap(stage) {
 function renderTasks(tasks) {
   const list = byId("progressList");
   if (!list) return;
-  const openedTaskIds = new Set(
-    Array.from(list.querySelectorAll("details.progressTaskCard[open][data-task-id]"))
-      .map((node) => String(node.getAttribute("data-task-id") || "").trim())
-      .filter(Boolean)
+  const previousOpenStateById = new Map(
+    Array.from(list.querySelectorAll("details.progressTaskCard[data-task-id]"))
+      .map((node) => [String(node.getAttribute("data-task-id") || "").trim(), node.hasAttribute("open")])
+      .filter(([id]) => Boolean(id))
   );
   if (!Array.isArray(tasks) || tasks.length === 0) {
     list.innerHTML = `<div class="managerEmpty">No onboarding tasks yet.</div>`;
@@ -89,7 +89,11 @@ function renderTasks(tasks) {
     const assets = orderedAssets(task);
     const employeeLabel = `${task.fullName || "Employee"}${task.email ? ` · ${task.email}` : ""}`;
     const taskId = String(task.id || "").trim();
-    const openAttr = taskId && openedTaskIds.has(taskId) ? "open" : "";
+    const isDefaultOpen = stage !== "Completed";
+    const isOpen = taskId && previousOpenStateById.has(taskId)
+      ? Boolean(previousOpenStateById.get(taskId))
+      : isDefaultOpen;
+    const openAttr = isOpen ? "open" : "";
     return `
       <details class="progressTaskCard" data-task-id="${esc(taskId)}" ${openAttr}>
         <summary class="progressTaskHeader">
