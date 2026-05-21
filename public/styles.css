@@ -1149,6 +1149,199 @@ textarea:focus {
   margin-top: 14px;
 }
 
+/* Progress Modal Styles */
+.progressModalContent {
+  min-width: 500px;
+  max-width: 600px;
+  max-height: 80vh;
+}
+
+.progressContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0;
+  min-height: 300px;
+}
+
+.progressSpinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.progressStatus {
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border-left: 3px solid var(--color-primary);
+}
+
+.statusText {
+  margin: 0;
+  font-size: 14px;
+}
+
+.progressLogs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.logsList {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.logEntry {
+  padding: 4px 0;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.logEntry.error {
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.logEntry.success {
+  color: var(--color-success);
+}
+
+.logEntry.warning {
+  color: var(--color-warning);
+}
+
+.progressComplete,
+.progressError {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 16px;
+  border-radius: 8px;
+}
+
+.progressComplete {
+  background: rgba(76, 175, 80, 0.1);
+}
+
+.progressError {
+  background: rgba(244, 67, 54, 0.1);
+}
+
+.completeIcon {
+  font-size: 40px;
+  color: var(--color-success);
+  font-weight: bold;
+}
+
+.errorIcon {
+  font-size: 40px;
+  color: var(--color-danger);
+  font-weight: bold;
+}
+
+.progressComplete h4,
+.progressError h4 {
+  margin: 8px 0 4px 0;
+  font-size: 16px;
+}
+
+.progressComplete p,
+.progressError p {
+  margin: 0;
+  text-align: center;
+}
+
+.progressActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Logs Section Styles */
+.logsSection {
+  margin-top: 16px;
+}
+
+.logsSection h3 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.logsContainer {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  max-height: 250px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.logsContainer.empty {
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 20px;
+  text-align: center;
+}
+
+.logsEntry {
+  padding: 2px 0;
+  color: var(--text-secondary);
+}
+
+.logsEntry.error {
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.logsEntry.success {
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .progressModalContent {
+    min-width: 90vw;
+    max-width: 90vw;
+    max-height: 90vh;
+  }
+}
+
 button {
   border: 1px solid var(--line);
   border-radius: 8px;

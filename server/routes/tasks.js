@@ -33,6 +33,51 @@ const { listAgents, createManualOnboardingTicket } = require("../services/zammad
 
 const router = express.Router();
 
+// Execution logs collector
+function createLogCollector() {
+  const logs = [];
+  const originalLog = console.log;
+  const originalWarn = console.warn;
+  const originalError = console.error;
+
+  const collector = {
+    logs,
+    startCapture() {
+      console.log = (...args) => {
+        const message = args.map(arg => {
+          if (typeof arg === 'string') return arg;
+          try { return JSON.stringify(arg); } catch { return String(arg); }
+        }).join(' ');
+        logs.push({ message, type: 'info', timestamp: new Date().toISOString() });
+        originalLog(...args);
+      };
+      console.warn = (...args) => {
+        const message = args.map(arg => {
+          if (typeof arg === 'string') return arg;
+          try { return JSON.stringify(arg); } catch { return String(arg); }
+        }).join(' ');
+        logs.push({ message, type: 'warning', timestamp: new Date().toISOString() });
+        originalWarn(...args);
+      };
+      console.error = (...args) => {
+        const message = args.map(arg => {
+          if (typeof arg === 'string') return arg;
+          try { return JSON.stringify(arg); } catch { return String(arg); }
+        }).join(' ');
+        logs.push({ message, type: 'error', timestamp: new Date().toISOString() });
+        originalError(...args);
+      };
+    },
+    stopCapture() {
+      console.log = originalLog;
+      console.warn = originalWarn;
+      console.error = originalError;
+    }
+  };
+
+  return collector;
+}
+
 function validateSnipeitAssetsInput(input) {
   if (!Array.isArray(input)) {
     const error = new Error("snipeitAssets must be an array");
@@ -337,6 +382,9 @@ router.post("/:id/approve", async (req, res) => {
 
   updateTaskById(existingTask.id, { status: "processing", errorMessage: "" });
 
+  const logCollector = createLogCollector();
+  logCollector.startCapture();
+
   try {
     const bodyPassword = String(req.body?.userTempPass || "").trim();
     if (bodyPassword) {
@@ -526,29 +574,35 @@ router.post("/:id/approve", async (req, res) => {
         String(stepErrors[0].message || "").includes("no free seat or SKU not found");
 
       if (onlyUnlicensed) {
-        const unlicensedTask = updateTaskById(existingTask.id, { status: "unlicensed", errorMessage: "" });
-        return res.json({ task: unlicensedTask, steps, failedSteps: stepErrors });
+        const unlicensedTask = updateTaskById(existingTask.id, { status: "unlicensed", errorMessage: "", executionLogs: logCollector.logs });
+        logCollector.stopCapture();
+        return res.json({ task: unlicensedTask, steps, failedSteps: stepErrors, executionLogs: logCollector.logs });
       }
 
       const failedTask = updateTaskById(existingTask.id, {
         status: "error",
-        errorMessage: stepErrors.map((x) => `[${x.step}] ${x.message}`).join("\n")
+        errorMessage: stepErrors.map((x) => `[${x.step}] ${x.message}`).join("\n"),
+        executionLogs: logCollector.logs
       });
+      logCollector.stopCapture();
       return res.status(500).json({
         error: "Approval completed with errors",
         steps,
         failedSteps: stepErrors,
-        task: failedTask
+        task: failedTask,
+        executionLogs: logCollector.logs
       });
     }
 
     const finalStatus = task.skipLicense || task.licenseRequired ? "unlicensed" : "provisioned";
-    const finalTask = updateTaskById(existingTask.id, { status: finalStatus, errorMessage: "" });
-    return res.json({ task: finalTask, steps });
+    const finalTask = updateTaskById(existingTask.id, { status: finalStatus, errorMessage: "", executionLogs: logCollector.logs });
+    logCollector.stopCapture();
+    return res.json({ task: finalTask, steps, executionLogs: logCollector.logs });
   } catch (error) {
     console.error("[approve] Failed", error);
-    const failedTask = updateTaskById(existingTask.id, { status: "error", errorMessage: error.message || "Approval failed" });
-    return res.status(500).json({ error: "Approval failed", details: error.message, task: failedTask });
+    const failedTask = updateTaskById(existingTask.id, { status: "error", errorMessage: error.message || "Approval failed", executionLogs: logCollector.logs });
+    logCollector.stopCapture();
+    return res.status(500).json({ error: "Approval failed", details: error.message, task: failedTask, executionLogs: logCollector.logs });
   }
 });
 

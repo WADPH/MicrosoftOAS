@@ -199,7 +199,8 @@ function normalizeTask(task = {}) {
           .filter((group) => group.id)
       : [],
     offboarding: normalizeOffboardingPayload(task.offboarding),
-    createdAt: task.createdAt || new Date().toISOString()
+    createdAt: task.createdAt || new Date().toISOString(),
+    executionLogs: Array.isArray(task.executionLogs) ? task.executionLogs : []
   };
 
   const defaults = buildDefaultMails(base);

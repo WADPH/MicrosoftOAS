@@ -217,6 +217,84 @@ function el(id) {
   return document.getElementById(id);
 }
 
+// Progress Modal Management
+function openProgressModal(title = "Executing Task...", subtitle = "") {
+  const modal = el("progressModal");
+  const titleEl = el("progressModalTitle");
+  const subtitleEl = el("progressModalSubtitle");
+  const spinner = el("progressSpinner");
+  const status = el("progressStatus");
+  const complete = el("progressComplete");
+  const error = el("progressError");
+  const closeBtn = el("progressModalClose");
+  const logsList = el("progressLogsList");
+
+  titleEl.textContent = title;
+  subtitleEl.textContent = subtitle;
+  spinner.classList.remove("hidden");
+  status.classList.remove("hidden");
+  complete.classList.add("hidden");
+  error.classList.add("hidden");
+  closeBtn.classList.add("hidden");
+  el("progressModalCloseBtn").classList.add("hidden");
+  logsList.innerHTML = "";
+
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeProgressModal() {
+  const modal = el("progressModal");
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+function updateProgressStatus(message) {
+  const statusText = el("progressStatusText");
+  if (statusText) statusText.textContent = message;
+}
+
+function addProgressLog(message, type = "info") {
+  const logsList = el("progressLogsList");
+  const entry = document.createElement("div");
+  entry.className = `logEntry ${type}`;
+  entry.textContent = message;
+  logsList.appendChild(entry);
+  logsList.scrollTop = logsList.scrollHeight;
+}
+
+function showProgressComplete(message = "Task completed successfully") {
+  const spinner = el("progressSpinner");
+  const status = el("progressStatus");
+  const complete = el("progressComplete");
+  const closeBtn = el("progressModalClose");
+  const closeBtnAction = el("progressModalCloseBtn");
+  const completeMsg = el("progressCompleteMessage");
+
+  spinner.classList.add("hidden");
+  status.classList.add("hidden");
+  complete.classList.remove("hidden");
+  closeBtn.classList.remove("hidden");
+  closeBtnAction.classList.remove("hidden");
+  if (completeMsg) completeMsg.textContent = message;
+}
+
+function showProgressError(message = "Task failed") {
+  const spinner = el("progressSpinner");
+  const status = el("progressStatus");
+  const error = el("progressError");
+  const closeBtn = el("progressModalClose");
+  const closeBtnAction = el("progressModalCloseBtn");
+  const errorMsg = el("progressErrorMessage");
+
+  spinner.classList.add("hidden");
+  status.classList.add("hidden");
+  error.classList.remove("hidden");
+  closeBtn.classList.remove("hidden");
+  closeBtnAction.classList.remove("hidden");
+  if (errorMsg) errorMsg.textContent = message;
+}
+
 function showSessionExpiredNotice() {
   if (state.sessionExpiredNotified) return;
   state.sessionExpiredNotified = true;
@@ -761,6 +839,29 @@ function resetOffboardingState() {
   renderCurrentTaskList();
 }
 
+function displayOffboardingLogs(task) {
+  const container = el("offboardingLogsContainer");
+  if (!container) return;
+
+  const logs = Array.isArray(task?.executionLogs) ? task.executionLogs : [];
+  
+  if (logs.length === 0) {
+    container.innerHTML = 'No logs available. Run offboarding to see execution logs.';
+    container.classList.add("empty");
+    return;
+  }
+
+  container.innerHTML = "";
+  container.classList.remove("empty");
+  
+  logs.forEach(log => {
+    const entry = document.createElement("div");
+    entry.className = `logsEntry ${log.type || "info"}`;
+    entry.textContent = log.message;
+    container.appendChild(entry);
+  });
+}
+
 async function selectOffboardingTask(id) {
   if (state.taskMode !== "offboarding") {
     setTaskMode("offboarding");
@@ -822,6 +923,7 @@ async function selectOffboardingTask(id) {
     return;
   }
 
+  displayOffboardingLogs(task);
   el("offboardingStatus").textContent = `Loaded offboarding task ${task.id}`;
 }
 
@@ -1545,6 +1647,29 @@ function setupPasswordToggle(inputId, buttonId) {
   });
 }
 
+function displayOnboardingLogs(task) {
+  const container = el("onboardingLogsContainer");
+  if (!container) return;
+
+  const logs = Array.isArray(task?.executionLogs) ? task.executionLogs : [];
+  
+  if (logs.length === 0) {
+    container.innerHTML = 'No logs available. Run the approval to see execution logs.';
+    container.classList.add("empty");
+    return;
+  }
+
+  container.innerHTML = "";
+  container.classList.remove("empty");
+  
+  logs.forEach(log => {
+    const entry = document.createElement("div");
+    entry.className = `logsEntry ${log.type || "info"}`;
+    entry.textContent = log.message;
+    container.appendChild(entry);
+  });
+}
+
 function selectTask(id) {
   state.selectedId = id;
   renderTasks();
@@ -1606,6 +1731,9 @@ function selectTask(id) {
   refreshMailVisibilityAndPreview();
   applyZammadUiVisibility();
   renderProgressView();
+  
+  // Display execution logs
+  displayOnboardingLogs(task);
 }
 
 async function loadMeta() {
@@ -1816,24 +1944,36 @@ async function createZammadOnboardingTicket() {
     if (status) status.textContent = "Choose an agent first";
     return;
   }
-  const createBtn = el("zammadAgentCreateBtn");
-  const status = el("zammadAgentStatus");
+
+  const task = state.tasks.find(t => t.id === state.selectedId);
+  const taskName = task?.fullName || "Task";
+
+  openProgressModal("Creating Zammad Ticket", taskName);
+  updateProgressStatus("Creating ticket...");
+
   try {
-    if (createBtn) createBtn.disabled = true;
-    if (status) status.textContent = "Creating ticket...";
+    addProgressLog("Sending request to create Zammad ticket...", "info");
     const result = await api(`/tasks/${encodeURIComponent(state.selectedId)}/zammad/ticket`, {
       method: "POST",
       body: JSON.stringify({ ownerId })
     });
+
+    // Add logs from execution
+    if (Array.isArray(result?.executionLogs)) {
+      result.executionLogs.forEach(log => {
+        addProgressLog(log.message, log.type || "info");
+      });
+    }
+
     const ticketId = result?.ticket?.id;
     await loadTasks();
     if (state.selectedId) selectTask(state.selectedId);
-    closeZammadAgentModal();
-    el("status").textContent = ticketId ? `Zammad ticket created: #${ticketId}` : "Zammad ticket created";
+
+    showProgressComplete(`Zammad ticket created successfully${ticketId ? `: #${ticketId}` : ""}`);
+    addProgressLog(`✓ Ticket #${ticketId || "N/A"} created successfully`, "success");
   } catch (error) {
-    if (status) status.textContent = `Create failed: ${error.message}`;
-  } finally {
-    if (createBtn) createBtn.disabled = false;
+    showProgressError(`Failed to create Zammad ticket: ${error.message}`);
+    addProgressLog(`✕ Error: ${error.message}`, "error");
   }
 }
 
@@ -2618,18 +2758,44 @@ async function approveTask() {
   if (!state.selectedId) return;
 
   await saveTask();
+  
+  const task = state.tasks.find(t => t.id === state.selectedId);
+  const taskName = task?.fullName || "Task";
 
-  const result = await api(`/tasks/${state.selectedId}/approve`, {
-    method: "POST",
-    body: JSON.stringify({
-      userTempPass: el("userTempPass")?.value || ""
-    })
-  });
+  openProgressModal("Approving Task", taskName);
+  updateProgressStatus("Initializing approval process...");
 
-  await loadTasks();
-  const steps = Array.isArray(result?.steps) ? result.steps : [];
-  const summary = steps.map((s) => `${s.step}:${s.action}`).join(", ");
-  el("status").textContent = summary ? `Approved (${summary})` : "Approved";
+  try {
+    const result = await api(`/tasks/${state.selectedId}/approve`, {
+      method: "POST",
+      body: JSON.stringify({
+        userTempPass: el("userTempPass")?.value || ""
+      })
+    });
+
+    // Add logs from execution
+    if (Array.isArray(result?.executionLogs)) {
+      result.executionLogs.forEach(log => {
+        addProgressLog(log.message, log.type || "info");
+      });
+    }
+
+    await loadTasks();
+    
+    // Refresh the task display to show new logs
+    if (state.selectedId) {
+      selectTask(state.selectedId);
+    }
+
+    const steps = Array.isArray(result?.steps) ? result.steps : [];
+    const summary = steps.map((s) => `${s.step}:${s.action}`).join(", ");
+    
+    showProgressComplete(`Approval completed: ${summary || "Done"}`);
+    addProgressLog("✓ Task approved successfully", "success");
+  } catch (error) {
+    showProgressError(`Approval failed: ${error.message}`);
+    addProgressLog(`✕ Error: ${error.message}`, "error");
+  }
 }
 
 async function deleteTask() {
@@ -2651,6 +2817,21 @@ async function deleteTask() {
 }
 
 function setupActions() {
+  // Progress Modal handlers
+  const progressModalClose = el("progressModalClose");
+  const progressModalCloseBtn = el("progressModalCloseBtn");
+  const progressModalOverlay = el("progressModalOverlay");
+  
+  if (progressModalClose) {
+    progressModalClose.onclick = () => closeProgressModal();
+  }
+  if (progressModalCloseBtn) {
+    progressModalCloseBtn.onclick = () => closeProgressModal();
+  }
+  if (progressModalOverlay) {
+    progressModalOverlay.onclick = () => closeProgressModal();
+  }
+
   const progressToggleBtn = el("progressToggleBtn");
   if (progressToggleBtn) {
     progressToggleBtn.onclick = () => {
@@ -2854,16 +3035,35 @@ function setupActions() {
   if (offboardingExecuteBtn) {
     offboardingExecuteBtn.onclick = async () => {
       try {
-        offboardingExecuteBtn.disabled = true;
-        el("offboardingStatus").textContent = "Executing...";
+        const email = state.offboarding.email || state.offboarding.selectedUser?.userPrincipalName || "User";
+        openProgressModal("Executing Offboarding", email);
+        updateProgressStatus("Starting offboarding process...");
+
         const result = await executeOffboarding();
+
+        // Add logs from execution
+        if (Array.isArray(result?.executionLogs)) {
+          result.executionLogs.forEach(log => {
+            addProgressLog(log.message, log.type || "info");
+          });
+        }
+
+        await loadOffboardingTasks();
+        
+        // Refresh the task display to show new logs
+        if (state.offboardingSelectedId) {
+          selectTask(state.offboardingSelectedId);
+        }
+
         const entraSummary = (result?.steps?.entra || []).map((x) => `${x.user}:${x.status}`).join(", ");
         const snipeitSummary = (result?.steps?.snipeit || []).map((x) => `${x.id}:${x.status}`).join(", ");
-        el("offboardingStatus").textContent = `Done. Entra[${entraSummary || "-"}], SnipeIT[${snipeitSummary || "-"}]`;
+        const summary = `Entra[${entraSummary || "-"}], SnipeIT[${snipeitSummary || "-"}]`;
+        
+        showProgressComplete(`Offboarding completed: ${summary}`);
+        addProgressLog("✓ Offboarding completed successfully", "success");
       } catch (error) {
-        el("offboardingStatus").textContent = `Execute failed: ${error.message}`;
-      } finally {
-        offboardingExecuteBtn.disabled = false;
+        showProgressError(`Offboarding failed: ${error.message}`);
+        addProgressLog(`✕ Error: ${error.message}`, "error");
       }
     };
   }

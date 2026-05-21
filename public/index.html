@@ -219,7 +219,7 @@
               </div>
               <div class="field">
                 <label for="licenseBody">Body</label>
-                <textarea id="licenseBody" rows="4"></textarea>
+                <textarea id="licenseBody" rows="5"></textarea>
               </div>
             </div>
           </div>
@@ -273,7 +273,7 @@
               </div>
               <div class="field">
                 <label for="assetsBody">Body</label>
-                <textarea id="assetsBody" rows="4"></textarea>
+                <textarea id="assetsBody" rows="5"></textarea>
               </div>
             </div>
           </div>
@@ -295,6 +295,16 @@
             <div class="field">
               <label>Selected Groups</label>
               <div id="onboardingGroupsList" class="snipeitSelectedList"></div>
+            </div>
+          </div>
+
+          <div class="sectionCard logsSection">
+            <div class="sectionHeader">
+              <h3>Logs</h3>
+              <p class="metaSmall">Execution logs from the last approval</p>
+            </div>
+            <div id="onboardingLogsContainer" class="logsContainer empty">
+              No logs available. Run the approval to see execution logs.
             </div>
           </div>
 
@@ -366,7 +376,7 @@
                 </div>
                 <div class="field">
                   <label for="offboardingLicenseBody">Body</label>
-                  <textarea id="offboardingLicenseBody" rows="4"></textarea>
+                  <textarea id="offboardingLicenseBody" rows="6"></textarea>
                 </div>
               </div>
             </div>
@@ -387,6 +397,16 @@
               <div id="offboardingPreview" class="managerEmpty">No actions selected yet.</div>
             </div>
 
+            <div class="sectionCard logsSection">
+              <div class="sectionHeader">
+                <h3>Logs</h3>
+                <p class="metaSmall">Execution logs from the last offboarding</p>
+              </div>
+              <div id="offboardingLogsContainer" class="logsContainer empty">
+                No logs available. Run offboarding to see execution logs.
+              </div>
+            </div>
+
             <div class="actions">
               <button id="offboardingSaveBtn" class="ghost" type="button">Save</button>
               <button id="offboardingExecuteBtn" class="primary" type="button">Execute Offboarding</button>
@@ -394,7 +414,7 @@
             </div>
             <p id="offboardingStatus" class="meta"></p>
           </div>
-          <pre id="taskErrorDetails" class="meta hidden"></pre>
+          <pre id="taskErrorDetails" class="meta hidden">%</pre>
         </section>
       </div>
     </div>
@@ -701,6 +721,51 @@
           <button id="zammadAgentCancelBtn" class="ghost" type="button">Cancel</button>
         </div>
         <p id="zammadAgentStatus" class="meta"></p>
+      </div>
+    </div>
+
+    <div id="progressModal" class="modal hidden" aria-hidden="true">
+      <div id="progressModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent progressModalContent" role="dialog" aria-modal="true" aria-labelledby="progressModalTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="progressModalTitle">Executing Task...</h3>
+            <p id="progressModalSubtitle" class="metaSmall"></p>
+          </div>
+          <button id="progressModalClose" type="button" aria-label="Close" class="hidden">×</button>
+        </div>
+        
+        <div class="progressContainer">
+          <div class="progressSpinner hidden" id="progressSpinner">
+            <div class="spinner"></div>
+            <p>Processing...</p>
+          </div>
+          
+          <div class="progressStatus" id="progressStatus">
+            <p id="progressStatusText" class="statusText">Initializing...</p>
+          </div>
+          
+          <div class="progressLogs">
+            <label class="metaSmall">Execution Logs</label>
+            <div id="progressLogsList" class="logsList"></div>
+          </div>
+          
+          <div id="progressComplete" class="progressComplete hidden">
+            <div class="completeIcon">✓</div>
+            <h4>Task Completed Successfully</h4>
+            <p id="progressCompleteMessage" class="metaSmall"></p>
+          </div>
+          
+          <div id="progressError" class="progressError hidden">
+            <div class="errorIcon">✕</div>
+            <h4>Task Failed</h4>
+            <p id="progressErrorMessage" class="metaSmall"></p>
+          </div>
+        </div>
+        
+        <div class="actions progressActions">
+          <button id="progressModalCloseBtn" type="button" class="primary hidden">Close</button>
+        </div>
       </div>
     </div>
     <script src="/app.js"></script>
