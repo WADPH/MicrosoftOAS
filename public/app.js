@@ -181,22 +181,26 @@ async function initApp() {
       })
       .catch(() => {});
   });
+
+  // Critical path for first paint: only onboarding data that is needed immediately.
   await Promise.all([
     loadMeta(),
-    loadZammadAvailability().catch(() => {}),
-    loadSnipeitConfig(),
-    loadOffboardingMeta().catch(() => {})
+    loadTasks()
   ]);
-  await loadTasks();
-  await loadLicenseAvailability({
+  showAppScreen();
+
+  // Non-critical data is loaded in background to keep initial load responsive.
+  loadSnipeitConfig().catch(() => {});
+  loadZammadAvailability().catch(() => {});
+  loadOffboardingMeta().catch(() => {});
+  loadOffboardingTasks().catch(() => {});
+  loadLicenseAvailability({
     companyDomain: el("companyDomain")?.value || "",
     companyCode: el("company")?.value || "",
     email: el("email")?.value || ""
   }).catch((error) => {
     console.warn("License availability load failed", error);
   });
-  await loadOffboardingTasks().catch(() => {});
-  showAppScreen();
 }
 
 async function api(path, options = {}) {
