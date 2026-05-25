@@ -1797,12 +1797,12 @@ async function loadLicenseAvailability(hints = {}) {
       target.textContent = "N/A";
     }
     if (tenantHint) {
-      tenantHint.textContent = `Source tenant: ${String(data?.tenant || "Unknown")}`;
+      tenantHint.textContent = `${String(data?.tenant || "Unknown")}`;
     }
   } catch (error) {
     console.warn("Failed to load license availability", error);
     target.textContent = "N/A";
-    if (tenantHint) tenantHint.textContent = "Source tenant: unavailable";
+    if (tenantHint) tenantHint.textContent = "Tenant Unavailable";
   }
 }
 
