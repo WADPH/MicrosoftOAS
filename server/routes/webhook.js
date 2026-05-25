@@ -1,14 +1,55 @@
 const express = require("express");
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const { extractMessageText, flattenPayloadStrings, parseOnboardingMessage, parseOffboardingMessage, inferDomain, inferCompanyCode, findCompanyMatcher } = require("../parser");
 const { addTask, NOT_SPECIFIED } = require("../services/taskStore");
 const { findUserByDisplayName } = require("../services/graph");
 const { createOnboardingTicket, createOffboardingTicket } = require("../services/zammad.service");
 
 const router = express.Router();
+const WEBHOOK_LOG_DIR = path.join(__dirname, "..", "soutes");
+const WEBHOOK_LOG_PATH = path.join(WEBHOOK_LOG_DIR, "webhooks.log");
+
+function ensureWebhookLogFile() {
+  if (!fs.existsSync(WEBHOOK_LOG_DIR)) {
+    fs.mkdirSync(WEBHOOK_LOG_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(WEBHOOK_LOG_PATH)) {
+    fs.writeFileSync(WEBHOOK_LOG_PATH, "", "utf8");
+  }
+}
+
+function safeSerialize(value) {
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    return JSON.stringify({ serializeError: error.message });
+  }
+}
+
+function appendWebhookLog(entry) {
+  try {
+    ensureWebhookLogFile();
+    const line = `${safeSerialize(entry)}\n`;
+    fs.appendFileSync(WEBHOOK_LOG_PATH, line, "utf8");
+  } catch (error) {
+    console.error(`[webhook-log] Failed to write log file: ${error.message}`);
+  }
+}
 
 // Teams may probe webhook URL with GET during webhook setup/validation.
 router.get("/teams", (req, res) => {
+  appendWebhookLog({
+    timestamp: new Date().toISOString(),
+    requestId: crypto.randomUUID(),
+    method: "GET",
+    path: "/webhook/teams",
+    ip: req.ip,
+    headers: req.headers,
+    query: req.query,
+    result: { status: 200, text: "OK" }
+  });
   return res.status(200).send("OK");
 });
 
@@ -82,7 +123,31 @@ function mergeParsed(candidates) {
 
 
 router.post("/teams", async (req, res) => {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+  const rawBodyString = req.rawBody ? req.rawBody.toString("utf8") : "";
+
+  appendWebhookLog({
+    timestamp: new Date().toISOString(),
+    requestId,
+    phase: "request_received",
+    method: "POST",
+    path: "/webhook/teams",
+    ip: req.ip,
+    headers: req.headers,
+    query: req.query,
+    body: req.body,
+    rawBody: rawBodyString
+  });
+
   if (!validateTeamsHmac(req)) {
+    appendWebhookLog({
+      timestamp: new Date().toISOString(),
+      requestId,
+      phase: "response_sent",
+      durationMs: Date.now() - startedAt,
+      result: { status: 401, text: "Unauthorized webhook signature" }
+    });
     return res.status(401).json({
       type: "message",
       text: "Unauthorized webhook signature"
@@ -108,6 +173,13 @@ router.post("/teams", async (req, res) => {
     .join("\n");
 
   if (!glueText.trim()) {
+    appendWebhookLog({
+      timestamp: new Date().toISOString(),
+      requestId,
+      phase: "response_sent",
+      durationMs: Date.now() - startedAt,
+      result: { status: 400, text: "Empty message payload" }
+    });
     return res.status(400).json({
       type: "message",
       text: "Empty message payload"
@@ -216,12 +288,34 @@ router.post("/teams", async (req, res) => {
       console.error(`[webhook] Zammad offboarding ticket creation failed: ${error.message}`);
     });
 
+    appendWebhookLog({
+      timestamp: new Date().toISOString(),
+      requestId,
+      phase: "response_sent",
+      durationMs: Date.now() - startedAt,
+      detectedType: "offboarding",
+      parsed: {
+        fullName: parsed.fullName,
+        company,
+        email: normalized.email
+      },
+      taskId: result.task.id,
+      result: { status: 200, text: `Offboarding task created for ${result.task.fullName}.` }
+    });
     return res.status(200).json({
       type: "message",
       text: `Offboarding task created for ${result.task.fullName}.`
     });
   } else if (!hasOnboardingMarker && !hasOnboardingStructure) {
     console.warn("[webhook] Parse failed. Extracted text:", messageText);
+    appendWebhookLog({
+      timestamp: new Date().toISOString(),
+      requestId,
+      phase: "response_sent",
+      durationMs: Date.now() - startedAt,
+      detectedType: "ignored",
+      result: { status: 200, text: "Message ignored. No onboarding or offboarding marker found." }
+    });
     return res.status(200).json({
       type: "message",
       text: "Message ignored. No onboarding or offboarding marker found."
@@ -279,6 +373,21 @@ router.post("/teams", async (req, res) => {
     const result = addTask(normalized);
 
     if (result.duplicate) {
+      appendWebhookLog({
+        timestamp: new Date().toISOString(),
+        requestId,
+        phase: "response_sent",
+        durationMs: Date.now() - startedAt,
+        detectedType: "onboarding",
+        parsed: {
+          fullName: normalized.fullName,
+          startDate: normalized.startDate,
+          company,
+          email: normalized.email
+        },
+        duplicate: true,
+        result: { status: 200, text: `Duplicate ignored: ${normalized.fullName} (${normalized.startDate}) already exists.` }
+      });
       return res.status(200).json({
         type: "message",
         text: `Duplicate ignored: ${normalized.fullName} (${normalized.startDate}) already exists.`
@@ -296,6 +405,21 @@ router.post("/teams", async (req, res) => {
       console.error(`[webhook] Zammad ticket creation failed: ${error.message}`);
     });
 
+    appendWebhookLog({
+      timestamp: new Date().toISOString(),
+      requestId,
+      phase: "response_sent",
+      durationMs: Date.now() - startedAt,
+      detectedType: "onboarding",
+      parsed: {
+        fullName: normalized.fullName,
+        startDate: normalized.startDate,
+        company,
+        email: normalized.email
+      },
+      taskId: result.task.id,
+      result: { status: 200, text: `Task created for ${result.task.fullName}.` }
+    });
     return res.status(200).json({
       type: "message",
       text: `Task created for ${result.task.fullName}.`
