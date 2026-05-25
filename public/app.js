@@ -1728,6 +1728,11 @@ function selectTask(id) {
   renderSelectedSnipeitAssets(task);
   renderOnboardingGroups(task);
   loadOnboardingDefaultGroupNames(task).catch(() => {});
+  loadLicenseAvailability({
+    companyDomain: task.companyDomain || "",
+    companyCode: task.companyCode || task.company || "",
+    email: task.email || ""
+  }).catch(() => {});
   refreshMailVisibilityAndPreview();
   applyZammadUiVisibility();
   renderProgressView();
@@ -1763,13 +1768,23 @@ async function loadMeta() {
   renderCompanyCodeOptions(state.companyCodes[0]);
 }
 
-async function loadLicenseAvailability() {
+async function loadLicenseAvailability(hints = {}) {
   const target = el("premiumSeats");
+  const tenantHint = el("premiumSeatsTenant");
   if (!target) return;
 
   try {
     target.textContent = "Loading...";
-    const data = await api("/tasks/meta/licenses");
+    if (tenantHint) tenantHint.textContent = "Source tenant: resolving...";
+    const params = new URLSearchParams();
+    const companyDomain = String(hints.companyDomain || "").trim();
+    const companyCode = String(hints.companyCode || "").trim().toUpperCase();
+    const email = String(hints.email || "").trim().toLowerCase();
+    if (companyDomain) params.set("companyDomain", companyDomain);
+    if (companyCode) params.set("companyCode", companyCode);
+    if (email) params.set("email", email);
+    const query = params.toString();
+    const data = await api(`/tasks/meta/licenses${query ? `?${query}` : ""}`);
     if (data && data.ok && data.found) {
       target.textContent = String(data.available);
     } else if (data && data.ok && !data.found) {
@@ -1777,9 +1792,13 @@ async function loadLicenseAvailability() {
     } else {
       target.textContent = "N/A";
     }
+    if (tenantHint) {
+      tenantHint.textContent = `Source tenant: ${String(data?.tenant || "Unknown")}`;
+    }
   } catch (error) {
     console.warn("Failed to load license availability", error);
     target.textContent = "N/A";
+    if (tenantHint) tenantHint.textContent = "Source tenant: unavailable";
   }
 }
 
@@ -3412,16 +3431,31 @@ function setupActions() {
 
   el("companyDomain").addEventListener("change", () => {
     updateEmailFromDomain();
+    loadLicenseAvailability({
+      companyDomain: el("companyDomain")?.value || "",
+      companyCode: el("company")?.value || "",
+      email: el("email")?.value || ""
+    }).catch(() => {});
     const task = getCurrentTask();
     renderOnboardingGroups(task);
     loadOnboardingDefaultGroupNames(task).catch(() => {});
   });
   el("company").addEventListener("change", () => {
+    loadLicenseAvailability({
+      companyDomain: el("companyDomain")?.value || "",
+      companyCode: el("company")?.value || "",
+      email: el("email")?.value || ""
+    }).catch(() => {});
     const task = getCurrentTask();
     renderOnboardingGroups(task);
     loadOnboardingDefaultGroupNames(task).catch(() => {});
   });
   el("email").addEventListener("input", () => {
+    loadLicenseAvailability({
+      companyDomain: el("companyDomain")?.value || "",
+      companyCode: el("company")?.value || "",
+      email: el("email")?.value || ""
+    }).catch(() => {});
     const task = getCurrentTask();
     renderOnboardingGroups(task);
     loadOnboardingDefaultGroupNames(task).catch(() => {});
@@ -3549,7 +3583,11 @@ function setupActions() {
   if (refreshLicensesBtn) {
     refreshLicensesBtn.onclick = async () => {
       try {
-        await loadLicenseAvailability();
+        await loadLicenseAvailability({
+          companyDomain: el("companyDomain")?.value || "",
+          companyCode: el("company")?.value || "",
+          email: el("email")?.value || ""
+        });
         el("status").textContent = "License availability updated";
       } catch (error) {
         el("status").textContent = `License refresh failed: ${error.message}`;

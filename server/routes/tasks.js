@@ -9,7 +9,8 @@ const {
   DOMAIN_OPTIONS,
   COMPANY_CODE_OPTIONS
 } = require("../services/taskStore");
-const { getCompanyMatcherOptions, resolveTenantKeyByEmail, buildCompanyMatchers } = require("../parser");
+const { getCompanyMatcherOptions, resolveTenantKeyByEmail, buildCompanyMatchers, findCompanyMatcherByHints } = require("../parser");
+const { getDefaultTenantKey } = require("../services/tenantConfig");
 const {
   getUserByEmail,
   createUser,
@@ -237,12 +238,23 @@ router.get("/meta/groups", async (req, res) => {
 
 router.get("/meta/licenses", async (req, res) => {
   try {
-    const skus = await getSubscribedSkus();
+    const companyDomain = String(req.query.companyDomain || "").trim().toLowerCase();
+    const companyCode = String(req.query.companyCode || "").trim().toUpperCase();
+    const email = String(req.query.email || "").trim().toLowerCase();
+    const matcher = findCompanyMatcherByHints({ companyCode, companyDomain, email });
+    const tenantKey = String(
+      matcher?.tenant ||
+      (email ? resolveTenantKeyByEmail(email) : "") ||
+      getDefaultTenantKey()
+    ).trim();
+
+    const skus = await getSubscribedSkus(tenantKey);
     const premiumSku = findBusinessPremiumSku(skus);
 
     if (!premiumSku) {
       return res.json({
         ok: true,
+        tenant: tenantKey || null,
         found: false,
         skuPartNumber: null,
         enabled: 0,
@@ -257,6 +269,7 @@ router.get("/meta/licenses", async (req, res) => {
 
     return res.json({
       ok: true,
+      tenant: tenantKey || null,
       found: true,
       skuPartNumber: String(premiumSku.skuPartNumber || ""),
       enabled,
