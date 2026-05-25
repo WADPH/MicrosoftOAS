@@ -156,7 +156,9 @@ async function initApp() {
     el("userEmail").textContent = state.currentUser.email || "User";
   }
 
-  showAppScreen();
+  initTheme();
+  setupActions();
+
   if (state.sessionWatchTimer) {
     clearInterval(state.sessionWatchTimer);
   }
@@ -179,10 +181,12 @@ async function initApp() {
       })
       .catch(() => {});
   });
-  await loadMeta();
-  await loadZammadAvailability().catch(() => {});
-  await loadSnipeitConfig();
-  await loadOffboardingMeta().catch(() => {});
+  await Promise.all([
+    loadMeta(),
+    loadZammadAvailability().catch(() => {}),
+    loadSnipeitConfig(),
+    loadOffboardingMeta().catch(() => {})
+  ]);
   await loadTasks();
   await loadLicenseAvailability({
     companyDomain: el("companyDomain")?.value || "",
@@ -192,8 +196,7 @@ async function initApp() {
     console.warn("License availability load failed", error);
   });
   await loadOffboardingTasks().catch(() => {});
-  initTheme();
-  setupActions();
+  showAppScreen();
 }
 
 async function api(path, options = {}) {
@@ -473,6 +476,7 @@ function resolveMatcherForCurrentTask(task = getCurrentTask()) {
 
 function applyTheme(theme) {
   const value = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = value;
   document.body.dataset.theme = value;
   try {
     localStorage.setItem("theme", value);
