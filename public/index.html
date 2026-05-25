@@ -185,21 +185,25 @@
                 <label class="switch">
                   <input id="licenseRequired" type="checkbox" />
                   <span class="switchTrack" aria-hidden="true"><span class="switchThumb"></span></span>
-                  <span class="switchText">Request license by email</span>
+                  <span class="switchText">
+                    Request license by email
+                    <span
+                      class="inlineHelp"
+                      tabindex="0"
+                      aria-label="License request mode help"
+                      data-tip="If checked: only send the license request email (no assign from tenant). If unchecked: try to assign Microsoft Business Premium from available seats."
+                    >?</span>
+                  </span>
                 </label>
               </div>
-              <div class="inlineRow">
-                <div class="pill">
-                  Business Premium free seats:
-                  <strong id="premiumSeats">-</strong>
+              <div class="licenseSeatsCard">
+                <div class="licenseSeatsHeader">
+                  <span class="licenseSeatsLabel">Business Premium free seats</span>
+                  <button id="refreshLicensesBtn" type="button" class="ghost small">Refresh</button>
                 </div>
-                <span id="premiumSeatsTenant" class="metaSmall">Source tenant: -</span>
-                <button id="refreshLicensesBtn" type="button" class="ghost small">Refresh</button>
+                <div id="premiumSeats" class="licenseSeatsValue">-</div>
+                <div id="premiumSeatsTenant" class="licenseSeatsTenant">Source tenant: -</div>
               </div>
-              <p class="hint">
-                If checked: only send the license request email (no assign from tenant). If unchecked: try to assign
-                Microsoft Business Premium from available seats.
-              </p>
             </div>
 
             <div id="licenseMailSection">
@@ -244,6 +248,8 @@
               <label>Selected Snipe-IT Assets</label>
               <div id="selectedSnipeitAssets" class="snipeitSelectedList"></div>
             </div>
+
+            <div class="sectionDivider"></div>
 
             <div class="field">
               <label>Assets request to procurement</label>
