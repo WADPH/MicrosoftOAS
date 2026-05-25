@@ -184,7 +184,11 @@ async function initApp() {
   await loadSnipeitConfig();
   await loadOffboardingMeta().catch(() => {});
   await loadTasks();
-  await loadLicenseAvailability().catch((error) => {
+  await loadLicenseAvailability({
+    companyDomain: el("companyDomain")?.value || "",
+    companyCode: el("company")?.value || "",
+    email: el("email")?.value || ""
+  }).catch((error) => {
     console.warn("License availability load failed", error);
   });
   await loadOffboardingTasks().catch(() => {});

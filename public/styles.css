@@ -1173,6 +1173,7 @@ textarea:focus {
 
 .licenseSeatsCard {
   margin-top: 10px;
+  margin-bottom: 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--input);
