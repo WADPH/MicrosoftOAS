@@ -86,10 +86,28 @@
                 <button id="tabOffboardingBtn" class="ghost small" type="button">Offboarding</button>
               </div>
               <div class="inlineRow">
-                <button id="refreshBtn" class="ghost">Refresh</button>
-                <button id="onboardingNewBtn" class="ghost" type="button">New</button>
-                <button id="offboardingRefreshBtn" class="ghost hidden" type="button">Refresh</button>
-                <button id="offboardingNewBtn" class="ghost hidden" type="button">New</button>
+                <button id="refreshBtn" class="ghost inlineIconBtn" type="button" aria-label="Refresh" title="Refresh">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M20 5v6h-6" />
+                    <path d="M20 11a8 8 0 1 0 2 5.3" />
+                  </svg>
+                </button>
+                <button id="onboardingNewBtn" class="ghost inlineIconBtn" type="button" aria-label="New" title="New">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </button>
+                <button id="offboardingRefreshBtn" class="ghost inlineIconBtn hidden" type="button" aria-label="Refresh" title="Refresh">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M20 5v6h-6" />
+                    <path d="M20 11a8 8 0 1 0 2 5.3" />
+                  </svg>
+                </button>
+                <button id="offboardingNewBtn" class="ghost inlineIconBtn hidden" type="button" aria-label="New" title="New">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </button>
               </div>
             </div>
             <ul id="taskList"></ul>

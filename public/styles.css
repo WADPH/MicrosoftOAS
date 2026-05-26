@@ -491,6 +491,7 @@ body[data-theme="dark"] .iconBtn .moon {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 10px 12px;
+  margin-top: 8px;
   margin-bottom: 8px;
   cursor: pointer;
   font-size: 14px;
@@ -594,6 +595,19 @@ body[data-theme="dark"] .iconBtn .moon {
   gap: 10px;
   margin-top: 6px;
   flex-wrap: wrap;
+}
+
+.inlineIconBtn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inlineIconBtn svg {
+  display: block;
 }
 
 .managerRow {
