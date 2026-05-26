@@ -14,6 +14,11 @@ const state = {
   zammadAgents: [],
   selectedZammadAgentId: null,
   settings: null,
+  licenseAvailability: {
+    available: null,
+    tenant: "",
+    found: false
+  },
   snipeitConfig: {
     enabled: false,
     url: "",
@@ -194,13 +199,6 @@ async function initApp() {
   loadZammadAvailability().catch(() => {});
   loadOffboardingMeta().catch(() => {});
   loadOffboardingTasks().catch(() => {});
-  loadLicenseAvailability({
-    companyDomain: el("companyDomain")?.value || "",
-    companyCode: el("company")?.value || "",
-    email: el("email")?.value || ""
-  }).catch((error) => {
-    console.warn("License availability load failed", error);
-  });
 }
 
 async function api(path, options = {}) {
@@ -637,6 +635,25 @@ function setAppView(view) {
 
 function getSelectedSnipeitAssets(task = getCurrentTask()) {
   return Array.isArray(task?.snipeitAssets) ? task.snipeitAssets : [];
+}
+
+function renderLicenseControls(task = getCurrentTask()) {
+  const assignBtn = el("manualLicenseAssignBtn");
+  const refreshBtn = el("refreshLicensesBtn");
+  const taskStatus = String(task?.status || "").trim().toLowerCase();
+  const available = Number(state.licenseAvailability?.available);
+  const canAssign = Boolean(task)
+    && state.taskMode === "onboarding"
+    && taskStatus === "unlicensed"
+    && Number.isFinite(available)
+    && available > 0;
+
+  if (assignBtn) {
+    assignBtn.classList.toggle("hidden", !canAssign);
+  }
+  if (refreshBtn) {
+    refreshBtn.disabled = false;
+  }
 }
 
 function setTaskMode(mode) {
@@ -1718,6 +1735,8 @@ function selectTask(id) {
 
   renderDomainOptions(task.companyDomain || state.companyDomains[2]);
   renderCompanyCodeOptions(task.companyCode || state.companyCodes[2]);
+  state.licenseAvailability.available = null;
+  renderLicenseControls(task);
 
   setCheckbox("skipLicense", task.skipLicense);
   setCheckbox("licenseRequired", task.licenseRequired);
@@ -1797,6 +1816,11 @@ async function loadLicenseAvailability(hints = {}) {
     if (email) params.set("email", email);
     const query = params.toString();
     const data = await api(`/tasks/meta/licenses${query ? `?${query}` : ""}`);
+    state.licenseAvailability = {
+      available: data && data.ok && data.found ? Number(data.available || 0) : 0,
+      tenant: String(data?.tenant || "").trim(),
+      found: Boolean(data && data.ok && data.found)
+    };
     if (data && data.ok && data.found) {
       target.textContent = String(data.available);
     } else if (data && data.ok && !data.found) {
@@ -1805,12 +1829,19 @@ async function loadLicenseAvailability(hints = {}) {
       target.textContent = "N/A";
     }
     if (tenantHint) {
-      tenantHint.textContent = `${String(data?.tenant || "Unknown")}`;
+      tenantHint.textContent = `Source tenant: ${String(data?.tenant || "Unknown")}`;
     }
+    renderLicenseControls();
   } catch (error) {
     console.warn("Failed to load license availability", error);
     target.textContent = "N/A";
-    if (tenantHint) tenantHint.textContent = "Tenant Unavailable";
+    state.licenseAvailability = {
+      available: null,
+      tenant: "",
+      found: false
+    };
+    if (tenantHint) tenantHint.textContent = "Source tenant: unavailable";
+    renderLicenseControls();
   }
 }
 
@@ -2829,6 +2860,52 @@ async function approveTask() {
   }
 }
 
+async function assignManualLicense() {
+  const task = getCurrentTask();
+  if (!task) return;
+
+  const available = Number(state.licenseAvailability?.available);
+  const taskStatus = String(task.status || "").trim().toLowerCase();
+  if (taskStatus !== "unlicensed") {
+    el("status").textContent = "Manual license assign is available only for Unlicensed tasks";
+    return;
+  }
+  if (!Number.isFinite(available) || available <= 0) {
+    el("status").textContent = "No free Business Premium seats available";
+    return;
+  }
+
+  const taskName = task.fullName || "Task";
+  openProgressModal("Manual License Assign", taskName);
+  updateProgressStatus("Checking user and license state...");
+  addProgressLog("Starting manual license assign flow...", "info");
+
+  try {
+    const result = await api(`/tasks/${task.id}/license-assign`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+
+    if (Array.isArray(result?.executionLogs)) {
+      result.executionLogs.forEach((log) => {
+        addProgressLog(log.message, log.type || "info");
+      });
+    }
+
+    await loadTasks();
+    if (state.selectedId) {
+      selectTask(state.selectedId);
+    }
+
+    const alreadyAssigned = Boolean(result?.alreadyAssigned);
+    showProgressComplete(alreadyAssigned ? "License already assigned and task verified" : "License assigned successfully");
+    addProgressLog("✓ License assignment completed successfully", "success");
+  } catch (error) {
+    showProgressError(`Manual license assign failed: ${error.message}`);
+    addProgressLog(`✕ Error: ${error.message}`, "error");
+  }
+}
+
 async function deleteTask() {
   if (!state.selectedId) {
     el("status").textContent = "Select a task first";
@@ -3607,6 +3684,13 @@ function setupActions() {
     };
   }
 
+  const manualLicenseAssignBtn = el("manualLicenseAssignBtn");
+  if (manualLicenseAssignBtn) {
+    manualLicenseAssignBtn.onclick = async () => {
+      await assignManualLicense();
+    };
+  }
+
   const skipLicense = el("skipLicense");
   if (skipLicense) {
     skipLicense.addEventListener("change", () => refreshMailVisibilityAndPreview());
@@ -3617,6 +3701,7 @@ function setupActions() {
   renderOffboardingAssets();
   applyZammadUiVisibility();
   setTaskMode("onboarding");
+  renderLicenseControls();
 }
 
 (async function main() {

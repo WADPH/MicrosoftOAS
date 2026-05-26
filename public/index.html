@@ -227,10 +227,18 @@
               <div class="licenseSeatsCard">
                 <div class="licenseSeatsHeader">
                   <span class="licenseSeatsLabel">Business Premium free seats</span>
-                  <button id="refreshLicensesBtn" type="button" class="ghost small">Refresh</button>
+                  <div class="licenseSeatsActions">
+                    <button id="manualLicenseAssignBtn" type="button" class="primary small hidden">Assign</button>
+                    <button id="refreshLicensesBtn" class="ghost inlineIconBtn" type="button" aria-label="Refresh license availability" title="Refresh license availability">
+                      <svg viewBox="0 0 28 30" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path d="M20 5v6h-6" />
+                        <path d="M20 11a8 8 0 1 0 2 5.3" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <div id="premiumSeats" class="licenseSeatsValue">-</div>
-                <div id="premiumSeatsTenant" class="licenseSeatsTenant">-</div>
+                <div id="premiumSeatsTenant" class="licenseSeatsTenant">Source tenant: -</div>
               </div>
             </div>
 

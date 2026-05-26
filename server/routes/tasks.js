@@ -15,6 +15,7 @@ const {
   getUserByEmail,
   createUser,
   updateUserUsageLocation,
+  graphRequest,
   getSubscribedSkus,
   findBusinessPremiumSku,
   hasAvailableSeats,
@@ -33,6 +34,61 @@ const { processPendingAssignTasks } = require("../services/snipeitAssignWorker")
 const { listAgents, createManualOnboardingTicket } = require("../services/zammad.service");
 
 const router = express.Router();
+
+function createExecutionLogger() {
+  const executionLogs = [];
+  const push = (type, message) => {
+    const normalizedType = ["success", "warning", "error"].includes(type) ? type : "info";
+    const text = String(message || "").trim();
+    const entry = {
+      type: normalizedType,
+      message: text,
+      timestamp: new Date().toISOString()
+    };
+    executionLogs.push(entry);
+    const prefix = normalizedType === "error" ? "[manual-license][error]" : normalizedType === "warning" ? "[manual-license][warn]" : "[manual-license]";
+    console.log(`${prefix} ${text}`);
+    return entry;
+  };
+
+  return {
+    executionLogs,
+    info: (message) => push("info", message),
+    success: (message) => push("success", message),
+    warning: (message) => push("warning", message),
+    error: (message) => push("error", message)
+  };
+}
+
+function hasSkuAssigned(user, skuId) {
+  const targetSku = String(skuId || "").trim().toLowerCase();
+  const licenses = Array.isArray(user?.assignedLicenses) ? user.assignedLicenses : [];
+  return licenses.some((license) => String(license?.skuId || "").trim().toLowerCase() === targetSku);
+}
+
+async function fetchUserLicenseState(email, tenantKey) {
+  const user = await graphRequest(
+    "GET",
+    `/users/${encodeURIComponent(String(email || "").trim())}?$select=id,displayName,mail,userPrincipalName,usageLocation,assignedLicenses`,
+    undefined,
+    tenantKey
+  );
+  return user;
+}
+
+async function waitForLicenseAssignment(email, skuId, tenantKey, attempts = 5, delayMs = 1200) {
+  let lastUser = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    lastUser = await fetchUserLicenseState(email, tenantKey);
+    if (hasSkuAssigned(lastUser, skuId)) {
+      return lastUser;
+    }
+    if (attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return lastUser;
+}
 
 // Execution logs collector
 function createLogCollector() {
@@ -239,9 +295,8 @@ router.get("/meta/groups", async (req, res) => {
 router.get("/meta/licenses", async (req, res) => {
   try {
     const companyDomain = String(req.query.companyDomain || "").trim().toLowerCase();
-    const companyCode = String(req.query.companyCode || "").trim().toUpperCase();
     const email = String(req.query.email || "").trim().toLowerCase();
-    const matcher = findCompanyMatcherByHints({ companyCode, companyDomain, email });
+    const matcher = findCompanyMatcherByHints({ companyCode: "", companyDomain, email }) || findCompanyMatcherByHints({ companyDomain: "", email });
     const tenantKey = String(
       matcher?.tenant ||
       (email ? resolveTenantKeyByEmail(email) : "") ||
@@ -279,6 +334,117 @@ router.get("/meta/licenses", async (req, res) => {
   } catch (error) {
     console.error("[meta] licenses failed", error);
     return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+router.post("/:id/license-assign", async (req, res) => {
+  const task = getTaskById(req.params.id);
+  const logger = createExecutionLogger();
+
+  if (!task) {
+    logger.error(`Task not found: ${req.params.id}`);
+    return res.status(404).json({ ok: false, error: "Task not found", executionLogs: logger.executionLogs });
+  }
+
+  if (String(task.taskType || "onboarding").toLowerCase() !== "onboarding") {
+    logger.error("Manual license assign is only available for onboarding tasks");
+    return res.status(400).json({ ok: false, error: "Manual license assign is only available for onboarding tasks", executionLogs: logger.executionLogs });
+  }
+
+  const status = String(task.status || "").trim().toLowerCase();
+  if (status !== "unlicensed") {
+    logger.error(`Task is not in Unlicensed state: ${task.status || "unknown"}`);
+    return res.status(400).json({ ok: false, error: "Task must be Unlicensed to assign a license manually", executionLogs: logger.executionLogs });
+  }
+
+  const matcher = findCompanyMatcherByHints({ companyCode: "", companyDomain: task.companyDomain, email: task.email }) || findCompanyMatcherByHints({ companyCode: task.companyCode, companyDomain: "", email: task.email });
+  const tenantKey = String(
+    matcher?.tenant ||
+    resolveTenantKeyByEmail(task.email) ||
+    getDefaultTenantKey()
+  ).trim();
+
+  if (!tenantKey) {
+    logger.error("Unable to resolve tenant for manual license assign");
+    return res.status(400).json({ ok: false, error: "Unable to resolve tenant", executionLogs: logger.executionLogs });
+  }
+
+  logger.info(`Resolved tenant ${tenantKey} for ${task.email}`);
+  logger.info(`Checking user existence in tenant for ${task.email}`);
+
+  let user;
+  try {
+    user = await fetchUserLicenseState(task.email, tenantKey);
+    logger.success(`User found in tenant: ${user.displayName || user.userPrincipalName || task.email}`);
+  } catch (error) {
+    if (Number(error.status || 0) === 404) {
+      logger.error(`User not found in tenant yet: ${task.email}`);
+      return res.status(404).json({ ok: false, error: "User not found in tenant", executionLogs: logger.executionLogs });
+    }
+    logger.error(`Failed to load user from tenant: ${error.message}`);
+    return res.status(500).json({ ok: false, error: error.message || "Failed to load user", executionLogs: logger.executionLogs });
+  }
+
+  try {
+    const skus = await getSubscribedSkus(tenantKey);
+    const premiumSku = findBusinessPremiumSku(skus);
+
+    if (!premiumSku) {
+      logger.error("Business Premium SKU not found in tenant");
+      return res.status(404).json({ ok: false, error: "Business Premium SKU not found", executionLogs: logger.executionLogs });
+    }
+
+    if (!hasAvailableSeats(premiumSku)) {
+      logger.error("No free Business Premium seats available");
+      return res.status(409).json({ ok: false, error: "No free Business Premium seats available", executionLogs: logger.executionLogs });
+    }
+
+    logger.info(`Business Premium SKU found (${premiumSku.skuPartNumber || premiumSku.skuId}) with free seats available`);
+
+    if (hasSkuAssigned(user, premiumSku.skuId)) {
+      logger.success("User already has Business Premium assigned; verifying state only");
+    } else {
+      logger.info("User does not have Business Premium yet, starting assignment");
+
+      const desiredUsageLocation = String(process.env.DEFAULT_USAGE_LOCATION || "AZ").trim().toUpperCase();
+      if (String(user.usageLocation || "").trim().toUpperCase() !== desiredUsageLocation) {
+        try {
+          await updateUserUsageLocation(user.id, desiredUsageLocation, tenantKey);
+          logger.success(`usageLocation updated to ${desiredUsageLocation}`);
+        } catch (error) {
+          logger.warning(`Failed to update usageLocation: ${error.message}`);
+        }
+      }
+
+      try {
+        await assignLicenseWithRetry(user.id || task.email, premiumSku.skuId, 5, tenantKey);
+        logger.success("License assignment request sent");
+      } catch (error) {
+        logger.error(`License assignment failed: ${error.message}`);
+      }
+    }
+
+    const verifiedUser = await waitForLicenseAssignment(task.email, premiumSku.skuId, tenantKey, 5, 1200);
+    if (!hasSkuAssigned(verifiedUser, premiumSku.skuId)) {
+      logger.error("Verification failed: user still does not have Business Premium assigned");
+      return res.status(500).json({ ok: false, error: "License assignment verification failed", executionLogs: logger.executionLogs });
+    }
+
+    logger.success("License verification succeeded");
+    const updatedTask = updateTaskById(task.id, { status: "provisioned", errorMessage: "" });
+    logger.success(`Task status updated to ${updatedTask.status}`);
+
+    return res.json({
+      ok: true,
+      task: updatedTask,
+      tenant: tenantKey,
+      assigned: true,
+      alreadyAssigned: hasSkuAssigned(user, premiumSku.skuId),
+      executionLogs: logger.executionLogs
+    });
+  } catch (error) {
+    logger.error(`Manual license assign failed: ${error.message}`);
+    return res.status(500).json({ ok: false, error: error.message || "Manual license assign failed", executionLogs: logger.executionLogs });
   }
 });
 
