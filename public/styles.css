@@ -1255,6 +1255,37 @@ textarea:focus {
   min-width: 500px;
   max-width: 600px;
   max-height: 80vh;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent;
+}
+
+#progressModal.nonblocking .modalOverlay {
+  pointer-events: none;
+}
+
+#progressModal.nonblocking .modalContent {
+  pointer-events: auto;
+}
+
+.progressModalContent::-webkit-scrollbar {
+  width: 10px;
+}
+
+.progressModalContent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.progressModalContent::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+.progressModalContent::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted) 36%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 .progressContainer {
@@ -1315,6 +1346,29 @@ textarea:focus {
   font-family: 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.5;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent;
+}
+
+.logsList::-webkit-scrollbar {
+  width: 10px;
+}
+
+.logsList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.logsList::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+.logsList::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted) 36%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 .logEntry {

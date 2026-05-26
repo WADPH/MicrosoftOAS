@@ -248,6 +248,7 @@ function openProgressModal(title = "Executing Task...", subtitle = "") {
   el("progressModalCloseBtn").classList.add("hidden");
   logsList.innerHTML = "";
 
+  modal.classList.remove("nonblocking");
   modal.classList.remove("hidden");
   modal.setAttribute("aria-hidden", "false");
 }
@@ -273,6 +274,7 @@ function addProgressLog(message, type = "info") {
 }
 
 function showProgressComplete(message = "Task completed successfully") {
+  const modal = el("progressModal");
   const spinner = el("progressSpinner");
   const status = el("progressStatus");
   const complete = el("progressComplete");
@@ -286,9 +288,11 @@ function showProgressComplete(message = "Task completed successfully") {
   closeBtn.classList.remove("hidden");
   closeBtnAction.classList.remove("hidden");
   if (completeMsg) completeMsg.textContent = message;
+  modal?.classList.add("nonblocking");
 }
 
 function showProgressError(message = "Task failed") {
+  const modal = el("progressModal");
   const spinner = el("progressSpinner");
   const status = el("progressStatus");
   const error = el("progressError");
@@ -302,6 +306,7 @@ function showProgressError(message = "Task failed") {
   closeBtn.classList.remove("hidden");
   closeBtnAction.classList.remove("hidden");
   if (errorMsg) errorMsg.textContent = message;
+  modal?.classList.add("nonblocking");
 }
 
 function showSessionExpiredNotice() {
@@ -2900,7 +2905,6 @@ async function assignManualLicense() {
     const alreadyAssigned = Boolean(result?.alreadyAssigned);
     showProgressComplete(alreadyAssigned ? "License already assigned and task verified" : "License assigned successfully");
     addProgressLog("✓ License assignment completed successfully", "success");
-    setTimeout(() => closeProgressModal(), 900);
   } catch (error) {
     showProgressError(`Manual license assign failed: ${error.message}`);
     addProgressLog(`✕ Error: ${error.message}`, "error");
