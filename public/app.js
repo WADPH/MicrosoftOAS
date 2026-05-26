@@ -1806,7 +1806,7 @@ async function loadLicenseAvailability(hints = {}) {
 
   try {
     target.textContent = "Loading...";
-    if (tenantHint) tenantHint.textContent = "Source tenant: resolving...";
+    if (tenantHint) tenantHint.textContent = "Resolving...";
     const params = new URLSearchParams();
     const companyDomain = String(hints.companyDomain || "").trim();
     const companyCode = String(hints.companyCode || "").trim().toUpperCase();
@@ -1829,7 +1829,7 @@ async function loadLicenseAvailability(hints = {}) {
       target.textContent = "N/A";
     }
     if (tenantHint) {
-      tenantHint.textContent = `Source tenant: ${String(data?.tenant || "Unknown")}`;
+      tenantHint.textContent = String(data?.tenant || "Unknown");
     }
     renderLicenseControls();
   } catch (error) {
@@ -1840,7 +1840,7 @@ async function loadLicenseAvailability(hints = {}) {
       tenant: "",
       found: false
     };
-    if (tenantHint) tenantHint.textContent = "Source tenant: unavailable";
+    if (tenantHint) tenantHint.textContent = "Unavailable";
     renderLicenseControls();
   }
 }
@@ -2900,6 +2900,7 @@ async function assignManualLicense() {
     const alreadyAssigned = Boolean(result?.alreadyAssigned);
     showProgressComplete(alreadyAssigned ? "License already assigned and task verified" : "License assigned successfully");
     addProgressLog("✓ License assignment completed successfully", "success");
+    setTimeout(() => closeProgressModal(), 900);
   } catch (error) {
     showProgressError(`Manual license assign failed: ${error.message}`);
     addProgressLog(`✕ Error: ${error.message}`, "error");
