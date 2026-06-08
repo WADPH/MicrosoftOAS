@@ -710,6 +710,18 @@ body[data-theme="dark"] .iconBtn .moon {
   color: var(--muted);
 }
 
+.listLoadingState {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 20px 0;
+}
+
+.listLoadingState .spinner {
+  width: 28px;
+  height: 28px;
+}
+
 .snipeitSelectedList,
 .snipeitPendingList,
 .snipeitAssetList {

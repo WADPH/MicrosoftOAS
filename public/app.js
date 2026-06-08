@@ -27,9 +27,13 @@ const state = {
     checkIntervalMs: 15 * 60 * 1000
   },
   availableSnipeitAssets: [],
+  snipeitAssetLoading: false,
+  snipeitAssetRequestId: 0,
   selectedSnipeitModalType: null,
   selectedSnipeitAssetsDraft: [],
   onboardingGroupSelectionTouched: false,
+  managerLoading: false,
+  managerRequestId: 0,
   groupPicker: {
     context: null,
     onApply: null,
@@ -39,6 +43,7 @@ const state = {
     groups: [],
     groupCacheByTenant: {},
     loading: false,
+    requestId: 0,
     tenantLocked: false
   },
   taskMode: "onboarding",
@@ -53,6 +58,8 @@ const state = {
     },
     selectedUser: null,
     userCandidates: [],
+    usersLoading: false,
+    userRequestId: 0,
     relatedAccounts: [],
     snipeitAssets: [],
     deleteUser: true,
@@ -715,6 +722,17 @@ function renderOffboardingTenantOptions() {
   }
 }
 
+function renderListLoadingState(listId, message) {
+  const list = el(listId);
+  if (!list) return;
+  list.innerHTML = `
+    <div class="listLoadingState" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <div class="managerEmpty">${message}</div>
+    </div>
+  `;
+}
+
 function renderOffboardingSelectedUser() {
   const box = el("offboardingSelectedUser");
   if (!box) return;
@@ -983,10 +1001,23 @@ async function loadOffboardingMeta() {
 async function loadOffboardingUsers(search = "") {
   const tenant = String(state.offboarding.selectedTenant || "").trim();
   if (!tenant) return;
+  const requestId = ++state.offboarding.userRequestId;
+  state.offboarding.usersLoading = true;
+  state.offboarding.userCandidates = [];
+  renderListLoadingState("offboardingUserList", "Loading users...");
   const errorBox = el("offboardingUserModalError");
   if (errorBox) errorBox.textContent = "";
-  const data = await api(`/offboarding/users?tenant=${encodeURIComponent(tenant)}&search=${encodeURIComponent(search)}`);
-  state.offboarding.userCandidates = Array.isArray(data?.users) ? data.users : [];
+  try {
+    const data = await api(`/offboarding/users?tenant=${encodeURIComponent(tenant)}&search=${encodeURIComponent(search)}`);
+    if (requestId !== state.offboarding.userRequestId) return;
+    state.offboarding.userCandidates = Array.isArray(data?.users) ? data.users : [];
+  } finally {
+    if (requestId === state.offboarding.userRequestId) {
+      state.offboarding.usersLoading = false;
+    }
+  }
+
+  if (requestId !== state.offboarding.userRequestId) return;
   const list = el("offboardingUserList");
   if (!list) return;
   list.innerHTML = "";
@@ -1395,22 +1426,32 @@ async function loadGroupPickerGroups() {
   const status = el("groupPickerStatus");
   if (status) status.textContent = "Loading groups...";
   state.groupPicker.loading = true;
-  const data = await api(`/tasks/meta/groups?tenant=${encodeURIComponent(tenant)}`);
-  state.groupPicker.groups = Array.isArray(data?.groups) ? data.groups : [];
-  state.groupPicker.groupCacheByTenant = state.groupPicker.groupCacheByTenant || {};
-  state.groupPicker.groupCacheByTenant[tenant] = state.groupPicker.groups;
-  state.groupPicker.selected = state.groupPicker.selected.map((selected) => {
-    const existing = state.groupPicker.groups.find((group) => normalizeGroupId(group.id) === normalizeGroupId(selected.id));
-    if (existing) {
-      return {
-        ...selected,
-        displayName: String(existing.displayName || selected.displayName || ""),
-        tenant
-      };
+  const requestId = ++state.groupPicker.requestId;
+  state.groupPicker.groups = [];
+  renderGroupPickerList();
+  try {
+    const data = await api(`/tasks/meta/groups?tenant=${encodeURIComponent(tenant)}`);
+    if (requestId !== state.groupPicker.requestId) return;
+    state.groupPicker.groups = Array.isArray(data?.groups) ? data.groups : [];
+    state.groupPicker.groupCacheByTenant = state.groupPicker.groupCacheByTenant || {};
+    state.groupPicker.groupCacheByTenant[tenant] = state.groupPicker.groups;
+    state.groupPicker.selected = state.groupPicker.selected.map((selected) => {
+      const existing = state.groupPicker.groups.find((group) => normalizeGroupId(group.id) === normalizeGroupId(selected.id));
+      if (existing) {
+        return {
+          ...selected,
+          displayName: String(existing.displayName || selected.displayName || ""),
+          tenant
+        };
+      }
+      return selected;
+    });
+  } finally {
+    if (requestId === state.groupPicker.requestId) {
+      state.groupPicker.loading = false;
     }
-    return selected;
-  });
-  state.groupPicker.loading = false;
+  }
+  if (requestId !== state.groupPicker.requestId) return;
   renderGroupPickerList();
   if (status) status.textContent = `${state.groupPicker.groups.length} groups loaded`;
 }
@@ -1433,6 +1474,10 @@ function renderGroupPickerTenants() {
 function renderGroupPickerList() {
   const list = el("groupPickerList");
   if (!list) return;
+  if (state.groupPicker.loading) {
+    renderListLoadingState("groupPickerList", "Loading groups...");
+    return;
+  }
   const query = String(el("groupPickerSearch")?.value || "").trim().toLowerCase();
   const selected = new Set((state.groupPicker.selected || []).map((group) => normalizeGroupId(group.id)));
   const groups = (Array.isArray(state.groupPicker.groups) ? state.groupPicker.groups : []).filter((group) => {
@@ -1882,21 +1927,37 @@ async function loadOffboardingTasks() {
 }
 
 async function loadManagerUsers(search = "") {
+  const requestId = ++state.managerRequestId;
+  state.managerLoading = true;
+  state.availableManagers = [];
+  renderManagerModal();
   try {
     const taskEmail = String(el("email")?.value || "").trim();
     const users = await api(`/tasks/meta/users?search=${encodeURIComponent(String(search || ""))}&email=${encodeURIComponent(taskEmail)}`);
+    if (requestId !== state.managerRequestId) return;
     state.availableManagers = Array.isArray(users) ? users : [];
     el("managerModalError").textContent = "";
   } catch (error) {
+    if (requestId !== state.managerRequestId) return;
     state.availableManagers = [];
     el("managerModalError").textContent = `Failed to load users: ${error.message}`;
+  } finally {
+    if (requestId === state.managerRequestId) {
+      state.managerLoading = false;
+    }
   }
+  if (requestId !== state.managerRequestId) return;
   renderManagerModal();
 }
 
 function renderManagerModal() {
   const list = el("managerUserList");
   list.innerHTML = "";
+
+  if (state.managerLoading) {
+    renderListLoadingState("managerUserList", "Loading users...");
+    return;
+  }
 
   if (!Array.isArray(state.availableManagers) || state.availableManagers.length === 0) {
     const empty = document.createElement("div");
@@ -2124,6 +2185,10 @@ function closeSnipeitAssetModal() {
 function renderSnipeitAssetModalList() {
   const list = el("snipeitAssetList");
   if (!list) return;
+  if (state.snipeitAssetLoading) {
+    renderListLoadingState("snipeitAssetList", "Loading assets...");
+    return;
+  }
   list.innerHTML = "";
 
   if (!Array.isArray(state.availableSnipeitAssets) || state.availableSnipeitAssets.length === 0) {
@@ -2150,18 +2215,29 @@ async function loadSnipeitAssetsByType(type) {
   const prefix = type === "laptop" ? state.snipeitConfig.laptopPrefix : state.snipeitConfig.monitorPrefix;
   const status = el("snipeitAssetModalStatus");
   if (status) status.textContent = "Loading assets...";
-
-  const response = await api(`/snipeit/assets?prefix=${encodeURIComponent(prefix)}`);
-  state.availableSnipeitAssets = Array.isArray(response?.assets)
-    ? response.assets.map((asset) => ({
-        id: Number(asset.id),
-        asset_tag: String(asset.asset_tag || "").trim(),
-        model: String(asset.model || "").trim(),
-        notes: String(asset.notes || "").trim(),
-        companyName: String(asset.companyName || "").trim(),
-        type
-      }))
-    : [];
+  const requestId = ++state.snipeitAssetRequestId;
+  state.snipeitAssetLoading = true;
+  state.availableSnipeitAssets = [];
+  renderSnipeitAssetModalList();
+  try {
+    const response = await api(`/snipeit/assets?prefix=${encodeURIComponent(prefix)}`);
+    if (requestId !== state.snipeitAssetRequestId) return;
+    state.availableSnipeitAssets = Array.isArray(response?.assets)
+      ? response.assets.map((asset) => ({
+          id: Number(asset.id),
+          asset_tag: String(asset.asset_tag || "").trim(),
+          model: String(asset.model || "").trim(),
+          notes: String(asset.notes || "").trim(),
+          companyName: String(asset.companyName || "").trim(),
+          type
+        }))
+      : [];
+  } finally {
+    if (requestId === state.snipeitAssetRequestId) {
+      state.snipeitAssetLoading = false;
+    }
+  }
+  if (requestId !== state.snipeitAssetRequestId) return;
   renderSnipeitAssetModalList();
   if (status) status.textContent = `${state.availableSnipeitAssets.length} assets available`;
 }
