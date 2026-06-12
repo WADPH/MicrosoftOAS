@@ -40,6 +40,24 @@
       <section class="progressScreen" aria-live="polite">
         <div class="progressCard">
           <h2>Onboarding Progress</h2>
+          
+          <div class="assetStatusLegend">
+            <div class="legendTitle">Asset Delivery Status:</div>
+            <div class="legendItems">
+              <div class="legendItem">
+                <span class="legendDot pending"></span>
+                <span class="legendLabel">Pending - Asset not yet delivered</span>
+              </div>
+              <div class="legendItem">
+                <span class="legendDot delivered"></span>
+                <span class="legendLabel">Delivered - Asset has arrived</span>
+              </div>
+            </div>
+            <div id="editableNotice" class="legendNote hidden">
+              💡 Click on an asset name to toggle its delivery status
+            </div>
+          </div>
+          
           <div id="progressList" class="progressList"></div>
         </div>
       </section>

@@ -23,6 +23,14 @@ function requireProgressAccess(req, res, next) {
   next();
 }
 
+function requireProgressEditAccess(req, res, next) {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ error: "Forbidden - only admins can edit asset statuses" });
+  }
+  next();
+}
+
 module.exports = requireAuth;
 module.exports.requireMainAccess = requireMainAccess;
 module.exports.requireProgressAccess = requireProgressAccess;
+module.exports.requireProgressEditAccess = requireProgressEditAccess;

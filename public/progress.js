@@ -1,5 +1,17 @@
 const PROGRESS_STEPS = ["Created", "Licensing", "Provisioned", "Completed"];
 
+const ASSET_STATUS = {
+  PENDING: "pending",
+  DELIVERED: "delivered"
+};
+
+const state = {
+  tasks: [],
+  assetStatuses: {}, // Map of taskId -> { assetName -> status }
+  userRole: null, // 'admin' or 'spectator'
+  isLoading: false
+};
+
 function byId(id) {
   return document.getElementById(id);
 }
@@ -94,6 +106,29 @@ function renderTasks(tasks) {
       ? Boolean(previousOpenStateById.get(taskId))
       : isDefaultOpen;
     const openAttr = isOpen ? "open" : "";
+    
+    const assetsHtml = assets.length > 0
+      ? `<div class="progressAssetsWrap">
+          <div class="metaSmall">Ordered assets (requested from procurement):</div>
+          <div class="progressAssetsList">
+            ${assets.map((asset) => {
+              const status = getAssetStatusForTask(taskId, asset);
+              const statusClass = status === ASSET_STATUS.DELIVERED ? "delivered" : "pending";
+              const isClickable = state.userRole === "admin" ? "clickable" : "";
+              const title = state.userRole === "admin" 
+                ? `Click to toggle status (currently ${status})`
+                : `Status: ${status}`;
+              return `<span 
+                class="assetPill assetStatusPill ${statusClass} ${isClickable}" 
+                data-task-id="${esc(taskId)}"
+                data-asset-name="${esc(asset)}"
+                title="${title}"
+              >${esc(asset)}</span>`;
+            }).join("")}
+          </div>
+        </div>`
+      : "";
+
     return `
       <details class="progressTaskCard" data-task-id="${esc(taskId)}" ${openAttr}>
         <summary class="progressTaskHeader">
@@ -103,21 +138,32 @@ function renderTasks(tasks) {
         <div class="progressTaskBody">
           <div class="progressRoadmap">${renderRoadmap(stage)}</div>
           <div class="progressDescription">${esc(stageDescription(stage))}</div>
-          ${assets.length > 0
-            ? `<div class="progressAssetsWrap">
-                <div class="metaSmall">Ordered assets (requested from procurement):</div>
-                <div class="progressAssetsList">${assets.map((asset) => `<span class="assetPill">${esc(asset)}</span>`).join("")}</div>
-              </div>`
-            : ""}
+          ${assetsHtml}
         </div>
       </details>
     `;
   });
   list.innerHTML = rows.join("");
+  
+  // Attach event listeners to asset pills if user is admin
+  if (state.userRole === "admin") {
+    const assetPills = list.querySelectorAll(".assetStatusPill.clickable");
+    assetPills.forEach((pill) => {
+      pill.addEventListener("click", handleAssetPillClick);
+    });
+  }
 }
 
-async function api(path) {
-  const response = await fetch(path, { headers: { "Content-Type": "application/json" } });
+function getAssetStatusForTask(taskId, assetName) {
+  const taskStatuses = state.assetStatuses[taskId] || {};
+  return taskStatuses[assetName] || ASSET_STATUS.PENDING;
+}
+
+async function api(path, options = {}) {
+  const response = await fetch(path, { 
+    headers: { "Content-Type": "application/json" },
+    ...options
+  });
   if (response.status === 401 || response.status === 403) {
     window.location.href = "/";
     throw new Error("Unauthorized");
@@ -128,9 +174,92 @@ async function api(path) {
   return response.json();
 }
 
+async function loadAssetStatuses(taskId) {
+  try {
+    const result = await api(`/progress/assets/${encodeURIComponent(taskId)}/statuses`);
+    if (result.ok && result.statuses) {
+      state.assetStatuses[taskId] = result.statuses;
+    }
+  } catch (error) {
+    console.error("Failed to load asset statuses:", error.message);
+  }
+}
+
+async function loadAllAssetStatuses(tasks) {
+  const promises = tasks.map((task) => loadAssetStatuses(String(task.id || "").trim()));
+  await Promise.all(promises);
+}
+
+async function toggleAssetStatus(taskId, assetName) {
+  try {
+    const result = await api(
+      `/progress/assets/${encodeURIComponent(taskId)}/${encodeURIComponent(assetName)}/toggle`,
+      { method: "POST" }
+    );
+    if (result.ok) {
+      if (!state.assetStatuses[taskId]) {
+        state.assetStatuses[taskId] = {};
+      }
+      state.assetStatuses[taskId][assetName] = result.status;
+      return result.status;
+    }
+  } catch (error) {
+    console.error("Failed to toggle asset status:", error.message);
+    throw error;
+  }
+}
+
+async function handleAssetPillClick(event) {
+  const pill = event.currentTarget;
+  const taskId = String(pill.getAttribute("data-task-id") || "").trim();
+  const assetName = String(pill.getAttribute("data-asset-name") || "").trim();
+
+  if (!taskId || !assetName) return;
+
+  // Prevent double-clicking
+  if (pill.classList.contains("updating")) return;
+  pill.classList.add("updating");
+
+  try {
+    const newStatus = await toggleAssetStatus(taskId, assetName);
+    
+    // Update UI
+    const statusClass = newStatus === ASSET_STATUS.DELIVERED ? "delivered" : "pending";
+    pill.className = `assetPill assetStatusPill ${statusClass} clickable`;
+    pill.title = `Click to toggle status (currently ${newStatus})`;
+  } catch (error) {
+    alert(`Failed to update asset status: ${error.message}`);
+    pill.classList.remove("updating");
+  } finally {
+    pill.classList.remove("updating");
+  }
+}
+
 async function loadProgress() {
-  const data = await api("/progress/tasks");
-  renderTasks(Array.isArray(data) ? data : []);
+  if (state.isLoading) return;
+  state.isLoading = true;
+  
+  try {
+    const data = await api("/progress/tasks");
+    state.tasks = Array.isArray(data) ? data : [];
+    
+    // Load asset statuses for all tasks
+    await loadAllAssetStatuses(state.tasks);
+    
+    renderTasks(state.tasks);
+  } finally {
+    state.isLoading = false;
+  }
+}
+
+async function loadUserRole() {
+  try {
+    const result = await api("/progress/user-role");
+    state.userRole = result.role || "spectator";
+  } catch (error) {
+    console.error("Failed to load user role:", error.message);
+    state.userRole = "spectator";
+  }
 }
 
 function initNavigation() {
@@ -142,9 +271,22 @@ function initNavigation() {
   }
 }
 
+function updateUIBasedOnRole() {
+  const editableNotice = byId("editableNotice");
+  if (editableNotice) {
+    if (state.userRole === "admin") {
+      editableNotice.classList.remove("hidden");
+    } else {
+      editableNotice.classList.add("hidden");
+    }
+  }
+}
+
 async function init() {
   initTheme();
   initNavigation();
+  await loadUserRole();
+  updateUIBasedOnRole();
   await loadProgress();
   setInterval(() => {
     loadProgress().catch(() => {});

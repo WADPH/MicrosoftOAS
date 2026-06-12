@@ -10,9 +10,15 @@ const snipeitRouter = require("./routes/snipeit");
 const offboardingRouter = require("./routes/offboarding");
 const webhookRouter = require("./routes/webhook");
 const requireAuth = require("./middleware/requireAuth");
-const { requireMainAccess, requireProgressAccess } = require("./middleware/requireAuth");
+const { requireMainAccess, requireProgressAccess, requireProgressEditAccess } = require("./middleware/requireAuth");
 const { startSnipeitAssignWorker, processPendingAssignTasks } = require("./services/snipeitAssignWorker");
 const { getTasksByType } = require("./services/taskStore");
+const {
+  getTaskAssetStatuses,
+  getAssetStatus,
+  setAssetStatus,
+  toggleAssetStatus
+} = require("./services/assetStatusStore");
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -63,8 +69,70 @@ app.get("/", (req, res) => {
 app.get("/progress", requireAuth, requireProgressAccess, (req, res) => {
   res.sendFile(path.join(__dirname, "views", "progress.html"));
 });
+
+app.get("/progress/user-role", requireAuth, requireProgressAccess, (req, res) => {
+  const role = String(req.user?.role || "").trim().toLowerCase();
+  res.json({ ok: true, role: role || "spectator" });
+});
+
 app.get("/progress/tasks", requireAuth, requireProgressAccess, (req, res) => {
   res.json(getTasksByType("onboarding"));
+});
+
+// Asset status endpoints - read access for both admin and spectator
+app.get("/progress/assets/:taskId/statuses", requireAuth, requireProgressAccess, (req, res) => {
+  const taskId = String(req.params.taskId || "").trim();
+  if (!taskId) {
+    return res.status(400).json({ ok: false, error: "Missing taskId" });
+  }
+  const statuses = getTaskAssetStatuses(taskId);
+  res.json({ ok: true, statuses });
+});
+
+app.get("/progress/assets/:taskId/:assetName/status", requireAuth, requireProgressAccess, (req, res) => {
+  const taskId = String(req.params.taskId || "").trim();
+  const assetName = String(req.params.assetName || "").trim();
+  
+  if (!taskId || !assetName) {
+    return res.status(400).json({ ok: false, error: "Missing taskId or assetName" });
+  }
+
+  const status = getAssetStatus(taskId, assetName);
+  res.json({ ok: true, status });
+});
+
+// Asset status modification endpoints - write access only for admin
+app.put("/progress/assets/:taskId/:assetName/status", requireAuth, requireProgressEditAccess, (req, res) => {
+  const taskId = String(req.params.taskId || "").trim();
+  const assetName = String(req.params.assetName || "").trim();
+  const { status } = req.body || {};
+
+  if (!taskId || !assetName || !status) {
+    return res.status(400).json({ ok: false, error: "Missing taskId, assetName, or status" });
+  }
+
+  try {
+    const newStatus = setAssetStatus(taskId, assetName, status);
+    res.json({ ok: true, status: newStatus });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error.message });
+  }
+});
+
+app.post("/progress/assets/:taskId/:assetName/toggle", requireAuth, requireProgressEditAccess, (req, res) => {
+  const taskId = String(req.params.taskId || "").trim();
+  const assetName = String(req.params.assetName || "").trim();
+
+  if (!taskId || !assetName) {
+    return res.status(400).json({ ok: false, error: "Missing taskId or assetName" });
+  }
+
+  try {
+    const newStatus = toggleAssetStatus(taskId, assetName);
+    res.json({ ok: true, status: newStatus });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error.message });
+  }
 });
 
 app.use(express.static(path.join(__dirname, "..", "public")));
