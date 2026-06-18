@@ -37,6 +37,18 @@ function normalizeRecipients(value) {
   return list.map((x) => String(x || "").trim()).filter(Boolean);
 }
 
+function buildDefaultLicenseCancellationBody(companyName, tenantName) {
+  const tenantLabel = companyName ? `${companyName} ${tenantName} tenant` : `${tenantName} tenant`;
+  return `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license (Monthly) from the ${tenantLabel}.\n\nBest regards,\nIT Team`;
+}
+
+function isLegacyLicenseCancellationBody(body) {
+  const text = String(body || "").trim();
+  if (!text) return false;
+  return /Please stop the renewal of \d+ Microsoft Business Premium(?: \(Monthly\))? license/i.test(text) &&
+    /for the tenant/i.test(text);
+}
+
 async function sendMail({ subject, body, to, cc }) {
   const sender = process.env.MAIL_SENDER_UPN;
   if (!sender) throw new Error("MAIL_SENDER_UPN is not configured");
@@ -124,15 +136,14 @@ function buildLicenseCancellationMail(offboarding = {}) {
   const mail = offboarding.licenseCancelMail || {};
   const companyName = String(offboarding.company || "").trim();
   const tenantName = String(offboarding.tenant || "").trim().toUpperCase();
-  const tenantLabel = companyName ? `${companyName} ${tenantName} tenant` : `${tenantName} tenant`;
+  const defaultBody = buildDefaultLicenseCancellationBody(companyName, tenantName);
+  const providedBody = String(mail.body || "");
+  const body = !providedBody || isLegacyLicenseCancellationBody(providedBody) ? defaultBody : providedBody;
   return {
     to: normalizeRecipients(mail.to).length ? normalizeRecipients(mail.to) : recipients.to,
     cc: normalizeRecipients(mail.cc).length ? normalizeRecipients(mail.cc) : recipients.cc,
     subject: String(mail.subject || `License cancel for ${tenantName}`),
-    body: String(
-      mail.body ||
-        `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license (Monthly) from the ${tenantLabel}.\n\nBest regards,\nIT Team`
-    )
+    body
   };
 }
 

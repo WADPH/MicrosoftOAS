@@ -834,9 +834,44 @@ function buildDefaultOffboardingLicenseSubject() {
   return `License cancel for ${tenant}`;
 }
 
-function buildDefaultOffboardingLicenseBody() {
+function extractDomainFromEmail(email) {
+  const raw = String(email || "").trim().toLowerCase();
+  const at = raw.lastIndexOf("@");
+  if (at < 0) return "";
+  return raw.slice(at + 1);
+}
+
+function inferOffboardingCompanyFromUser() {
+  const email = String(state.offboarding.selectedUser?.userPrincipalName || state.offboarding.selectedUser?.mail || "").trim().toLowerCase();
+  const domain = extractDomainFromEmail(email);
+  if (!domain) return "";
+
+  for (const matcher of Array.isArray(state.companyMatchers) ? state.companyMatchers : []) {
+    const matcherDomain = String(matcher?.domain || "").trim().toLowerCase();
+    if (!matcherDomain) continue;
+    if (domain === matcherDomain || domain.endsWith(`.${matcherDomain}`)) {
+      return String(matcher?.code || "").trim().toUpperCase();
+    }
+  }
+
+  return "";
+}
+
+function buildDefaultOffboardingTenantLabel() {
   const tenant = String(state.offboarding.selectedTenant || "").trim().toUpperCase();
-  return `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license (Monthly) for the tenant ${tenant}.\n\nBest regards,\nIT Team`;
+  const company = inferOffboardingCompanyFromUser();
+  return company ? `${company} ${tenant} tenant` : `${tenant} tenant`;
+}
+
+function buildDefaultOffboardingLicenseBody() {
+  return `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license (Monthly) from the ${buildDefaultOffboardingTenantLabel()}.\n\nBest regards,\nIT Team`;
+}
+
+function isLegacyOffboardingLicenseBody(body) {
+  const text = String(body || "").trim();
+  if (!text) return false;
+  return /Please stop the renewal of \d+ Microsoft Business Premium(?: \(Monthly\))? license/i.test(text) &&
+    /for the tenant/i.test(text);
 }
 
 function refreshOffboardingLicenseCancelVisibility() {
@@ -936,15 +971,17 @@ async function selectOffboardingTask(id) {
   state.offboarding.deleteUser = payload.deleteUser !== false;
   if (el("offboardingDeleteUser")) el("offboardingDeleteUser").checked = state.offboarding.deleteUser;
   state.offboarding.sendLicenseCancelEmail = payload.sendLicenseCancelEmail !== false;
-  state.offboarding.userEditedLicenseSubject = true;
-  state.offboarding.userEditedLicenseBody = true;
   const payloadLicenseTo = Array.isArray(payload.licenseCancelMail?.to) ? payload.licenseCancelMail.to : [];
   const payloadLicenseCc = Array.isArray(payload.licenseCancelMail?.cc) ? payload.licenseCancelMail.cc : [];
+  const payloadLicenseBody = String(payload.licenseCancelMail?.body || "");
+  const useDefaultLicenseBody = !payloadLicenseBody || isLegacyOffboardingLicenseBody(payloadLicenseBody);
+  state.offboarding.userEditedLicenseSubject = Boolean(payload.licenseCancelMail?.subject);
+  state.offboarding.userEditedLicenseBody = !useDefaultLicenseBody;
   state.offboarding.licenseCancelMail = {
     to: payloadLicenseTo.length > 0 ? payloadLicenseTo : [...state.offboarding.licenseDefaults.to],
     cc: payloadLicenseCc.length > 0 ? payloadLicenseCc : [...state.offboarding.licenseDefaults.cc],
     subject: String(payload.licenseCancelMail?.subject || buildDefaultOffboardingLicenseSubject()),
-    body: String(payload.licenseCancelMail?.body || buildDefaultOffboardingLicenseBody())
+    body: useDefaultLicenseBody ? buildDefaultOffboardingLicenseBody() : payloadLicenseBody
   };
   state.offboarding.relatedAccounts = Array.isArray(payload.accountsToDelete)
     ? payload.accountsToDelete.map((row) => ({ ...row, selected: true }))
