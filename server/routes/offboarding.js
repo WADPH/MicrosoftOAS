@@ -4,6 +4,7 @@ const { listUsers, deleteUserById, getUserByEmail } = require("../services/graph
 const { isEnabled: isSnipeitEnabled, getAssignedAssetsByEmail, checkinAsset } = require("../services/snipeit.service");
 const { addTask, getTasksByType, getTaskById, updateTaskById } = require("../services/taskStore");
 const { sendLicenseCancellationMail, getLicenseRequestRecipients } = require("../services/mail");
+const { findCompanyMatcherByHints } = require("../parser");
 
 const router = express.Router();
 
@@ -58,11 +59,16 @@ function dedupeAccounts(rows) {
   return out;
 }
 
+function inferCompanyFromEmail(email) {
+  const matcher = findCompanyMatcherByHints({ email: String(email || "").trim().toLowerCase() });
+  return String(matcher?.code || "").trim();
+}
+
 function buildOffboardingTaskPayload(payload = {}) {
   const user = payload.user || {};
   const tenant = normalizeTenantKey(payload.tenant || user.tenant || "");
-  const company = String(payload.company || payload.offboarding?.company || "").trim();
   const email = String(payload.email || user.mail || user.userPrincipalName || "").trim().toLowerCase();
+  const company = String(payload.company || payload.offboarding?.company || inferCompanyFromEmail(email)).trim();
   const deleteUser = payload.deleteUser !== false;
   const sendLicenseCancelEmail = payload.sendLicenseCancelEmail !== false;
   const accountsToDelete = Array.isArray(payload.accountsToDelete) ? payload.accountsToDelete : [];
@@ -130,6 +136,7 @@ router.post("/tasks", (req, res) => {
       taskType: "offboarding",
       status: existing.status === "done" ? "done" : "pending",
       fullName: String(offboarding.user?.displayName || offboarding.email || existing.fullName || ""),
+      company: offboarding.company || existing.company || "",
       email: offboarding.email,
       offboarding
     });
@@ -141,6 +148,7 @@ router.post("/tasks", (req, res) => {
       taskType: "offboarding",
       status: "pending",
       fullName: String(offboarding.user?.displayName || offboarding.email || ""),
+      company: offboarding.company || "",
       email: offboarding.email,
       startDate: new Date().toISOString(),
       offboarding
@@ -294,6 +302,7 @@ router.post("/execute", async (req, res) => {
       task = updateTaskById(task.id, {
         status: "processing",
         fullName: String(offboarding.user?.displayName || email || task.fullName || ""),
+        company: offboarding.company || task.company || "",
         email,
         offboarding
       });
@@ -302,6 +311,7 @@ router.post("/execute", async (req, res) => {
         taskType: "offboarding",
         status: "processing",
         fullName: String(offboarding.user?.displayName || email || ""),
+        company: offboarding.company || "",
         email,
         startDate: new Date().toISOString(),
         offboarding
