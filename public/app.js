@@ -860,7 +860,7 @@ function inferOffboardingCompanyFromUser() {
 function buildDefaultOffboardingTenantLabel() {
   const tenant = String(state.offboarding.selectedTenant || "").trim().toUpperCase();
   const company = inferOffboardingCompanyFromUser();
-  return company ? `${company} ${tenant} tenant` : `${tenant} tenant`;
+  return company ? `${company} company in the ${tenant} tenant` : `${tenant} tenant`;
 }
 
 function buildDefaultOffboardingLicenseBody() {
