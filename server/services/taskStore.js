@@ -98,6 +98,7 @@ function normalizeOffboardingPayload(value = {}) {
   const user = value?.user || {};
   return {
     tenant: String(value.tenant || "").trim().toUpperCase(),
+    company: String(value.company || "").trim(),
     email: String(value.email || user.userPrincipalName || user.mail || "").trim().toLowerCase(),
     deleteUser: value.deleteUser !== false,
     sendLicenseCancelEmail: value.sendLicenseCancelEmail !== false,

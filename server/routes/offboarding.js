@@ -61,6 +61,7 @@ function dedupeAccounts(rows) {
 function buildOffboardingTaskPayload(payload = {}) {
   const user = payload.user || {};
   const tenant = normalizeTenantKey(payload.tenant || user.tenant || "");
+  const company = String(payload.company || payload.offboarding?.company || "").trim();
   const email = String(payload.email || user.mail || user.userPrincipalName || "").trim().toLowerCase();
   const deleteUser = payload.deleteUser !== false;
   const sendLicenseCancelEmail = payload.sendLicenseCancelEmail !== false;
@@ -70,6 +71,7 @@ function buildOffboardingTaskPayload(payload = {}) {
   const licenseCancelMail = payload.licenseCancelMail || legacyMail || {};
   return {
     tenant,
+    company,
     email,
     deleteUser,
     sendLicenseCancelEmail,
@@ -79,7 +81,7 @@ function buildOffboardingTaskPayload(payload = {}) {
       subject: String(licenseCancelMail.subject || `License cancel for ${tenant}`).trim(),
       body: String(
         licenseCancelMail.body ||
-          `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license (Monthly) for the tenant ${tenant}.\n\nBest regards,\nIT Team`
+          `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license (Monthly) ${company ? `from the ${company} ` : "for the "}${tenant} tenant.\n\nBest regards,\nIT Team`
       )
     },
     user,

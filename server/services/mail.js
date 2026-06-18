@@ -122,14 +122,16 @@ async function sendAssetsMail(task) {
 function buildLicenseCancellationMail(offboarding = {}) {
   const recipients = getLicenseRequestRecipients();
   const mail = offboarding.licenseCancelMail || {};
+  const companyName = String(offboarding.company || "").trim();
   const tenantName = String(offboarding.tenant || "").trim().toUpperCase();
+  const tenantLabel = companyName ? `${companyName} ${tenantName} tenant` : `${tenantName} tenant`;
   return {
     to: normalizeRecipients(mail.to).length ? normalizeRecipients(mail.to) : recipients.to,
     cc: normalizeRecipients(mail.cc).length ? normalizeRecipients(mail.cc) : recipients.cc,
     subject: String(mail.subject || `License cancel for ${tenantName}`),
     body: String(
       mail.body ||
-        `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium (Monthly) license for the tenant ${tenantName}.\n\nBest regards,\nIT Team`
+        `Hello,\n\nPlease stop the renewal of 1 Microsoft Business Premium license (Monthly) from the ${tenantLabel}.\n\nBest regards,\nIT Team`
     )
   };
 }
