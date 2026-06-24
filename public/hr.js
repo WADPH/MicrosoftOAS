@@ -372,6 +372,25 @@ function initEvents() {
       setStatus(`Create failed: ${error.message}`);
     }
   });
+
+  // Prevent manual typing on date inputs - only allow date picker
+  const dateInputs = [
+    byId("hrOnboardingStartDate"),
+    byId("hrOffboardingDate")
+  ];
+  dateInputs.forEach((input) => {
+    if (input) {
+      input.addEventListener("keydown", (event) => {
+        event.preventDefault();
+      });
+      input.addEventListener("keypress", (event) => {
+        event.preventDefault();
+      });
+      input.addEventListener("keyup", (event) => {
+        event.preventDefault();
+      });
+    }
+  });
 }
 
 async function init() {

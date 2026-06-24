@@ -106,12 +106,17 @@ function renderTasks(tasks) {
       .map((node) => [String(node.getAttribute("data-task-id") || "").trim(), node.hasAttribute("open")])
       .filter(([id]) => Boolean(id))
   );
-  if (!Array.isArray(tasks) || tasks.length === 0) {
+  // Filter to show only onboarding tasks
+  const filteredTasks = Array.isArray(tasks) 
+    ? tasks.filter((task) => String(task.taskType || "onboarding").trim().toLowerCase() === "onboarding")
+    : [];
+  
+  if (filteredTasks.length === 0) {
     list.innerHTML = `<div class="managerEmpty">No tasks yet.</div>`;
     return;
   }
 
-  const rows = tasks.map((task) => {
+  const rows = filteredTasks.map((task) => {
     const taskType = String(task.taskType || "onboarding").trim().toLowerCase();
     const stage = mapStatusToStage(taskType, task.status);
     const assets = orderedAssets(task);
@@ -149,7 +154,6 @@ function renderTasks(tasks) {
       <details class="progressTaskCard" data-task-id="${esc(taskId)}" ${openAttr}>
         <summary class="progressTaskHeader">
           <span class="progressTaskEmployee">${esc(employeeLabel)}</span>
-          <span class="pill">${esc(taskType)}</span>
           <span class="pill">${esc(stage)}</span>
         </summary>
         <div class="progressTaskBody">
