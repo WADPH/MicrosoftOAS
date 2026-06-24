@@ -2723,6 +2723,7 @@ function setCompanyMatcherErrors(entries, tenantOptions = []) {
 function fillSettingsForm(values = {}) {
   el("settingRedirectUri").value = String(values.REDIRECT_URI || "");
   el("settingAllowedEmail").value = String(values.ALLOWED_EMAILS || values.ALLOWED_EMAIL || "");
+  el("settingAllowedHr").value = String(values.ALLOWED_HR || "");
   el("settingLicenseTo").value = String(values.LICENSE_REQUEST_TO || "");
   el("settingLicenseCc").value = String(values.LICENSE_REQUEST_CC || "");
   el("settingAssetsTo").value = String(values.ASSETS_REQUEST_TO || "");
@@ -2743,6 +2744,7 @@ function readSettingsForm() {
   return {
     REDIRECT_URI: el("settingRedirectUri").value.trim(),
     ALLOWED_EMAILS: el("settingAllowedEmail").value.trim(),
+    ALLOWED_HR: el("settingAllowedHr").value.trim(),
     LICENSE_REQUEST_TO: el("settingLicenseTo").value.trim(),
     LICENSE_REQUEST_CC: el("settingLicenseCc").value.trim(),
     ASSETS_REQUEST_TO: el("settingAssetsTo").value.trim(),
@@ -2774,6 +2776,7 @@ function readSettingsForm() {
 function validateSettingsPayload(payload) {
   validateRedirectUri(payload.REDIRECT_URI);
   validateEmailList("Allowed Email(s)", payload.ALLOWED_EMAILS);
+  validateEmailList("Allowed HR Email(s)", payload.ALLOWED_HR);
   validateEmailList("License Request To", payload.LICENSE_REQUEST_TO);
   validateEmailList("License Request CC", payload.LICENSE_REQUEST_CC);
   validateEmailList("Assets Request To", payload.ASSETS_REQUEST_TO);

@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OAS HR Portal</title>
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem("theme") || "light";
+          document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="icon" type="image/png" href="/images/favicon.png" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="topbar">
+        <div class="topbarLeft">
+          <h1 class="topbarBrand">
+            <img class="logoLight" src="/images/oas-light.png" alt="OAS" />
+            <img class="logoDark" src="/images/oas.png" alt="OAS" />
+          </h1>
+        </div>
+        <div class="topbarRight">
+          <div class="toolbarGroup">
+            <button id="progressLinkBtn" class="ghost small" type="button">Progress</button>
+            <div class="toolbarLabel">Theme</div>
+            <button id="themeBtn" class="iconBtn" type="button" aria-label="Toggle theme" title="Toggle theme">
+              <span class="icon sun" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z" />
+                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                </svg>
+              </span>
+              <span class="icon moon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8Z" />
+                </svg>
+              </span>
+            </button>
+          </div>
+          <div class="toolbarGroup userGroup">
+            <div class="toolbarLabel" id="userEmail">-</div>
+            <div class="separator"></div>
+            <button id="logoutBtn" class="logoutBtn" type="button" title="Logout">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5m5 5H9" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="layout">
+        <section class="panel">
+          <div class="panelHeader">
+            <div class="tasksTabs">
+              <button id="hrTabOnboardingBtn" class="ghost small active" type="button">Onboarding</button>
+              <button id="hrTabOffboardingBtn" class="ghost small" type="button">Offboarding</button>
+            </div>
+            <button id="hrRefreshBtn" class="ghost small" type="button">Refresh</button>
+          </div>
+          <ul id="hrTaskList" class="readOnlyTaskList"></ul>
+        </section>
+
+        <section class="panel details">
+          <div class="panelHeader">
+            <h2 id="hrDetailsTitle">HR Portal</h2>
+          </div>
+          <div class="panelContent">
+            <div class="sectionCard">
+              <div class="sectionHeader">
+                <h3>Create Task</h3>
+                <p class="metaSmall">Create onboarding and offboarding tasks directly from OAS.</p>
+              </div>
+              <div class="actions">
+                <button id="newHrOnboardingBtn" class="primary" type="button">New Onboarding</button>
+                <button id="newHrOffboardingBtn" class="ghost" type="button">New Offboarding</button>
+              </div>
+            </div>
+
+            <div id="hrEmptyState" class="sectionCard">
+              <div class="managerEmpty">Choose an action to create a new task.</div>
+            </div>
+
+            <form id="hrOnboardingForm" class="sectionCard hidden" novalidate>
+              <div class="sectionHeader">
+                <h3>New Onboarding</h3>
+                <p class="metaSmall">Fill in the employee details and create the task.</p>
+              </div>
+              <div class="grid2">
+                <div class="field">
+                  <label for="hrOnboardingFirstName">First Name</label>
+                  <input id="hrOnboardingFirstName" type="text" />
+                </div>
+                <div class="field">
+                  <label for="hrOnboardingLastName">Last Name</label>
+                  <input id="hrOnboardingLastName" type="text" />
+                </div>
+                <div class="field">
+                  <label for="hrOnboardingPosition">Position</label>
+                  <input id="hrOnboardingPosition" type="text" />
+                </div>
+                <div class="field">
+                  <label for="hrOnboardingPhone">Phone</label>
+                  <input id="hrOnboardingPhone" type="text" />
+                </div>
+                <div class="field">
+                  <label for="hrOnboardingStartDate">Date</label>
+                  <input id="hrOnboardingStartDate" type="date" />
+                </div>
+                <div class="field">
+                  <label for="hrOnboardingCompany">Company</label>
+                  <select id="hrOnboardingCompany"></select>
+                </div>
+                <div class="field">
+                  <label for="hrOnboardingManager">Line Manager</label>
+                  <div class="managerRow">
+                    <input id="hrOnboardingManager" type="text" readonly />
+                    <button id="hrChooseManagerBtn" type="button" class="ghost small">Choose</button>
+                  </div>
+                </div>
+              </div>
+              <div class="field">
+                <label for="hrOnboardingNote">Additional Note</label>
+                <textarea id="hrOnboardingNote" rows="4"></textarea>
+              </div>
+              <div class="actions">
+                <button id="hrOnboardingDoneBtn" class="primary" type="submit">Done</button>
+                <button id="hrOnboardingCancelBtn" class="ghost" type="button">Cancel</button>
+              </div>
+            </form>
+
+            <form id="hrOffboardingForm" class="sectionCard hidden" novalidate>
+              <div class="sectionHeader">
+                <h3>New Offboarding</h3>
+                <p class="metaSmall">Choose the employee and create the offboarding task.</p>
+              </div>
+              <div class="grid2">
+                <div class="field">
+                  <label for="hrOffboardingCompany">Company</label>
+                  <select id="hrOffboardingCompany"></select>
+                </div>
+                <div class="field">
+                  <label for="hrOffboardingDate">Date</label>
+                  <input id="hrOffboardingDate" type="date" />
+                </div>
+                <div class="field">
+                  <label for="hrOffboardingEmployee">Employee</label>
+                  <div class="managerRow">
+                    <input id="hrOffboardingEmployee" type="text" readonly />
+                    <button id="hrChooseEmployeeBtn" type="button" class="ghost small">Choose</button>
+                  </div>
+                </div>
+              </div>
+              <div class="field">
+                <label for="hrOffboardingNote">Additional Note</label>
+                <textarea id="hrOffboardingNote" rows="4"></textarea>
+              </div>
+              <div class="actions">
+                <button id="hrOffboardingDoneBtn" class="primary" type="submit">Done</button>
+                <button id="hrOffboardingCancelBtn" class="ghost" type="button">Cancel</button>
+              </div>
+            </form>
+
+            <p id="hrStatus" class="meta"></p>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div id="hrManagerModal" class="modal hidden" aria-hidden="true">
+      <div id="hrManagerModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="hrManagerModalTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="hrManagerModalTitle">Choose Line Manager</h3>
+            <p class="metaSmall">Search tenant users and choose the correct manager.</p>
+          </div>
+          <button id="hrManagerModalClose" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="field">
+          <label for="hrManagerSearch">Search users</label>
+          <input id="hrManagerSearch" type="search" placeholder="Type name, surname, or email" />
+        </div>
+        <div id="hrManagerList" class="managerList"></div>
+        <p id="hrManagerError" class="meta"></p>
+      </div>
+    </div>
+
+    <div id="hrEmployeeModal" class="modal hidden" aria-hidden="true">
+      <div id="hrEmployeeModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="hrEmployeeModalTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="hrEmployeeModalTitle">Choose Employee</h3>
+            <p class="metaSmall">Search current tenant users and select the employee.</p>
+          </div>
+          <button id="hrEmployeeModalClose" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="field">
+          <label for="hrEmployeeSearch">Search users</label>
+          <input id="hrEmployeeSearch" type="search" placeholder="Type name or email" />
+        </div>
+        <div id="hrEmployeeList" class="managerList"></div>
+        <p id="hrEmployeeError" class="meta"></p>
+      </div>
+    </div>
+
+    <script src="/hr.js"></script>
+  </body>
+</html>

@@ -76,20 +76,26 @@ function parseAllowedEmailList(source) {
 function resolveUserAccess(user) {
   const adminSource = process.env.ALLOWED_EMAILS || process.env.ALLOWED_EMAIL || "";
   const spectatorSource = process.env.ALLOWED_SPECTATORS || "";
+  const hrSource = process.env.ALLOWED_HR || "";
   const allowedAdmins = parseAllowedEmailList(adminSource);
   const allowedSpectators = parseAllowedEmailList(spectatorSource);
+  const allowedHr = parseAllowedEmailList(hrSource);
   const userEmail = String(user.email || "").toLowerCase();
 
   if (allowedAdmins.includes(userEmail)) {
     return { allowed: true, role: "admin" };
   }
 
+  if (allowedHr.includes(userEmail)) {
+    return { allowed: true, role: "hr" };
+  }
+
   if (allowedSpectators.includes(userEmail)) {
     return { allowed: true, role: "spectator" };
   }
 
-  if (allowedAdmins.length === 0 && allowedSpectators.length === 0) {
-    console.warn("[auth] ALLOWED_EMAILS/ALLOWED_SPECTATORS not configured, denying all access");
+  if (allowedAdmins.length === 0 && allowedSpectators.length === 0 && allowedHr.length === 0) {
+    console.warn("[auth] ALLOWED_EMAILS/ALLOWED_HR/ALLOWED_SPECTATORS not configured, denying all access");
   } else {
     console.warn(`[auth] User ${userEmail} not in whitelist`);
   }

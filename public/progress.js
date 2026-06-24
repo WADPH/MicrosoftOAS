@@ -1,4 +1,5 @@
-const PROGRESS_STEPS = ["Created", "Licensing", "Provisioned", "Completed"];
+const ONBOARDING_PROGRESS_STEPS = ["Created", "Licensing", "Provisioned", "Completed"];
+const OFFBOARDING_PROGRESS_STEPS = ["Created", "Processing", "Completed"];
 
 const ASSET_STATUS = {
   PENDING: "pending",
@@ -8,7 +9,8 @@ const ASSET_STATUS = {
 const state = {
   tasks: [],
   assetStatuses: {}, // Map of taskId -> { assetName -> status }
-  userRole: null, // 'admin' or 'spectator'
+  userRole: null, // 'admin' or 'hr' or 'spectator'
+  mainPath: "/",
   isLoading: false
 };
 
@@ -42,15 +44,25 @@ function initTheme() {
   });
 }
 
-function mapStatusToStage(status) {
+function mapStatusToStage(taskType, status) {
   const normalized = String(status || "").trim().toLowerCase();
+  if (String(taskType || "").trim().toLowerCase() === "offboarding") {
+    if (normalized === "done") return "Completed";
+    if (normalized === "processing") return "Processing";
+    return "Created";
+  }
   if (normalized === "done") return "Completed";
   if (normalized === "provisioned") return "Provisioned";
   if (normalized === "unlicensed") return "Licensing";
   return "Created";
 }
 
-function stageDescription(stage) {
+function stageDescription(taskType, stage) {
+  if (String(taskType || "").trim().toLowerCase() === "offboarding") {
+    if (stage === "Created") return "Offboarding task is created and waiting for execution.";
+    if (stage === "Provisioned") return "Offboarding is currently being processed.";
+    return "Offboarding is completed.";
+  }
   if (stage === "Created") return "Task is created and queued for onboarding actions.";
   if (stage === "Licensing") return "Account is prepared, but license purchase/request is in progress.";
   if (stage === "Provisioned") return "Account and access are ready. Remaining step is workplace handoff.";
@@ -73,9 +85,12 @@ function esc(value) {
   return String(value || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
-function renderRoadmap(stage) {
-  const stageIndex = PROGRESS_STEPS.indexOf(stage);
-  return PROGRESS_STEPS.map((item, index) => {
+function renderRoadmap(taskType, stage) {
+  const steps = String(taskType || "").trim().toLowerCase() === "offboarding"
+    ? OFFBOARDING_PROGRESS_STEPS
+    : ONBOARDING_PROGRESS_STEPS;
+  const stageIndex = steps.indexOf(stage);
+  return steps.map((item, index) => {
     const done = index < stageIndex ? "done" : "";
     const active = index === stageIndex ? "active" : "";
     const pulsing = index === stageIndex && stage !== "Completed" ? "pulsing" : "";
@@ -92,12 +107,13 @@ function renderTasks(tasks) {
       .filter(([id]) => Boolean(id))
   );
   if (!Array.isArray(tasks) || tasks.length === 0) {
-    list.innerHTML = `<div class="managerEmpty">No onboarding tasks yet.</div>`;
+    list.innerHTML = `<div class="managerEmpty">No tasks yet.</div>`;
     return;
   }
 
   const rows = tasks.map((task) => {
-    const stage = mapStatusToStage(task.status);
+    const taskType = String(task.taskType || "onboarding").trim().toLowerCase();
+    const stage = mapStatusToStage(taskType, task.status);
     const assets = orderedAssets(task);
     const employeeLabel = `${task.fullName || "Employee"}${task.email ? ` · ${task.email}` : ""}`;
     const taskId = String(task.id || "").trim();
@@ -133,11 +149,12 @@ function renderTasks(tasks) {
       <details class="progressTaskCard" data-task-id="${esc(taskId)}" ${openAttr}>
         <summary class="progressTaskHeader">
           <span class="progressTaskEmployee">${esc(employeeLabel)}</span>
+          <span class="pill">${esc(taskType)}</span>
           <span class="pill">${esc(stage)}</span>
         </summary>
         <div class="progressTaskBody">
-          <div class="progressRoadmap">${renderRoadmap(stage)}</div>
-          <div class="progressDescription">${esc(stageDescription(stage))}</div>
+          <div class="progressRoadmap">${renderRoadmap(taskType, stage)}</div>
+          <div class="progressDescription">${esc(stageDescription(taskType, stage))}</div>
           ${assetsHtml}
         </div>
       </details>
@@ -256,9 +273,11 @@ async function loadUserRole() {
   try {
     const result = await api("/progress/user-role");
     state.userRole = result.role || "spectator";
+    state.mainPath = result.mainPath || "/";
   } catch (error) {
     console.error("Failed to load user role:", error.message);
     state.userRole = "spectator";
+    state.mainPath = "/progress";
   }
 }
 
@@ -266,7 +285,7 @@ function initNavigation() {
   const backBtn = byId("backToMainBtn");
   if (backBtn) {
     backBtn.addEventListener("click", () => {
-      window.location.href = "/";
+      window.location.href = state.mainPath || "/";
     });
   }
 }

@@ -44,7 +44,13 @@ router.get("/callback", async (req, res) => {
         console.error("[auth] Session save failed", err);
         return res.status(500).json({ error: "Session save failed" });
       }
-      res.redirect(access.role === "spectator" ? "/progress" : "/");
+      if (access.role === "spectator") {
+        return res.redirect("/progress");
+      }
+      if (access.role === "hr") {
+        return res.redirect("/hr");
+      }
+      return res.redirect("/");
     });
   } catch (error) {
     console.error("[auth] Callback processing failed", error.message);

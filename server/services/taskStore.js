@@ -165,6 +165,7 @@ function normalizeTask(task = {}) {
     fullName: normalizeString(task.fullName),
     firstName: normalizeString(task.firstName),
     lastName: normalizeString(task.lastName),
+    additionalNote: String(task.additionalNote || "").trim(),
     company: normalizeString(task.company),
     companyCode: normalizeCompanyCode(task.companyCode),
     companyDomain: normalizeDomain(task.companyDomain),

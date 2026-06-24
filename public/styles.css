@@ -588,6 +588,14 @@ body[data-theme="dark"] .iconBtn .moon {
   overflow: auto;
 }
 
+#hrTaskList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 78vh;
+  overflow: auto;
+}
+
 #taskList li {
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -601,6 +609,17 @@ body[data-theme="dark"] .iconBtn .moon {
   overflow: hidden;
 }
 
+#hrTaskList li {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  background: var(--card);
+  overflow: hidden;
+}
+
 #taskList li.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
@@ -609,6 +628,17 @@ body[data-theme="dark"] .iconBtn .moon {
 #taskList li:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-soft);
+}
+
+.readOnlyTaskList li,
+.readOnlyTaskItem {
+  cursor: default !important;
+}
+
+.readOnlyTaskList li:hover,
+.readOnlyTaskItem:hover {
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 .taskRow {

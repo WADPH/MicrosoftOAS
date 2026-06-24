@@ -8,11 +8,12 @@ const settingsRouter = require("./routes/settings");
 const tasksRouter = require("./routes/tasks");
 const snipeitRouter = require("./routes/snipeit");
 const offboardingRouter = require("./routes/offboarding");
+const hrRouter = require("./routes/hr");
 const webhookRouter = require("./routes/webhook");
 const requireAuth = require("./middleware/requireAuth");
-const { requireMainAccess, requireProgressAccess, requireProgressEditAccess } = require("./middleware/requireAuth");
+const { requireMainAccess, requireHrAccess, requireProgressAccess, requireProgressEditAccess } = require("./middleware/requireAuth");
 const { startSnipeitAssignWorker, processPendingAssignTasks } = require("./services/snipeitAssignWorker");
-const { getTasksByType } = require("./services/taskStore");
+const { getAllTasks } = require("./services/taskStore");
 const {
   getTaskAssetStatuses,
   getAssetStatus,
@@ -58,13 +59,21 @@ app.use("/settings", requireAuth, requireMainAccess, settingsRouter);
 app.use("/tasks", requireAuth, requireMainAccess, tasksRouter);
 app.use("/snipeit", requireAuth, requireMainAccess, snipeitRouter);
 app.use("/offboarding", requireAuth, requireMainAccess, offboardingRouter);
+app.use("/hr-api", requireAuth, requireHrAccess, hrRouter);
 app.use("/webhook", webhookRouter);
 
 app.get("/", (req, res) => {
   if (req.session?.user?.role === "spectator") {
     return res.redirect("/progress");
   }
+  if (req.session?.user?.role === "hr") {
+    return res.redirect("/hr");
+  }
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+});
+
+app.get("/hr", requireAuth, requireHrAccess, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "hr.html"));
 });
 
 app.get("/progress", requireAuth, requireProgressAccess, (req, res) => {
@@ -73,11 +82,12 @@ app.get("/progress", requireAuth, requireProgressAccess, (req, res) => {
 
 app.get("/progress/user-role", requireAuth, requireProgressAccess, (req, res) => {
   const role = String(req.user?.role || "").trim().toLowerCase();
-  res.json({ ok: true, role: role || "spectator" });
+  const mainPath = role === "admin" ? "/" : role === "hr" ? "/hr" : "/progress";
+  res.json({ ok: true, role: role || "spectator", mainPath });
 });
 
 app.get("/progress/tasks", requireAuth, requireProgressAccess, (req, res) => {
-  res.json(getTasksByType("onboarding"));
+  res.json(getAllTasks());
 });
 
 // Asset status endpoints - read access for both admin and spectator

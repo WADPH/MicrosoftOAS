@@ -6,6 +6,7 @@ const ENV_PATH = path.join(__dirname, "..", "..", ".env");
 const EDITABLE_KEYS = [
   "REDIRECT_URI",
   "ALLOWED_EMAILS",
+  "ALLOWED_HR",
   "LICENSE_REQUEST_TO",
   "LICENSE_REQUEST_CC",
   "ASSETS_REQUEST_TO",
@@ -159,6 +160,9 @@ function validateUpdates(updates) {
   }
   if (Object.prototype.hasOwnProperty.call(updates, "ALLOWED_EMAILS")) {
     validateEmailList("ALLOWED_EMAILS", updates.ALLOWED_EMAILS);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "ALLOWED_HR")) {
+    validateEmailList("ALLOWED_HR", updates.ALLOWED_HR);
   }
   if (Object.prototype.hasOwnProperty.call(updates, "LICENSE_REQUEST_TO")) {
     validateEmailList("LICENSE_REQUEST_TO", updates.LICENSE_REQUEST_TO);
@@ -398,9 +402,11 @@ function getCurrentSettings() {
   const envMap = parseEnvFileMap();
   const tenants = parseTenantsFromEnvMap(envMap);
   const allowedEmail = normalizeEnvStoredValue(envMap.ALLOWED_EMAILS || envMap.ALLOWED_EMAIL || process.env.ALLOWED_EMAILS || process.env.ALLOWED_EMAIL || "");
+  const allowedHr = normalizeEnvStoredValue(envMap.ALLOWED_HR || process.env.ALLOWED_HR || "");
   return {
     REDIRECT_URI: normalizeEnvStoredValue(envMap.REDIRECT_URI || process.env.REDIRECT_URI || ""),
     ALLOWED_EMAILS: String(allowedEmail),
+    ALLOWED_HR: String(allowedHr),
     LICENSE_REQUEST_TO: normalizeEnvStoredValue(envMap.LICENSE_REQUEST_TO || process.env.LICENSE_REQUEST_TO || ""),
     LICENSE_REQUEST_CC: normalizeEnvStoredValue(envMap.LICENSE_REQUEST_CC || process.env.LICENSE_REQUEST_CC || ""),
     ASSETS_REQUEST_TO: normalizeEnvStoredValue(envMap.ASSETS_REQUEST_TO || process.env.ASSETS_REQUEST_TO || ""),
