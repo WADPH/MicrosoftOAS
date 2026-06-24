@@ -157,15 +157,19 @@ async function findUserByDisplayName(displayName, tenantKey) {
   const raw = String(displayName || "").trim();
   if (!raw) return null;
 
-  // First, try to search by email if the input looks like an email
+  // If input looks like an email, try searching by email first
   if (raw.includes("@")) {
     const normalizedEmail = raw.toLowerCase();
-    const users = await listUsers(raw, 50, tenantKey);
-    const byEmail = users.find((user) => {
-      const userEmail = String(user.mail || user.userPrincipalName || "").toLowerCase();
-      return userEmail === normalizedEmail;
-    });
-    if (byEmail) return byEmail;
+    try {
+      const users = await listUsers(raw, 50, tenantKey);
+      const byEmail = users.find((user) => {
+        const userEmail = String(user.mail || user.userPrincipalName || "").toLowerCase();
+        return userEmail === normalizedEmail;
+      });
+      if (byEmail) return byEmail;
+    } catch (error) {
+      console.warn(`[graph] Email search failed for ${raw}: ${error.message}`);
+    }
   }
 
   // Fall back to display name search

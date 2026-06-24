@@ -373,21 +373,15 @@ function initEvents() {
     }
   });
 
-  // Prevent manual typing on date inputs - only allow date picker
+  // Enable date picker to open when clicking the date input field
   const dateInputs = [
     byId("hrOnboardingStartDate"),
     byId("hrOffboardingDate")
   ];
   dateInputs.forEach((input) => {
     if (input) {
-      input.addEventListener("keydown", (event) => {
-        event.preventDefault();
-      });
-      input.addEventListener("keypress", (event) => {
-        event.preventDefault();
-      });
-      input.addEventListener("keyup", (event) => {
-        event.preventDefault();
+      input.addEventListener("click", (e) => {
+        e.target.showPicker?.();
       });
     }
   });
