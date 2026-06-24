@@ -160,15 +160,22 @@ router.get("/tasks", (req, res) => {
 
 router.get("/managers", async (req, res) => {
   try {
-    const company = String(req.query.company || "").trim();
-    if (!company) {
-      return res.status(400).json({ ok: false, error: "company is required" });
-    }
-    const matcher = resolveMatcherByCompany(company);
-    const tenant = normalizeTenantKey(matcher?.tenant || "");
+    let tenant = String(req.query.tenant || "").trim();
+    
+    // Support both tenant and company parameters
     if (!tenant) {
-      return res.status(400).json({ ok: false, error: "Unable to resolve tenant for company" });
+      const company = String(req.query.company || "").trim();
+      if (company) {
+        const matcher = resolveMatcherByCompany(company);
+        tenant = normalizeTenantKey(matcher?.tenant || "");
+      }
     }
+    
+    tenant = normalizeTenantKey(tenant);
+    if (!tenant) {
+      return res.status(400).json({ ok: false, error: "tenant or company is required" });
+    }
+    
     const users = await listUsers(String(req.query.search || "").trim(), 200, tenant, { excludeGuests: true, excludeDisabled: true });
     const rows = users
       .map((user) => normalizeUserRow(user, tenant))

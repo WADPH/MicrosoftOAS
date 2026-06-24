@@ -180,13 +180,19 @@
         <div class="modalHeader">
           <div>
             <h3 id="hrManagerModalTitle">Choose Line Manager</h3>
-            <p class="metaSmall">Search tenant users and choose the correct manager.</p>
+            <p class="metaSmall">Search users from any tenant and choose the correct manager.</p>
           </div>
           <button id="hrManagerModalClose" type="button" aria-label="Close">×</button>
         </div>
-        <div class="field">
-          <label for="hrManagerSearch">Search users</label>
-          <input id="hrManagerSearch" type="search" placeholder="Type name, surname, or email" />
+        <div class="grid2">
+          <div class="field">
+            <label for="hrManagerTenantSelect">Tenant</label>
+            <select id="hrManagerTenantSelect"></select>
+          </div>
+          <div class="field">
+            <label for="hrManagerSearch">Search users</label>
+            <input id="hrManagerSearch" type="search" placeholder="Type name, surname, or email" />
+          </div>
         </div>
         <div id="hrManagerList" class="managerList"></div>
         <p id="hrManagerError" class="meta"></p>

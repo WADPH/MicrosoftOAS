@@ -9,6 +9,7 @@ const state = {
     offboarding: []
   },
   selectedManager: null,
+  selectedManagerTenant: "",
   selectedEmployee: null
 };
 
@@ -82,6 +83,29 @@ function renderCompanyOptions(selectId) {
     option.value = code;
     option.textContent = code;
     select.appendChild(option);
+  }
+}
+
+function renderManagerTenantOptions() {
+  const select = byId("hrManagerTenantSelect");
+  if (!select) return;
+  select.innerHTML = "";
+  const tenants = new Set();
+  for (const matcher of state.companyMatchers) {
+    if (matcher.tenant) {
+      tenants.add(matcher.tenant);
+    }
+  }
+  const tenantArray = Array.from(tenants).sort();
+  for (const tenant of tenantArray) {
+    const option = document.createElement("option");
+    option.value = tenant;
+    option.textContent = tenant;
+    select.appendChild(option);
+  }
+  if (tenantArray.length > 0) {
+    select.value = state.selectedManagerTenant || tenantArray[0];
+    state.selectedManagerTenant = select.value;
   }
 }
 
@@ -167,14 +191,15 @@ async function loadMeta() {
   byId("userEmail").textContent = state.user?.email || "-";
   renderCompanyOptions("hrOnboardingCompany");
   renderCompanyOptions("hrOffboardingCompany");
+  renderManagerTenantOptions();
 }
 
 async function loadManagerList(search = "") {
-  const company = String(byId("hrOnboardingCompany")?.value || "").trim();
-  if (!company) {
-    throw new Error("Choose company first");
+  const tenant = String(byId("hrManagerTenantSelect")?.value || state.selectedManagerTenant || "").trim();
+  if (!tenant) {
+    throw new Error("Choose tenant first");
   }
-  const data = await api(`/hr-api/managers?company=${encodeURIComponent(company)}&search=${encodeURIComponent(search)}`);
+  const data = await api(`/hr-api/managers?tenant=${encodeURIComponent(tenant)}&search=${encodeURIComponent(search)}`);
   const list = byId("hrManagerList");
   list.innerHTML = "";
   const users = Array.isArray(data?.users) ? data.users : [];
@@ -339,6 +364,12 @@ function initEvents() {
     } catch (error) {
       byId("hrEmployeeError").textContent = error.message;
     }
+  });
+  byId("hrManagerTenantSelect")?.addEventListener("change", () => {
+    state.selectedManagerTenant = byId("hrManagerTenantSelect").value;
+    loadManagerList("").catch((error) => {
+      byId("hrManagerError").textContent = error.message;
+    });
   });
   byId("hrManagerSearch")?.addEventListener("input", () => {
     loadManagerList(byId("hrManagerSearch").value.trim()).catch((error) => {

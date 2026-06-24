@@ -552,20 +552,29 @@ body[data-theme="dark"] .iconBtn .moon {
 }
 
 #taskList::-webkit-scrollbar,
+#hrTaskList::-webkit-scrollbar,
 .details::-webkit-scrollbar,
-.managerList::-webkit-scrollbar {
+.managerList::-webkit-scrollbar,
+#hrManagerList::-webkit-scrollbar,
+#hrEmployeeList::-webkit-scrollbar {
   width: 10px;
 }
 
 #taskList::-webkit-scrollbar-track,
+#hrTaskList::-webkit-scrollbar-track,
 .details::-webkit-scrollbar-track,
-.managerList::-webkit-scrollbar-track {
+.managerList::-webkit-scrollbar-track,
+#hrManagerList::-webkit-scrollbar-track,
+#hrEmployeeList::-webkit-scrollbar-track {
   background: transparent;
 }
 
 #taskList::-webkit-scrollbar-thumb,
+#hrTaskList::-webkit-scrollbar-thumb,
 .details::-webkit-scrollbar-thumb,
-.managerList::-webkit-scrollbar-thumb {
+.managerList::-webkit-scrollbar-thumb,
+#hrManagerList::-webkit-scrollbar-thumb,
+#hrEmployeeList::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--muted) 22%, transparent);
   border: 2px solid transparent;
   background-clip: padding-box;
@@ -573,8 +582,11 @@ body[data-theme="dark"] .iconBtn .moon {
 }
 
 #taskList::-webkit-scrollbar-thumb:hover,
+#hrTaskList::-webkit-scrollbar-thumb:hover,
 .details::-webkit-scrollbar-thumb:hover,
-.managerList::-webkit-scrollbar-thumb:hover {
+.managerList::-webkit-scrollbar-thumb:hover,
+#hrManagerList::-webkit-scrollbar-thumb:hover,
+#hrEmployeeList::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--muted) 36%, transparent);
   border: 2px solid transparent;
   background-clip: padding-box;
