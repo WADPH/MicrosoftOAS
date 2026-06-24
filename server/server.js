@@ -33,34 +33,20 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true }));
 
-// WADPH old one
-// app.use(
-//   session({
-//     secret: process.env.SESSION_SECRET || "dev-secret-key-change-in-production",
-//     resave: false,
-//     saveUninitialized: true,
-//     cookie: {
-//       httpOnly: true,
-//       secure: process.env.NODE_ENV === "production",
-//       maxAge: 24 * 60 * 60 * 1000
-//     }
-//   })
-// );
-
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || "dev-secret-key-change-in-production",
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true,
     cookie: {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      secure: process.env.NODE_ENV === "production",
       maxAge: 24 * 60 * 60 * 1000
     }
   })
 );
+
 
 
 app.get("/health", (req, res) => {
