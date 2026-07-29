@@ -84,7 +84,7 @@ function buildDefaultMails(taskLike) {
     licenseMail: {
       ...getDefaultRecipients("LICENSE_REQUEST"),
       subject: "License request for new employee",
-      body: `Hello,\nWe need 1 Microsoft Business Premium licence with monthly payment on ${company} balance.`
+      body: `Hello,\nWe need 1 Microsoft Business Premium license with monthly payment on ${company} balance.`
     },
     assetsMail: {
       ...getDefaultRecipients("ASSETS_REQUEST"),

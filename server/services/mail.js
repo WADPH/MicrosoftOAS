@@ -75,7 +75,7 @@ function buildLicenseMail(task) {
     subject: String(task.licenseMail?.subject || "License request for new employee"),
     body: String(
       task.licenseMail?.body ||
-        `Hello,\nWe need 1 Microsoft Business Premium licence with monthly payment on ${task.company} balance.\n\nBest regards,\nIT Team`
+        `Hello,\nWe need 1 Microsoft Business Premium license with monthly payment on ${task.company} balance.\n\nBest regards,\nIT Team`
     )
   };
 }

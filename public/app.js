@@ -1222,7 +1222,7 @@ function buildDefaultLicenseSubject() {
 }
 
 function buildDefaultLicenseBody() {
-  return `Hello,\nWe need 1 Microsoft Business Premium licence with monthly payment on ${el("company").value.trim() || "not specified"} balance.\n\nBest regards,\nIT Team`;
+  return `Hello,\nWe need 1 Microsoft Business Premium license with monthly payment on ${el("company").value.trim() || "not specified"} balance.\n\nBest regards,\nIT Team`;
 }
 
 function buildDefaultAssetsSubject() {
