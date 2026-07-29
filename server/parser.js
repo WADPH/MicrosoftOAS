@@ -223,8 +223,8 @@ function buildCompanyMatchers() {
     .map((key) => ({
       key,
       patterns: parseEnvList(process.env[`COMPANY_MATCHER_${key}_PATTERNS`]),
-      domain: String(process.env[`COMPANY_MATCHER_${key}_DOMAIN`] || "").trim() || "ei-g.com",
-      code: normalizeCompanyCodeValue(process.env[`COMPANY_MATCHER_${key}_CODE`] || key) || key,
+      domain: String(process.env[`COMPANY_MATCHER_${key}_DOMAIN`] || "").trim(),
+      code: normalizeCompanyCodeValue(process.env[`COMPANY_MATCHER_${key}_CODE`]),
       tenant: normalizeTenantKey(process.env[`COMPANY_MATCHER_${key}_TENANT`] || defaultTenant),
       groups: String(process.env[`COMPANY_MATCHER_${key}_GROUPS`] || "")
         .split(",")
@@ -344,11 +344,15 @@ function inferCompanyInfo(company) {
   const matcher = findCompanyMatcher(company);
   if (matcher) {
     return {
-      domain: matcher.domain || "ei-g.com",
-      code: matcher.code || "EIG"
+      domain: matcher.domain,
+      code: matcher.code
     };
   }
-  return { domain: "ei-g.com", code: "EIG" };
+  return { domain: "", code: "" };
+}
+
+function getDefaultCompanyMatcher() {
+  return buildCompanyMatchers()[0] || null;
 }
 
 function getCompanyMatcherOptions() {
@@ -369,13 +373,6 @@ function getCompanyMatcherOptions() {
       seenCodes.add(code);
       codes.push(code);
     }
-  }
-
-  if (!seenDomains.has("ei-g.com")) {
-    domains.push("ei-g.com");
-  }
-  if (!seenCodes.has("EIG")) {
-    codes.push("EIG");
   }
 
   return { domains, codes };
@@ -614,6 +611,7 @@ module.exports = {
   resolveTenantKeyByEmail,
   findCompanyMatcher,
   findCompanyMatcherByHints,
+  getDefaultCompanyMatcher,
   getCompanyMatcherOptions,
   buildCompanyMatchers,
   generateEmail

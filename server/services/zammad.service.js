@@ -1,5 +1,6 @@
 const { graphRequest, getUserByEmail, findUserByDisplayName } = require("./graph");
 const { extractMessageText, flattenPayloadStrings } = require("../parser");
+const { getTenantKeysFromEnv } = require("./tenantConfig");
 
 function normalizeString(value) {
   return String(value || "").trim();
@@ -121,7 +122,7 @@ async function resolveTeamsUserEmail(senderPayload) {
   const senderInfo = getTeamsSenderInfo(senderPayload || {});
   console.log(`[Zammad] Resolving Teams sender across tenants: identifier=${senderInfo.identifier || "n/a"}, displayName=${senderInfo.displayName || "n/a"}`);
 
-  const tenants = process.env.TENANTS ? process.env.TENANTS.split(',').map((t) => t.trim()).filter(Boolean) : ["EIGROUP"];
+  const tenants = getTenantKeysFromEnv();
 
   const tryResolveEmail = async (identifier, tenantKey) => {
     if (!identifier) return null;
@@ -461,7 +462,10 @@ async function createOnboardingTicket(task, options = {}) {
     }
 
     if (!customer) {
-      const defaultCustomer = normalizeString(process.env.ZAMMAD_DEFAULT_CUSTOMER || "eigsystem@outlook.com");
+      const defaultCustomer = String(process.env.ZAMMAD_DEFAULT_CUSTOMER || "").trim();
+      if (!defaultCustomer) {
+        throw new Error("ZAMMAD_DEFAULT_CUSTOMER must be configured when the Teams sender cannot be resolved");
+      }
       console.log(`[Zammad] Using default customer: ${defaultCustomer}`);
       customer = await findUserByEmail(defaultCustomer);
       if (!customer) {
@@ -513,7 +517,10 @@ async function createOffboardingTicket(task, options = {}) {
     }
 
     if (!customer) {
-      const defaultCustomer = normalizeString(process.env.ZAMMAD_DEFAULT_CUSTOMER || "eigsystem@outlook.com");
+      const defaultCustomer = String(process.env.ZAMMAD_DEFAULT_CUSTOMER || "").trim();
+      if (!defaultCustomer) {
+        throw new Error("ZAMMAD_DEFAULT_CUSTOMER must be configured when the Teams sender cannot be resolved");
+      }
       console.log(`[Zammad] Using default customer: ${defaultCustomer}`);
       customer = await findUserByEmail(defaultCustomer);
       if (!customer) {

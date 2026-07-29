@@ -1,8 +1,8 @@
 const state = {
   tasks: [],
   selectedId: null,
-  companyDomains: ["eilink.az", "researchlab.digital", "ei-g.com"],
-  companyCodes: ["EILINK", "DRL", "EIG"],
+  companyDomains: [],
+  companyCodes: [],
   companyMatchers: [],
   availableManagers: [],
   currentUser: null,
@@ -1586,12 +1586,16 @@ function ensureSelectedTaskStillExists() {
 function renderDomainOptions(selected) {
   const select = el("companyDomain");
   if (!select) return;
-  if (!Array.isArray(state.companyDomains) || state.companyDomains.length === 0) {
-    state.companyDomains = ["eilink.az", "researchlab.digital", "ei-g.com"];
-  }
   select.innerHTML = "";
 
-  for (const domain of state.companyDomains) {
+  const domains = Array.isArray(state.companyDomains) ? state.companyDomains : [];
+  if (selected && !domains.includes(selected)) {
+    const option = document.createElement("option");
+    option.value = selected;
+    option.textContent = `${selected} (not configured)`;
+    select.appendChild(option);
+  }
+  for (const domain of domains) {
     const option = document.createElement("option");
     option.value = domain;
     option.textContent = domain;
@@ -1603,12 +1607,16 @@ function renderDomainOptions(selected) {
 function renderCompanyCodeOptions(selected) {
   const select = el("company");
   if (!select) return;
-  if (!Array.isArray(state.companyCodes) || state.companyCodes.length === 0) {
-    state.companyCodes = ["EILINK", "DRL", "EIG"];
-  }
   select.innerHTML = "";
 
-  for (const code of state.companyCodes) {
+  const codes = Array.isArray(state.companyCodes) ? state.companyCodes : [];
+  if (selected && !codes.includes(selected)) {
+    const option = document.createElement("option");
+    option.value = selected;
+    option.textContent = `${selected} (not configured)`;
+    select.appendChild(option);
+  }
+  for (const code of codes) {
     const option = document.createElement("option");
     option.value = code;
     option.textContent = code;
@@ -1820,8 +1828,8 @@ function selectTask(id) {
     passToggle.setAttribute("aria-label", "Show password");
   }
 
-  renderDomainOptions(task.companyDomain || state.companyDomains[2]);
-  renderCompanyCodeOptions(task.companyCode || state.companyCodes[2]);
+  renderDomainOptions(task.companyDomain || state.companyDomains[0] || "");
+  renderCompanyCodeOptions(task.companyCode || state.companyCodes[0] || "");
   state.licenseAvailability.available = null;
   renderLicenseControls(task);
 
@@ -2427,11 +2435,11 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
     <div class="grid2">
       <div class="field">
         <label class="companyKeyLabel" title="COMPANY_MATCHER_KEYS">Company Key</label>
-        <input class="companyMatcherKey" type="text" placeholder="EIG" />
+        <input class="companyMatcherKey" type="text" placeholder="COMPANY_KEY" />
       </div>
       <div class="field">
         <label class="companyCodeLabel">Code Name</label>
-        <input class="companyMatcherCode" type="text" placeholder="EIG" />
+        <input class="companyMatcherCode" type="text" placeholder="COMPANY_CODE" />
       </div>
       <div class="field">
         <label class="companyPatternsLabel">Patterns</label>
@@ -2439,7 +2447,7 @@ function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
       </div>
       <div class="field">
         <label class="companyDomainLabel">Domain</label>
-        <input class="companyMatcherDomain" type="text" placeholder="ei-g.com" />
+        <input class="companyMatcherDomain" type="text" placeholder="company.example.com" />
       </div>
       <div class="field">
         <label class="companyTenantLabel">Tenant</label>

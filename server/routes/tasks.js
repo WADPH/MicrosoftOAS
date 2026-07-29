@@ -5,11 +5,9 @@ const {
   getTaskById,
   addTask,
   updateTaskById,
-  deleteTaskById,
-  DOMAIN_OPTIONS,
-  COMPANY_CODE_OPTIONS
+  deleteTaskById
 } = require("../services/taskStore");
-const { getCompanyMatcherOptions, resolveTenantKeyByEmail, buildCompanyMatchers, findCompanyMatcherByHints } = require("../parser");
+const { getCompanyMatcherOptions, getDefaultCompanyMatcher, resolveTenantKeyByEmail, buildCompanyMatchers, findCompanyMatcherByHints } = require("../parser");
 const { getDefaultTenantKey } = require("../services/tenantConfig");
 const {
   getUserByEmail,
@@ -187,6 +185,12 @@ router.get("/", (req, res) => {
 
 router.post("/new", (req, res) => {
   const base = req.body || {};
+  const defaultCompany = getDefaultCompanyMatcher();
+  if (!defaultCompany?.code || !defaultCompany?.domain) {
+    return res.status(503).json({
+      error: "No company matcher is configured. Set COMPANY_MATCHER_KEYS and matching COMPANY_MATCHER_* values in .env."
+    });
+  }
   const result = addTask({
     taskType: "onboarding",
     status: "pending",
@@ -194,8 +198,8 @@ router.post("/new", (req, res) => {
     firstName: base.firstName || "",
     lastName: base.lastName || "",
     company: base.company || "",
-    companyCode: String(base.companyCode || "EIG").trim().toUpperCase(),
-    companyDomain: String(base.companyDomain || "ei-g.com").trim().toLowerCase(),
+    companyCode: String(base.companyCode || defaultCompany.code).trim().toUpperCase(),
+    companyDomain: String(base.companyDomain || defaultCompany.domain).trim().toLowerCase(),
     position: base.position || "",
     phone: base.phone || "",
     manager: base.manager || "",
@@ -464,6 +468,7 @@ router.patch("/:id", async (req, res) => {
   const allowedKeys = [
     "email",
     "company",
+    "companyCode",
     "companyDomain",
     "skipLicense",
     "licenseRequired",

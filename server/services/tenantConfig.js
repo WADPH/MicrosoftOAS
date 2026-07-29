@@ -26,10 +26,6 @@ function getTenantKeysFromEnv() {
 
   if (inferred.length > 0) return [...new Set(inferred)];
 
-  if (process.env.TENANT_ID && process.env.CLIENT_ID && process.env.CLIENT_SECRET) {
-    return ["EIGROUP"];
-  }
-
   return [];
 }
 
@@ -44,15 +40,9 @@ function getTenantConfig(tenantKey) {
     throw new Error("No tenant is configured. Set TENANTS and tenant credentials in .env.");
   }
 
-  const tenantId =
-    process.env[`${normalized}_TENANT_ID`] ||
-    (normalized === "EIGROUP" ? process.env.TENANT_ID : "");
-  const clientId =
-    process.env[`${normalized}_CLIENT_ID`] ||
-    (normalized === "EIGROUP" ? process.env.CLIENT_ID : "");
-  const clientSecret =
-    process.env[`${normalized}_CLIENT_SECRET`] ||
-    (normalized === "EIGROUP" ? process.env.CLIENT_SECRET : "");
+  const tenantId = process.env[`${normalized}_TENANT_ID`];
+  const clientId = process.env[`${normalized}_CLIENT_ID`];
+  const clientSecret = process.env[`${normalized}_CLIENT_SECRET`];
 
   if (!tenantId || !clientId || !clientSecret) {
     throw new Error(
@@ -74,4 +64,3 @@ module.exports = {
   getDefaultTenantKey,
   getTenantConfig
 };
-

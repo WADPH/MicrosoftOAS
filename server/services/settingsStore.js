@@ -31,8 +31,6 @@ const RESTRICTED_KEYS = [
   "ZAMMAD_API_TOKEN"
 ];
 
-const FALLBACK_LEGACY_TENANT_KEY = "EIGROUP";
-
 function normalizeNewlines(text) {
   return text.includes("\r\n") ? "\r\n" : "\n";
 }
@@ -284,10 +282,6 @@ function parseTenantsFromEnvMap(envMap) {
     .filter(Boolean);
   const uniqueInferred = [...new Set(inferred)].filter(Boolean);
   if (uniqueInferred.length > 0) return uniqueInferred;
-
-  if (envMap.TENANT_ID || envMap.CLIENT_ID || envMap.CLIENT_SECRET) {
-    return [FALLBACK_LEGACY_TENANT_KEY];
-  }
 
   return [];
 }

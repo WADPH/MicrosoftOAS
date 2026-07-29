@@ -5,10 +5,6 @@ const { findCompanyMatcherByHints } = require("../parser");
 
 const DB_PATH = path.join(__dirname, "..", "db", "tasks.json");
 const NOT_SPECIFIED = "not specified";
-const DEFAULT_COMPANY_DOMAIN = "ei-g.com";
-const DOMAIN_OPTIONS = ["eilink.az", "researchlab.digital", "ei-g.com"];
-const COMPANY_CODE_OPTIONS = ["EILINK", "DRL", "EIG"];
-const DEFAULT_COMPANY_CODE = "EIG";
 const TASK_TYPE_ONBOARDING = "onboarding";
 const TASK_TYPE_OFFBOARDING = "offboarding";
 const ONBOARDING_STATUSES = new Set(["pending", "processing", "unlicensed", "provisioned", "done", "error"]);
@@ -44,15 +40,11 @@ function normalizeString(value, fallback = NOT_SPECIFIED) {
 }
 
 function normalizeDomain(value) {
-  const clean = String(value || "").trim().toLowerCase();
-  if (!clean) return DEFAULT_COMPANY_DOMAIN;
-  return clean;
+  return String(value || "").trim().toLowerCase();
 }
 
 function normalizeCompanyCode(value) {
-  const clean = String(value || "").trim().toUpperCase();
-  if (!clean) return DEFAULT_COMPANY_CODE;
-  return clean;
+  return String(value || "").trim().toUpperCase();
 }
 
 function normalizeRecipientsGroup(value, fallback) {
@@ -371,8 +363,6 @@ module.exports = {
   deleteTaskById,
   normalizeTask,
   NOT_SPECIFIED,
-  DOMAIN_OPTIONS,
-  COMPANY_CODE_OPTIONS,
   TASK_TYPE_ONBOARDING,
   TASK_TYPE_OFFBOARDING
 };

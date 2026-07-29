@@ -220,7 +220,7 @@ router.post("/teams", async (req, res) => {
     const company = String(parsed.company || "").trim() || NOT_SPECIFIED;
     const companyCode = inferCompanyCode(company);
     
-    // Use company matcher to get correct tenant (e.g., DRL -> EIGROUP)
+    // Use company matcher to get correct tenant (e.g., SomeCompany -> SomeTenant)
     let tenantKey = null;
     if (company && company !== NOT_SPECIFIED) {
       const matcher = findCompanyMatcher(company);
