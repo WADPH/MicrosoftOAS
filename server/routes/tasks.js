@@ -29,7 +29,7 @@ const { sendLicenseRequestMail, sendAssetsMail } = require("../services/mail");
 const { isEnabled } = require("../services/snipeit.service");
 const { addAssignTask } = require("../services/snipeitAssignStore");
 const { processPendingAssignTasks } = require("../services/snipeitAssignWorker");
-const { listAgents, createManualOnboardingTicket } = require("../services/zammad.service");
+const { listAgents, createManualOnboardingTicket, createManualOffboardingTicket } = require("../services/zammad.service");
 
 const router = express.Router();
 
@@ -829,6 +829,29 @@ router.post("/:id/zammad/ticket", async (req, res) => {
     return res.json({ ok: true, ticket });
   } catch (error) {
     console.error(`[zammad] Manual ticket failed task=${task.id} owner=${ownerId}: ${error.message}`);
+    return res.status(500).json({ ok: false, error: error.message || "Failed to create ticket" });
+  }
+});
+
+router.post("/:id/zammad/offboarding-ticket", async (req, res) => {
+  const task = getTaskById(req.params.id);
+  if (!task) {
+    return res.status(404).json({ ok: false, error: "Task not found" });
+  }
+  if (task.taskType !== "offboarding") {
+    return res.status(400).json({ ok: false, error: "Manual offboarding ticket creation is only available for offboarding tasks" });
+  }
+  if (String(process.env.ZAMMAD_ENABLED || "").trim().toLowerCase() !== "true") {
+    return res.status(400).json({ ok: false, error: "Zammad integration is disabled" });
+  }
+
+  try {
+    console.log(`[zammad] Manual offboarding ticket create requested task=${task.id}`);
+    const ticket = await createManualOffboardingTicket(task);
+    console.log(`[zammad] Manual offboarding ticket created task=${task.id} ticket=${ticket?.id || "n/a"}`);
+    return res.json({ ok: true, ticket });
+  } catch (error) {
+    console.error(`[zammad] Manual offboarding ticket failed task=${task.id}: ${error.message}`);
     return res.status(500).json({ ok: false, error: error.message || "Failed to create ticket" });
   }
 });

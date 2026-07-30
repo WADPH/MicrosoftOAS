@@ -702,6 +702,7 @@ function setTaskMode(mode) {
   }
   renderCurrentTaskList();
   renderProgressView();
+  applyZammadUiVisibility();
   if (isOffboarding) {
     loadOffboardingTasks().catch(() => {});
   }
@@ -959,6 +960,7 @@ async function selectOffboardingTask(id) {
   updateTaskErrorView(task);
   state.offboardingSelectedId = id;
   renderCurrentTaskList();
+  applyZammadUiVisibility();
 
   const payload = task.offboarding || {};
   state.offboarding.selectedTenant = String(payload.tenant || payload.user?.tenant || state.offboarding.selectedTenant || "").trim();
@@ -2150,6 +2152,39 @@ async function createZammadOnboardingTicket() {
   }
 }
 
+async function createZammadOffboardingTicket() {
+  const taskId = state.offboardingSelectedId;
+  if (!taskId) {
+    el("offboardingStatus").textContent = "Select an offboarding task first";
+    return;
+  }
+
+  const task = state.offboardingTasks.find((item) => item.id === taskId);
+  const taskName = task?.fullName || "Task";
+  const button = el("createOffboardingZammadTicketBtn");
+  if (button) button.disabled = true;
+
+  openProgressModal("Creating Zammad Ticket", taskName);
+  updateProgressStatus("Creating ticket...");
+  try {
+    addProgressLog("Sending request to create Zammad ticket...", "info");
+    const result = await api(`/tasks/${encodeURIComponent(taskId)}/zammad/offboarding-ticket`, {
+      method: "POST"
+    });
+    const ticketId = result?.ticket?.id;
+    await loadOffboardingTasks();
+    showProgressComplete(`Zammad ticket created successfully${ticketId ? `: #${ticketId}` : ""}`);
+    addProgressLog(`✓ Ticket #${ticketId || "N/A"} created successfully`, "success");
+    el("offboardingStatus").textContent = `Zammad ticket created${ticketId ? `: #${ticketId}` : ""}`;
+  } catch (error) {
+    showProgressError(`Failed to create Zammad ticket: ${error.message}`);
+    addProgressLog(`✕ Error: ${error.message}`, "error");
+    el("offboardingStatus").textContent = `Create ticket failed: ${error.message}`;
+  } finally {
+    applyZammadUiVisibility();
+  }
+}
+
 async function loadSnipeitConfig() {
   try {
     const data = await api("/snipeit/config");
@@ -2192,12 +2227,19 @@ function applySnipeitUiVisibility() {
 }
 
 function applyZammadUiVisibility() {
-  const btn = el("createZammadTicketBtn");
-  if (!btn) return;
   const enabled = Boolean(state.zammadEnabled);
-  const hasTask = Boolean(state.selectedId);
-  btn.classList.toggle("hidden", !enabled);
-  btn.disabled = !enabled || !hasTask;
+  const onboardingBtn = el("createZammadTicketBtn");
+  if (onboardingBtn) {
+    const hasTask = Boolean(state.selectedId);
+    onboardingBtn.classList.toggle("hidden", !enabled);
+    onboardingBtn.disabled = !enabled || !hasTask;
+  }
+  const offboardingBtn = el("createOffboardingZammadTicketBtn");
+  if (offboardingBtn) {
+    const hasTask = Boolean(state.offboardingSelectedId);
+    offboardingBtn.classList.toggle("hidden", !enabled);
+    offboardingBtn.disabled = !enabled || !hasTask;
+  }
 }
 
 function renderSelectedSnipeitAssets(task = getCurrentTask()) {
@@ -3704,6 +3746,13 @@ function setupActions() {
   if (createZammadTicketBtn) {
     createZammadTicketBtn.onclick = async () => {
       await openZammadAgentModal();
+    };
+  }
+
+  const createOffboardingZammadTicketBtn = el("createOffboardingZammadTicketBtn");
+  if (createOffboardingZammadTicketBtn) {
+    createOffboardingZammadTicketBtn.onclick = async () => {
+      await createZammadOffboardingTicket();
     };
   }
 

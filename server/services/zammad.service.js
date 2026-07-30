@@ -545,11 +545,17 @@ async function createOffboardingTicket(task, options = {}) {
       }
     };
 
-    await createTicket(ticketData);
+    return await createTicket(ticketData);
   } catch (error) {
     console.error(`[Zammad] Failed to create offboarding ticket: ${error.message}`);
-    // Don't throw - this is non-blocking
+    if (options.throwOnError) throw error;
+    // Don't throw for asynchronous webhook requests.
   }
+}
+
+async function createManualOffboardingTicket(task) {
+  console.log(`[Zammad] Manual offboarding ticket requested for task=${task.id || "n/a"}`);
+  return createOffboardingTicket(task, { throwOnError: true });
 }
 
 module.exports = {
@@ -557,6 +563,7 @@ module.exports = {
   createTicket,
   listAgents,
   createManualOnboardingTicket,
+  createManualOffboardingTicket,
   resolveTeamsUserEmail,
   createOnboardingTicket,
   createOffboardingTicket
