@@ -163,6 +163,7 @@ function normalizeTask(task = {}) {
     position: normalizeString(task.position),
     phone: normalizeString(task.phone),
     manager: normalizeString(task.manager),
+    note: String(task.note || "").trim(),
     userTempPass: String(task.userTempPass ?? process.env.USER_TEMP_PASS ?? "").trim(),
     errorMessage: String(task.errorMessage || "").trim(),
     startDate: normalizeString(task.startDate),

@@ -127,6 +127,8 @@ router.post("/tasks", (req, res) => {
     return res.status(400).json({ ok: false, error: "Email To is required when license cancellation email is enabled" });
   }
 
+  const note = String(payload.note || "").trim();
+
   if (payload.taskId) {
     const existing = getTaskById(String(payload.taskId));
     if (!existing) {
@@ -138,6 +140,7 @@ router.post("/tasks", (req, res) => {
       fullName: String(offboarding.user?.displayName || offboarding.email || existing.fullName || ""),
       company: offboarding.company || existing.company || "",
       email: offboarding.email,
+      note,
       offboarding
     });
     return res.json({ ok: true, task: updated });
@@ -151,6 +154,7 @@ router.post("/tasks", (req, res) => {
       company: offboarding.company || "",
       email: offboarding.email,
       startDate: new Date().toISOString(),
+      note,
       offboarding
     },
     { skipDuplicate: true }

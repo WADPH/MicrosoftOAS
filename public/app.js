@@ -958,6 +958,7 @@ async function selectOffboardingTask(id) {
   if (!task) return;
   renderTaskStatusOptions(task.status, "offboarding");
   updateTaskErrorView(task);
+  setInputValue("offboardingNote", task.note || "");
   state.offboardingSelectedId = id;
   renderCurrentTaskList();
   applyZammadUiVisibility();
@@ -1169,6 +1170,7 @@ function buildOffboardingPayload(validateForExecute = false) {
     tenant,
     user,
     email: user.userPrincipalName || user.mail,
+    note: String(el("offboardingNote")?.value || "").trim(),
     deleteUser,
     sendLicenseCancelEmail,
     licenseCancelMail: {
@@ -1821,6 +1823,7 @@ function selectTask(id) {
   setInputValue("position", task.position || "");
   setInputValue("phone", task.phone || "");
   setInputValue("manager", task.manager || "");
+  setInputValue("note", task.note || "");
   setInputValue("userTempPass", task.userTempPass || "");
   const passInput = el("userTempPass");
   const passToggle = el("toggleUserTempPassBtn");
@@ -2939,6 +2942,7 @@ function buildPatchPayload() {
     position: el("position").value.trim(),
     phone: el("phone").value.trim(),
     manager: el("manager").value.trim(),
+    note: el("note").value.trim(),
     userTempPass: el("userTempPass").value,
     skipLicense: el("skipLicense").checked,
     licenseRequired: el("licenseRequired").checked,
