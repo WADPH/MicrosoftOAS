@@ -712,6 +712,43 @@ body[data-theme="dark"] .iconBtn .moon {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 25%, transparent);
 }
 
+.mentionList {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.mentionRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: var(--input);
+}
+
+.mentionRowName {
+  font-size: 13px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mentionRowRemove {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--muted);
+}
+
 .inlineIconBtn {
   width: 34px;
   height: 34px;

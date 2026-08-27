@@ -523,6 +523,7 @@
             <li><code>SNIPEIT_API_KEY — API key from Snipe-IT</code></li>
             <li><code>ZAMMAD_URL — Base URL of your Zammad instance</code></li>
             <li><code>ZAMMAD_API_TOKEN — API token from Zammad</code></li>
+            <li><code>TEAMS_NOTIFICATIONS_WEBHOOK_URL — Power Automate flow trigger URL</code></li>
           </ul>
         </div>
 
@@ -630,6 +631,24 @@
           </div>
           <div id="snipeitSettingsDisabled" class="companyMatcherEmpty">
             Snipe-IT is disabled. Enable it to use asset discovery and deferred assignment.
+          </div>
+        </div>
+
+        <div class="settingsSection">
+          <h3>Teams Notifications</h3>
+          <p class="metaSmall">Post a Teams channel notification with @mentions when a task is created from the HR page.</p>
+          <div class="grid2">
+            <div class="field">
+              <label class="switch">
+                <input id="settingTeamsNotificationsEnabled" type="checkbox" />
+                <span class="switchTrack" aria-hidden="true"><span class="switchThumb"></span></span>
+                <span class="switchText">Enable Teams Notifications</span>
+              </label>
+            </div>
+          </div>
+          <div class="settingsRestricted">
+            <div class="restrictedTitle" title="TEAMS_NOTIFICATIONS_WEBHOOK_URL">Teams Webhook URL</div>
+            <p class="metaSmall">This value must be configured in <code>.env</code> for security reasons.</p>
           </div>
         </div>
 

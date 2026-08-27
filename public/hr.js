@@ -1,7 +1,8 @@
 const state = {
   companies: [],
   companiesByKey: new Map(),
-  pickerTarget: null, // "manager" | "employee"
+  pickerTarget: null, // "manager" | "employee" | "mention"
+  pickerMentionForm: null, // "onboarding" | "offboarding" - only used when pickerTarget === "mention"
   pickerTenant: "",
   pickerRequestId: 0,
   pickerLoading: false,
@@ -10,7 +11,10 @@ const state = {
   selectedManager: null,
   selectedEmployee: null,
   sessionWatchTimer: null,
-  sessionExpiredNotified: false
+  sessionExpiredNotified: false,
+  teamsNotificationsEnabled: false,
+  onboardingMentions: [],
+  offboardingMentions: []
 };
 
 function byId(id) {
@@ -149,8 +153,77 @@ async function loadCompanies() {
   const data = await api("/hr/companies");
   state.companies = Array.isArray(data.companies) ? data.companies : [];
   state.companiesByKey = new Map(state.companies.map((company) => [company.key, company]));
+  state.teamsNotificationsEnabled = Boolean(data.teamsNotificationsEnabled);
   populateCompanySelect(byId("hrOnboardingCompany"));
   populateCompanySelect(byId("hrOffboardingCompany"));
+  applyTeamsUiVisibility();
+}
+
+function applyTeamsUiVisibility() {
+  byId("hrOnboardingTeamsSection").classList.toggle("hidden", !state.teamsNotificationsEnabled);
+  byId("hrOffboardingTeamsSection").classList.toggle("hidden", !state.teamsNotificationsEnabled);
+}
+
+function updateOnboardingTeamsPreview() {
+  const first = byId("hrFirstName").value.trim();
+  const last = byId("hrLastName").value.trim();
+  const name = [first, last].filter(Boolean).join(" ");
+  byId("hrOnboardingTeamsPreview").textContent = `Onboarding - ${name}`;
+}
+
+function updateOffboardingTeamsPreview() {
+  const label = state.selectedEmployee ? state.selectedEmployee.displayName || state.selectedEmployee.mail || "" : "";
+  byId("hrOffboardingTeamsPreview").textContent = `Offboarding - ${label}`;
+}
+
+function renderMentionRows(formType) {
+  const containerId = formType === "onboarding" ? "hrOnboardingMentions" : "hrOffboardingMentions";
+  const rows = formType === "onboarding" ? state.onboardingMentions : state.offboardingMentions;
+  const container = byId(containerId);
+  container.innerHTML = "";
+
+  rows.forEach((row, index) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "mentionRow";
+
+    const nameEl = document.createElement("div");
+    nameEl.className = "mentionRowName";
+    nameEl.title = row.name;
+    nameEl.textContent = row.name;
+
+    const textInput = document.createElement("input");
+    textInput.type = "text";
+    textInput.placeholder = "Message after mention";
+    textInput.value = row.text;
+    textInput.addEventListener("input", (event) => {
+      row.text = event.target.value;
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "mentionRowRemove";
+    removeBtn.setAttribute("aria-label", "Remove mention");
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => {
+      rows.splice(index, 1);
+      renderMentionRows(formType);
+    });
+
+    rowEl.appendChild(nameEl);
+    rowEl.appendChild(textInput);
+    rowEl.appendChild(removeBtn);
+    container.appendChild(rowEl);
+  });
+}
+
+function addMentionRow(formType, user) {
+  const rows = formType === "onboarding" ? state.onboardingMentions : state.offboardingMentions;
+  rows.push({
+    id: user.id || "",
+    name: user.displayName || user.mail || "Unnamed user",
+    text: ""
+  });
+  renderMentionRows(formType);
 }
 
 function resetManagerSelection() {
@@ -163,6 +236,7 @@ function resetEmployeeSelection() {
   const box = byId("hrOffboardingEmployee");
   box.textContent = "Not selected";
   box.classList.add("managerEmpty");
+  updateOffboardingTeamsPreview();
 }
 
 function onOnboardingCompanyChange() {
@@ -177,14 +251,21 @@ function onOffboardingCompanyChange() {
   resetEmployeeSelection();
 }
 
-function openUserModal(target) {
-  const companyKey = target === "manager" ? byId("hrOnboardingCompany").value : byId("hrOffboardingCompany").value;
-  const company = state.companiesByKey.get(companyKey);
-  if (!company) return;
-
+function openUserModal(target, mentionForm) {
   state.pickerTarget = target;
-  state.pickerTenant = company.tenant;
-  byId("hrUserModalTitle").textContent = target === "manager" ? "Choose Line Manager" : "Choose Employee";
+  state.pickerMentionForm = mentionForm || null;
+
+  if (target === "mention") {
+    state.pickerTenant = "";
+    byId("hrUserModalTitle").textContent = "Add Mention";
+  } else {
+    const companyKey = target === "manager" ? byId("hrOnboardingCompany").value : byId("hrOffboardingCompany").value;
+    const company = state.companiesByKey.get(companyKey);
+    if (!company) return;
+    state.pickerTenant = company.tenant;
+    byId("hrUserModalTitle").textContent = target === "manager" ? "Choose Line Manager" : "Choose Employee";
+  }
+
   byId("hrUserSearch").value = "";
   byId("hrUserModalError").textContent = "";
   state.pickerUsers = [];
@@ -209,7 +290,10 @@ async function searchPickerUsers(search) {
   state.pickerLoading = true;
   renderUserModalList();
   try {
-    const data = await api(`/hr/users?tenant=${encodeURIComponent(state.pickerTenant)}&search=${encodeURIComponent(search || "")}`);
+    const endpoint = state.pickerTarget === "mention"
+      ? `/hr/mention-users?search=${encodeURIComponent(search || "")}`
+      : `/hr/users?tenant=${encodeURIComponent(state.pickerTenant)}&search=${encodeURIComponent(search || "")}`;
+    const data = await api(endpoint);
     if (requestId !== state.pickerRequestId) return;
     state.pickerUsers = Array.isArray(data.users) ? data.users : [];
     byId("hrUserModalError").textContent = "";
@@ -277,6 +361,9 @@ function selectPickedUser(user) {
     box.textContent = `${user.displayName || "Unnamed user"}${user.mail ? ` · ${user.mail}` : ""}`;
     box.classList.remove("managerEmpty");
     box.classList.remove("fieldInvalid");
+    updateOffboardingTeamsPreview();
+  } else if (state.pickerTarget === "mention") {
+    addMentionRow(state.pickerMentionForm, user);
   }
   closeUserModal();
 }
@@ -348,7 +435,10 @@ async function submitOnboarding() {
     position: byId("hrPosition").value.trim(),
     phone: byId("hrPhone").value.trim(),
     manager: byId("hrManager").value.trim(),
-    startDate: byId("hrStartDate").value
+    startDate: byId("hrStartDate").value,
+    teamsMentions: state.onboardingMentions
+      .filter((row) => row.text.trim())
+      .map((row) => ({ id: row.id, name: row.name, text: row.text.trim() }))
   };
 
   const requiredFields = [
@@ -384,6 +474,9 @@ async function submitOnboarding() {
     byId("hrStartDate").value = "";
     byId("hrChooseManagerBtn").disabled = true;
     resetManagerSelection();
+    state.onboardingMentions = [];
+    renderMentionRows("onboarding");
+    updateOnboardingTeamsPreview();
   } catch (error) {
     statusEl.textContent = `Failed to create task: ${error.message}`;
   } finally {
@@ -416,7 +509,10 @@ async function submitOffboarding() {
   const payload = {
     companyKey,
     user: state.selectedEmployee,
-    startDate
+    startDate,
+    teamsMentions: state.offboardingMentions
+      .filter((row) => row.text.trim())
+      .map((row) => ({ id: row.id, name: row.name, text: row.text.trim() }))
   };
 
   const submitBtn = byId("hrOffboardingSubmitBtn");
@@ -429,6 +525,8 @@ async function submitOffboarding() {
     byId("hrOffboardingDate").value = "";
     byId("hrChooseEmployeeBtn").disabled = true;
     resetEmployeeSelection();
+    state.offboardingMentions = [];
+    renderMentionRows("offboarding");
   } catch (error) {
     statusEl.textContent = `Failed to create task: ${error.message}`;
   } finally {
@@ -452,9 +550,16 @@ function init() {
 
   byId("hrChooseManagerBtn").addEventListener("click", () => openUserModal("manager"));
   byId("hrChooseEmployeeBtn").addEventListener("click", () => openUserModal("employee"));
+  byId("hrAddOnboardingMentionBtn").addEventListener("click", () => openUserModal("mention", "onboarding"));
+  byId("hrAddOffboardingMentionBtn").addEventListener("click", () => openUserModal("mention", "offboarding"));
   byId("hrUserModalClose").addEventListener("click", closeUserModal);
   byId("hrUserModalOverlay").addEventListener("click", closeUserModal);
   byId("hrUserSearch").addEventListener("input", (event) => debouncedSearch(event.target.value));
+
+  byId("hrFirstName").addEventListener("input", updateOnboardingTeamsPreview);
+  byId("hrLastName").addEventListener("input", updateOnboardingTeamsPreview);
+  updateOnboardingTeamsPreview();
+  updateOffboardingTeamsPreview();
 
   byId("hrOnboardingSubmitBtn").addEventListener("click", submitOnboarding);
   byId("hrOffboardingSubmitBtn").addEventListener("click", submitOffboarding);

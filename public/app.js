@@ -2815,6 +2815,7 @@ function fillSettingsForm(values = {}) {
   el("settingSnipeitMonitorPrefix").value = String(values.SNIPEIT_MONITOR_PREFIX || state.snipeitConfig.monitorPrefix || "MN-");
   el("settingZammadEnabled").checked = String(values.ZAMMAD_ENABLED || "false").toLowerCase() === "true";
   el("settingZammadDefaultCustomer").value = String(values.ZAMMAD_DEFAULT_CUSTOMER || "");
+  el("settingTeamsNotificationsEnabled").checked = String(values.TEAMS_NOTIFICATIONS_ENABLED || "false").toLowerCase() === "true";
   const companies = values.companies || values.companyMatcher || [];
   renderCompanyMatcher(companies, values.tenants || []);
   state.snipeitConfig.enabled = el("settingSnipeitEnabled").checked;
@@ -2835,6 +2836,7 @@ function readSettingsForm() {
     SNIPEIT_MONITOR_PREFIX: el("settingSnipeitMonitorPrefix").value.trim(),
     ZAMMAD_ENABLED: String(Boolean(el("settingZammadEnabled").checked)),
     ZAMMAD_DEFAULT_CUSTOMER: el("settingZammadDefaultCustomer").value.trim(),
+    TEAMS_NOTIFICATIONS_ENABLED: String(Boolean(el("settingTeamsNotificationsEnabled").checked)),
     companyMatcher: companyMatcher.map((row) => ({
       key: normalizeCompanyMatcherKey(row.key),
       patterns: row.patterns

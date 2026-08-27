@@ -14,7 +14,8 @@ const EDITABLE_KEYS = [
   "SNIPEIT_LAPTOP_PREFIX",
   "SNIPEIT_MONITOR_PREFIX",
   "ZAMMAD_ENABLED",
-  "ZAMMAD_DEFAULT_CUSTOMER"
+  "ZAMMAD_DEFAULT_CUSTOMER",
+  "TEAMS_NOTIFICATIONS_ENABLED"
 ];
 
 const RESTRICTED_KEYS = [
@@ -28,7 +29,8 @@ const RESTRICTED_KEYS = [
   "SNIPEIT_URL",
   "SNIPEIT_API_KEY",
   "ZAMMAD_URL",
-  "ZAMMAD_API_TOKEN"
+  "ZAMMAD_API_TOKEN",
+  "TEAMS_NOTIFICATIONS_WEBHOOK_URL"
 ];
 
 function normalizeNewlines(text) {
@@ -254,6 +256,35 @@ function validateUpdates(updates) {
       throw error;
     }
   }
+  if (Object.prototype.hasOwnProperty.call(updates, "TEAMS_NOTIFICATIONS_ENABLED")) {
+    const value = String(updates.TEAMS_NOTIFICATIONS_ENABLED || "").trim().toLowerCase();
+    if (!["true", "false"].includes(value)) {
+      const error = new Error("TEAMS_NOTIFICATIONS_ENABLED must be true or false");
+      error.status = 400;
+      throw error;
+    }
+    if (value === "true") {
+      const url = String(process.env.TEAMS_NOTIFICATIONS_WEBHOOK_URL || "").trim();
+      if (!url) {
+        const error = new Error("TEAMS_NOTIFICATIONS_WEBHOOK_URL must be configured in .env before enabling");
+        error.status = 400;
+        throw error;
+      }
+      let parsed;
+      try {
+        parsed = new URL(url);
+      } catch {
+        const error = new Error("TEAMS_NOTIFICATIONS_WEBHOOK_URL must be a valid URL");
+        error.status = 400;
+        throw error;
+      }
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        const error = new Error("TEAMS_NOTIFICATIONS_WEBHOOK_URL must use http or https protocol");
+        error.status = 400;
+        throw error;
+      }
+    }
+  }
 }
 
 function ensureAllowedPayloadKeys(payload) {
@@ -404,6 +435,7 @@ function getCurrentSettings() {
     SNIPEIT_MONITOR_PREFIX: normalizeEnvStoredValue(envMap.SNIPEIT_MONITOR_PREFIX || process.env.SNIPEIT_MONITOR_PREFIX || "MN-") || "MN-",
     ZAMMAD_ENABLED: normalizeEnvStoredValue(envMap.ZAMMAD_ENABLED || process.env.ZAMMAD_ENABLED || "false") || "false",
     ZAMMAD_DEFAULT_CUSTOMER: normalizeEnvStoredValue(envMap.ZAMMAD_DEFAULT_CUSTOMER || process.env.ZAMMAD_DEFAULT_CUSTOMER || ""),
+    TEAMS_NOTIFICATIONS_ENABLED: normalizeEnvStoredValue(envMap.TEAMS_NOTIFICATIONS_ENABLED || process.env.TEAMS_NOTIFICATIONS_ENABLED || "false") || "false",
     tenants,
     companies: parseCompanyMatchersFromEnvMap(envMap, tenants),
     companyMatcher: parseCompanyMatchersFromEnvMap(envMap, tenants)

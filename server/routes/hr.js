@@ -3,6 +3,8 @@ const { buildCompanyMatchers, normalizeNamePart } = require("../parser");
 const { listUsers } = require("../services/graph");
 const { addTask } = require("../services/taskStore");
 const { buildOffboardingTaskPayload } = require("../services/offboardingPayload");
+const { getTenantKeysFromEnv } = require("../services/tenantConfig");
+const { isEnabled: isTeamsNotificationsEnabled, sendTeamsNotification } = require("../services/teamsNotify");
 
 const router = express.Router();
 
@@ -19,6 +21,17 @@ function buildOnboardingEmail(firstName, lastName, domain) {
   return `${local}@${domain}`;
 }
 
+function normalizeTeamsMentions(rawMentions) {
+  if (!Array.isArray(rawMentions)) return [];
+  return rawMentions
+    .map((row) => ({
+      id: String(row?.id || "").trim(),
+      name: String(row?.name || "").trim(),
+      text: String(row?.text || "").trim()
+    }))
+    .filter((row) => row.id && row.name && row.text);
+}
+
 router.get("/companies", (req, res) => {
   const companies = buildCompanyMatchers().map((matcher) => ({
     key: matcher.key,
@@ -26,7 +39,38 @@ router.get("/companies", (req, res) => {
     domain: matcher.domain,
     tenant: matcher.tenant
   }));
-  res.json({ ok: true, companies });
+  res.json({ ok: true, companies, teamsNotificationsEnabled: isTeamsNotificationsEnabled() });
+});
+
+router.get("/mention-users", async (req, res) => {
+  try {
+    const search = String(req.query.search || "").trim();
+    const tenants = getTenantKeysFromEnv();
+    const results = await Promise.all(
+      tenants.map((tenant) =>
+        listUsers(search, 15, tenant, { excludeGuests: true, excludeDisabled: true })
+          .then((users) => users.map((user) => ({ ...user, tenant })))
+          .catch((error) => {
+            console.warn(`[hr] mention-users search failed for tenant ${tenant}: ${error.message}`);
+            return [];
+          })
+      )
+    );
+    const users = results
+      .flat()
+      .slice(0, 50)
+      .map((user) => ({
+        id: String(user.id || "").trim(),
+        displayName: String(user.displayName || "").trim(),
+        mail: String(user.mail || "").trim(),
+        userPrincipalName: String(user.userPrincipalName || "").trim(),
+        tenant: user.tenant
+      }));
+    res.json({ ok: true, users });
+  } catch (error) {
+    console.error("[hr] mention-users search failed", error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
 });
 
 router.get("/users", async (req, res) => {
@@ -102,6 +146,9 @@ router.post("/onboarding", (req, res) => {
     return res.status(409).json({ ok: false, error: "A task for this employee and date already exists" });
   }
 
+  const teamsMentions = normalizeTeamsMentions(body.teamsMentions);
+  sendTeamsNotification({ title: `Onboarding - ${fullName}`, mentions: teamsMentions }).catch(() => {});
+
   res.status(201).json({ ok: true, task: result.task });
 });
 
@@ -144,6 +191,10 @@ router.post("/offboarding", (req, res) => {
     },
     { skipDuplicate: true }
   );
+
+  const teamsMentions = normalizeTeamsMentions(body.teamsMentions);
+  const title = `Offboarding - ${user.displayName || offboarding.email || ""}`;
+  sendTeamsNotification({ title, mentions: teamsMentions }).catch(() => {});
 
   res.status(201).json({ ok: true, task: result.task });
 });
