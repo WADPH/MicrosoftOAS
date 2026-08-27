@@ -703,6 +703,10 @@ body[data-theme="dark"] .iconBtn .moon {
   min-width: 160px;
 }
 
+.completeIcon.hrSuccessIcon {
+  color: #16a34a;
+}
+
 .inlineIconBtn {
   width: 34px;
   height: 34px;

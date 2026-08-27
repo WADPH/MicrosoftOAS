@@ -11,10 +11,10 @@
     <div class="container">
       <div class="topbar">
         <div class="topbarLeft">
-          <h1 class="topbarBrand">
+          <a href="/" class="topbarBrand" aria-label="Home">
             <img class="logoLight" src="/images/oas-light.png" alt="OAS" />
             <img class="logoDark" src="/images/oas.png" alt="OAS" />
-          </h1>
+          </a>
         </div>
         <div class="topbarRight">
           <div class="toolbarGroup">
@@ -76,7 +76,7 @@
             </div>
             <div class="field">
               <label for="hrStartDate">Date</label>
-              <input id="hrStartDate" type="date" />
+              <input id="hrStartDate" type="date" autocomplete="off" />
             </div>
           </div>
 
@@ -115,7 +115,7 @@
 
           <div class="field">
             <label for="hrOffboardingDate">Date</label>
-            <input id="hrOffboardingDate" type="date" />
+            <input id="hrOffboardingDate" type="date" autocomplete="off" />
           </div>
 
           <div class="actions">
@@ -143,6 +143,20 @@
         </div>
         <div id="hrUserList" class="managerList"></div>
         <p id="hrUserModalError" class="meta"></p>
+      </div>
+    </div>
+
+    <div id="hrSuccessModal" class="modal hidden" aria-hidden="true">
+      <div id="hrSuccessModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="hrSuccessModalTitle">
+        <div class="progressComplete">
+          <div class="completeIcon hrSuccessIcon">✓</div>
+          <h4 id="hrSuccessModalTitle">Task Created</h4>
+          <p id="hrSuccessModalMessage" class="metaSmall"></p>
+        </div>
+        <div class="actions">
+          <button id="hrSuccessModalClose" type="button" class="primary pushRight">Close</button>
+        </div>
       </div>
     </div>
 

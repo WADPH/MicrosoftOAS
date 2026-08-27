@@ -1008,8 +1008,7 @@ async function selectOffboardingTask(id) {
   const shouldAutoLoadRelatedData =
     Boolean(state.offboarding.selectedUser) &&
     state.offboarding.relatedAccounts.length === 0 &&
-    state.offboarding.snipeitAssets.length === 0 &&
-    (!payload.tenant || !payload.email);
+    state.offboarding.snipeitAssets.length === 0;
 
   if (shouldAutoLoadRelatedData) {
     try {

@@ -207,6 +207,42 @@ function selectPickedUser(user) {
   closeUserModal();
 }
 
+function setupDatePicker(input) {
+  if (typeof input.showPicker !== "function") return;
+  input.readOnly = true;
+  const open = () => {
+    try {
+      input.showPicker();
+    } catch {
+      // ignore - unsupported in this context
+    }
+  };
+  input.addEventListener("click", open);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Tab" || event.key === "Shift") return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      open();
+      return;
+    }
+    event.preventDefault();
+  });
+}
+
+function showHrSuccess(title, message) {
+  byId("hrSuccessModalTitle").textContent = title;
+  byId("hrSuccessModalMessage").textContent = message;
+  const modal = byId("hrSuccessModal");
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeHrSuccessModal() {
+  const modal = byId("hrSuccessModal");
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+}
+
 function debouncedSearch(value) {
   if (state.pickerDebounceTimer) {
     clearTimeout(state.pickerDebounceTimer);
@@ -238,7 +274,7 @@ async function submitOnboarding() {
   submitBtn.disabled = true;
   try {
     await api("/hr/onboarding", { method: "POST", body: JSON.stringify(payload) });
-    statusEl.textContent = "Onboarding task created.";
+    showHrSuccess("Onboarding Task Created", `${payload.firstName} ${payload.lastName} has been submitted for onboarding.`);
     byId("hrFirstName").value = "";
     byId("hrLastName").value = "";
     byId("hrOnboardingCompany").value = "";
@@ -275,7 +311,8 @@ async function submitOffboarding() {
   submitBtn.disabled = true;
   try {
     await api("/hr/offboarding", { method: "POST", body: JSON.stringify(payload) });
-    statusEl.textContent = "Offboarding task created.";
+    const employeeLabel = state.selectedEmployee.displayName || state.selectedEmployee.mail || "The employee";
+    showHrSuccess("Offboarding Task Created", `${employeeLabel} has been submitted for offboarding.`);
     byId("hrOffboardingCompany").value = "";
     byId("hrOffboardingDate").value = "";
     byId("hrChooseEmployeeBtn").disabled = true;
@@ -308,6 +345,12 @@ function init() {
 
   byId("hrOnboardingSubmitBtn").addEventListener("click", submitOnboarding);
   byId("hrOffboardingSubmitBtn").addEventListener("click", submitOffboarding);
+
+  byId("hrSuccessModalClose").addEventListener("click", closeHrSuccessModal);
+  byId("hrSuccessModalOverlay").addEventListener("click", closeHrSuccessModal);
+
+  setupDatePicker(byId("hrStartDate"));
+  setupDatePicker(byId("hrOffboardingDate"));
 
   loadCompanies().catch((error) => {
     byId("hrOnboardingStatus").textContent = `Failed to load companies: ${error.message}`;
