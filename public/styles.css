@@ -707,6 +707,11 @@ body[data-theme="dark"] .iconBtn .moon {
   color: #16a34a;
 }
 
+.fieldInvalid {
+  border: 1px solid var(--danger);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+
 .inlineIconBtn {
   width: 34px;
   height: 34px;

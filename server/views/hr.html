@@ -19,7 +19,6 @@
         <div class="topbarRight">
           <div class="toolbarGroup">
             <button id="hrProgressBtn" class="ghost small" type="button">Progress</button>
-            <button id="hrLogoutBtn" class="ghost small" type="button">Logout</button>
             <div class="toolbarLabel">Theme</div>
             <button id="themeBtn" class="iconBtn" type="button" aria-label="Toggle theme" title="Toggle theme">
               <span class="icon sun" aria-hidden="true">
@@ -33,6 +32,15 @@
                   <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8Z" />
                 </svg>
               </span>
+            </button>
+          </div>
+          <div class="toolbarGroup userGroup">
+            <div class="toolbarLabel" id="hrUserEmail">-</div>
+            <div class="separator"></div>
+            <button id="hrLogoutBtn" class="logoutBtn" type="button" title="Logout">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5m5 5H9" />
+              </svg>
             </button>
           </div>
         </div>

@@ -268,29 +268,35 @@ function renderUserModalList() {
 function selectPickedUser(user) {
   if (state.pickerTarget === "manager") {
     state.selectedManager = user;
-    byId("hrManager").value = user.displayName || user.mail || "";
+    const managerInput = byId("hrManager");
+    managerInput.value = user.displayName || user.mail || "";
+    managerInput.classList.remove("fieldInvalid");
   } else if (state.pickerTarget === "employee") {
     state.selectedEmployee = user;
     const box = byId("hrOffboardingEmployee");
     box.textContent = `${user.displayName || "Unnamed user"}${user.mail ? ` · ${user.mail}` : ""}`;
     box.classList.remove("managerEmpty");
+    box.classList.remove("fieldInvalid");
   }
   closeUserModal();
 }
 
 function setupDatePicker(input) {
-  if (typeof input.showPicker !== "function") return;
-  input.readOnly = true;
+  const supportsShowPicker = typeof input.showPicker === "function";
   const open = () => {
+    if (!supportsShowPicker) return;
     try {
       input.showPicker();
     } catch {
-      // ignore - unsupported in this context
+      // ignore - browser refused (e.g. not a user gesture)
     }
   };
+  // Note: the input is intentionally NOT set readOnly - showPicker() throws
+  // InvalidStateError on a readonly/disabled control, which silently blocked
+  // the picker from ever opening. Manual typing is blocked via keydown instead.
   input.addEventListener("click", open);
   input.addEventListener("keydown", (event) => {
-    if (event.key === "Tab" || event.key === "Shift") return;
+    if (event.key === "Tab" || event.key === "Shift" || event.key === "Escape") return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       open();
@@ -312,6 +318,15 @@ function closeHrSuccessModal() {
   const modal = byId("hrSuccessModal");
   modal.classList.add("hidden");
   modal.setAttribute("aria-hidden", "true");
+}
+
+function markFieldValidity(field, isValid) {
+  if (!field) return;
+  field.classList.toggle("fieldInvalid", !isValid);
+}
+
+function clearFieldInvalid(event) {
+  event.target.classList.remove("fieldInvalid");
 }
 
 function debouncedSearch(value) {
@@ -336,7 +351,22 @@ async function submitOnboarding() {
     startDate: byId("hrStartDate").value
   };
 
-  if (!payload.firstName || !payload.lastName || !payload.companyKey || !payload.position || !payload.phone || !payload.manager || !payload.startDate) {
+  const requiredFields = [
+    [byId("hrFirstName"), payload.firstName],
+    [byId("hrLastName"), payload.lastName],
+    [byId("hrOnboardingCompany"), payload.companyKey],
+    [byId("hrPosition"), payload.position],
+    [byId("hrPhone"), payload.phone],
+    [byId("hrManager"), payload.manager],
+    [byId("hrStartDate"), payload.startDate]
+  ];
+  let allValid = true;
+  for (const [field, value] of requiredFields) {
+    const isValid = Boolean(String(value || "").trim());
+    markFieldValidity(field, isValid);
+    if (!isValid) allValid = false;
+  }
+  if (!allValid) {
     statusEl.textContent = "Please fill in all required fields.";
     return;
   }
@@ -367,7 +397,18 @@ async function submitOffboarding() {
   const companyKey = byId("hrOffboardingCompany").value;
   const startDate = byId("hrOffboardingDate").value;
 
-  if (!companyKey || !state.selectedEmployee || !startDate) {
+  const requiredFields = [
+    [byId("hrOffboardingCompany"), companyKey],
+    [byId("hrOffboardingEmployee"), state.selectedEmployee ? "set" : ""],
+    [byId("hrOffboardingDate"), startDate]
+  ];
+  let allValid = true;
+  for (const [field, value] of requiredFields) {
+    const isValid = Boolean(String(value || "").trim());
+    markFieldValidity(field, isValid);
+    if (!isValid) allValid = false;
+  }
+  if (!allValid) {
     statusEl.textContent = "Please fill in all required fields.";
     return;
   }
@@ -424,9 +465,24 @@ function init() {
   setupDatePicker(byId("hrStartDate"));
   setupDatePicker(byId("hrOffboardingDate"));
 
+  ["hrFirstName", "hrLastName", "hrPosition", "hrPhone"].forEach((id) => {
+    byId(id).addEventListener("input", clearFieldInvalid);
+  });
+  ["hrOnboardingCompany", "hrOffboardingCompany"].forEach((id) => {
+    byId(id).addEventListener("change", clearFieldInvalid);
+  });
+  byId("hrStartDate").addEventListener("change", clearFieldInvalid);
+  byId("hrOffboardingDate").addEventListener("change", clearFieldInvalid);
+
   loadCompanies().catch((error) => {
     byId("hrOnboardingStatus").textContent = `Failed to load companies: ${error.message}`;
     byId("hrOffboardingStatus").textContent = `Failed to load companies: ${error.message}`;
+  });
+
+  checkAuthStatus().then((session) => {
+    if (session?.authenticated && session.user?.email) {
+      byId("hrUserEmail").textContent = session.user.email;
+    }
   });
 }
 
