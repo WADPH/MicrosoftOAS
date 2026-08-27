@@ -614,5 +614,6 @@ module.exports = {
   getDefaultCompanyMatcher,
   getCompanyMatcherOptions,
   buildCompanyMatchers,
-  generateEmail
+  generateEmail,
+  normalizeNamePart
 };

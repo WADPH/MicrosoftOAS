@@ -9,8 +9,9 @@ const tasksRouter = require("./routes/tasks");
 const snipeitRouter = require("./routes/snipeit");
 const offboardingRouter = require("./routes/offboarding");
 const webhookRouter = require("./routes/webhook");
+const hrRouter = require("./routes/hr");
 const requireAuth = require("./middleware/requireAuth");
-const { requireMainAccess, requireProgressAccess, requireProgressEditAccess } = require("./middleware/requireAuth");
+const { requireMainAccess, requireProgressAccess, requireProgressEditAccess, requireHrAccess } = require("./middleware/requireAuth");
 const { startSnipeitAssignWorker, processPendingAssignTasks } = require("./services/snipeitAssignWorker");
 const { getTasksByType } = require("./services/taskStore");
 const {
@@ -58,10 +59,15 @@ app.use("/tasks", requireAuth, requireMainAccess, tasksRouter);
 app.use("/snipeit", requireAuth, requireMainAccess, snipeitRouter);
 app.use("/offboarding", requireAuth, requireMainAccess, offboardingRouter);
 app.use("/webhook", webhookRouter);
+app.use("/hr", requireAuth, requireHrAccess, hrRouter);
 
 app.get("/", (req, res) => {
-  if (req.session?.user?.role === "spectator") {
+  const role = req.session?.user?.role;
+  if (role === "spectator") {
     return res.redirect("/progress");
+  }
+  if (role === "hr") {
+    return res.redirect("/hr");
   }
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });

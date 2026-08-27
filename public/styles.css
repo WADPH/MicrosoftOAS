@@ -698,6 +698,11 @@ body[data-theme="dark"] .iconBtn .moon {
   flex-wrap: wrap;
 }
 
+.inlineRow .inlineRowFill {
+  flex: 1;
+  min-width: 160px;
+}
+
 .inlineIconBtn {
   width: 34px;
   height: 34px;

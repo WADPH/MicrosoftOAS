@@ -17,7 +17,7 @@ function requireMainAccess(req, res, next) {
 
 function requireProgressAccess(req, res, next) {
   const role = String(req.user?.role || "");
-  if (role !== "admin" && role !== "spectator") {
+  if (role !== "admin" && role !== "spectator" && role !== "hr") {
     return res.status(403).send("Forbidden");
   }
   next();
@@ -30,7 +30,16 @@ function requireProgressEditAccess(req, res, next) {
   next();
 }
 
+function requireHrAccess(req, res, next) {
+  const role = String(req.user?.role || "");
+  if (role !== "admin" && role !== "hr") {
+    return res.status(403).send("Forbidden");
+  }
+  next();
+}
+
 module.exports = requireAuth;
 module.exports.requireMainAccess = requireMainAccess;
 module.exports.requireProgressAccess = requireProgressAccess;
 module.exports.requireProgressEditAccess = requireProgressEditAccess;
+module.exports.requireHrAccess = requireHrAccess;

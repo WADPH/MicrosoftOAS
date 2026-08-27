@@ -959,6 +959,13 @@ async function selectOffboardingTask(id) {
   renderTaskStatusOptions(task.status, "offboarding");
   updateTaskErrorView(task);
   setInputValue("offboardingNote", task.note || "");
+  const targetDateEl = el("offboardingTargetDate");
+  if (targetDateEl) {
+    const rawDate = String(task.startDate || "").trim();
+    const targetDate = rawDate.includes("T") ? rawDate.slice(0, 10) : rawDate;
+    targetDateEl.textContent = targetDate ? `Target date: ${targetDate}` : "";
+    targetDateEl.classList.toggle("hidden", !targetDate);
+  }
   state.offboardingSelectedId = id;
   renderCurrentTaskList();
   applyZammadUiVisibility();
