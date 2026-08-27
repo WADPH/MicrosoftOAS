@@ -121,6 +121,20 @@ async function getUserByEmail(email, tenantKey) {
   }
 }
 
+async function getUserLicenseInfo(email, tenantKey) {
+  try {
+    return await graphRequest(
+      "GET",
+      `/users/${encodeURIComponent(email)}?$select=id,assignedLicenses`,
+      undefined,
+      tenantKey
+    );
+  } catch (error) {
+    if (error.status === 404) return null;
+    throw error;
+  }
+}
+
 async function listUsers(search = "", limit = 200, tenantKey, options = {}) {
   const normalized = String(search || "").trim().replace(/'/g, "''");
   const cappedLimit = Math.min(Math.max(Number(limit) || 1, 1), 999);
@@ -408,6 +422,7 @@ module.exports = {
   normalizeTenantKey,
   getDefaultTenantKey,
   getUserByEmail,
+  getUserLicenseInfo,
   listUsers,
   findUserByDisplayName,
   assignManager,

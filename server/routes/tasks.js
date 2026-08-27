@@ -11,6 +11,7 @@ const { getCompanyMatcherOptions, getDefaultCompanyMatcher, resolveTenantKeyByEm
 const { getDefaultTenantKey } = require("../services/tenantConfig");
 const {
   getUserByEmail,
+  getUserLicenseInfo,
   createUser,
   updateUserUsageLocation,
   graphRequest,
@@ -310,6 +311,25 @@ router.get("/meta/licenses", async (req, res) => {
     const skus = await getSubscribedSkus(tenantKey);
     const premiumSku = findBusinessPremiumSku(skus);
 
+    let userLicenseStatus = "unknown";
+    if (email.includes("@")) {
+      try {
+        const userInfo = await getUserLicenseInfo(email, tenantKey);
+        if (!userInfo) {
+          userLicenseStatus = "not_found";
+        } else {
+          const assignedLicenses = Array.isArray(userInfo.assignedLicenses) ? userInfo.assignedLicenses : [];
+          const hasBusinessPremium = Boolean(premiumSku) && assignedLicenses.some(
+            (license) => String(license?.skuId || "").toLowerCase() === String(premiumSku.skuId || "").toLowerCase()
+          );
+          userLicenseStatus = hasBusinessPremium ? "licensed" : "no_license";
+        }
+      } catch (error) {
+        console.error("[meta] licenses user lookup failed", error);
+        userLicenseStatus = "unknown";
+      }
+    }
+
     if (!premiumSku) {
       return res.json({
         ok: true,
@@ -318,7 +338,8 @@ router.get("/meta/licenses", async (req, res) => {
         skuPartNumber: null,
         enabled: 0,
         consumed: 0,
-        available: 0
+        available: 0,
+        userLicenseStatus
       });
     }
 
@@ -333,7 +354,8 @@ router.get("/meta/licenses", async (req, res) => {
       skuPartNumber: String(premiumSku.skuPartNumber || ""),
       enabled,
       consumed,
-      available
+      available,
+      userLicenseStatus
     });
   } catch (error) {
     console.error("[meta] licenses failed", error);

@@ -1899,6 +1899,27 @@ async function loadMeta() {
   renderCompanyCodeOptions(state.companyCodes[0]);
 }
 
+function setUserLicenseBadge(status) {
+  const badge = el("userLicenseBadge");
+  if (!badge) return;
+
+  const variants = {
+    not_found: "User not found",
+    no_license: "No license",
+    licensed: "Licensed"
+  };
+  const text = variants[status];
+
+  if (!text) {
+    badge.className = "userLicenseBadge hidden";
+    badge.textContent = "";
+    return;
+  }
+
+  badge.className = `userLicenseBadge ${status}`;
+  badge.textContent = text;
+}
+
 async function loadLicenseAvailability(hints = {}) {
   const target = el("premiumSeats");
   const tenantHint = el("premiumSeatsTenant");
@@ -1907,6 +1928,7 @@ async function loadLicenseAvailability(hints = {}) {
   try {
     target.textContent = "Loading...";
     if (tenantHint) tenantHint.textContent = "Resolving...";
+    setUserLicenseBadge(null);
     const params = new URLSearchParams();
     const companyDomain = String(hints.companyDomain || "").trim();
     const companyCode = String(hints.companyCode || "").trim().toUpperCase();
@@ -1931,10 +1953,12 @@ async function loadLicenseAvailability(hints = {}) {
     if (tenantHint) {
       tenantHint.textContent = String(data?.tenant || "Unknown");
     }
+    setUserLicenseBadge(data && data.ok ? String(data.userLicenseStatus || "") : null);
     renderLicenseControls();
   } catch (error) {
     console.warn("Failed to load license availability", error);
     target.textContent = "N/A";
+    setUserLicenseBadge(null);
     state.licenseAvailability = {
       available: null,
       tenant: "",
