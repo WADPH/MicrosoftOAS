@@ -2,4 +2,5 @@ node_modules/
 .env
 tasks.json
 snipeit_assign.json
+asset_statuses.json
 package-lock.json
