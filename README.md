@@ -22,6 +22,8 @@ A self-hosted automation platform for managing employee onboarding and offboardi
 - [Integrations](#integrations)
   - [Snipe-IT Asset Management](#snipe-it-asset-management)
   - [Zammad Ticketing System](#zammad-ticketing-system)
+- [HR Self-Service Page](#hr-self-service-page)
+- [Teams Notifications (Optional)](#teams-notifications-optional)
 - [Project Structure](#project-structure)
 - [Sample Webhook Call](#sample-webhook-call)
 - [Important Notes](#important-notes)
@@ -38,11 +40,15 @@ A self-hosted automation platform for managing employee onboarding and offboardi
   - Assign licenses
   - Manage group memberships
 - **Multi-Tenant Support**: Manage multiple Azure AD tenants/organizations
+- **Per-Task Notes**: Free-text internal note field on every onboarding/offboarding task
+- **License Status Indicator**: Onboarding tasks show whether the target user already has a Business Premium license (not found / no license / licensed)
 - **Snipe-IT Integration**: Automated asset assignment to employees
 - **Zammad Integration**: Automatic ticket creation for IT support tasks
 - **Task Management**: Track and manage onboarding/offboarding tasks
 - **Web Dashboard**: User-friendly interface for monitoring and managing tasks
 - **Progress Dashboard**: HR-friendly read-only onboarding progress page (`/progress`)
+- **HR Self-Service Page**: Restricted `/hr` page where HR staff can submit simplified onboarding/offboarding requests without seeing the full admin dashboard
+- **Teams Notifications** *(optional)*: Post an @mention notification to a Teams channel via Power Automate whenever an HR-page task is created
 - **Settings Management**: Configure system settings and email recipients
 
 ---
@@ -158,7 +164,8 @@ TEAMS_OUTGOING_WEBHOOK_SECRET=your-teams-webhook-secret
 
 # SSO Configuration
 ALLOWED_EMAILS=user1@company.com,user2@company.com,admin@company.com
-ALLOWED_SPECTATORS=hr1@company.com,hr2@company.com
+ALLOWED_SPECTATORS=spectator1@company.com,spectator2@company.com
+ALLOWED_HR=hr1@company.com,hr2@company.com
 REDIRECT_URI=https://your-app-domain.com/auth/callback
 
 # Multi-Tenant Setup
@@ -197,13 +204,18 @@ ZAMMAD_URL=https://zammad.company.com
 ZAMMAD_API_TOKEN=your-zammad-api-token-here
 ZAMMAD_DEFAULT_CUSTOMER=support@company.com
 
+# Teams Notifications (Optional - see "Teams Notifications" section below)
+TEAMS_NOTIFICATIONS_ENABLED=false
+TEAMS_NOTIFICATIONS_WEBHOOK_URL=  # Power Automate flow trigger URL
+
 # Debugging (set to false in production)
 WEBHOOK_DEBUG=false
 TEST_RECIPIENT=  # Optional: redirect all emails to this address for testing
 ```
 
-`ALLOWED_EMAILS` users have full access to the main dashboard (`/`) and can also open `/progress`.
-`ALLOWED_SPECTATORS` users are redirected to `/progress` after login and can access only the progress dashboard.
+`ALLOWED_EMAILS` (`admin` role) users have full access to the main dashboard (`/`) and can also open `/progress`.
+`ALLOWED_SPECTATORS` (`spectator` role) users are redirected to `/progress` after login and can access only the read-only progress dashboard.
+`ALLOWED_HR` (`hr` role) users are redirected to `/hr` after login and can access only the HR self-service page and `/progress` — no access to `/tasks`, `/offboarding`, `/settings`, or `/snipeit`.
 
 ---
 
@@ -385,8 +397,19 @@ POST /auth/logout            # Logout
 ### Progress Dashboard
 
 ```http
-GET /progress                # Read-only progress page (admin + spectator)
+GET /progress                # Read-only progress page (admin + spectator + hr)
 GET /progress/tasks          # Onboarding tasks feed for progress page
+```
+
+### HR Self-Service Page
+
+```http
+GET /hr                      # HR page (admin + hr roles only)
+GET /hr/companies            # Company dropdown options + Teams notification enabled flag
+GET /hr/users                # Tenant-scoped user search (Line Manager / Employee pickers)
+GET /hr/mention-users        # Cross-tenant user search (Teams @mention picker)
+POST /hr/onboarding          # Create a simplified onboarding task
+POST /hr/offboarding         # Create a simplified offboarding task
 ```
 
 ---
@@ -423,6 +446,104 @@ Automatically create support tickets for offboarding tasks.
 
 ---
 
+## HR Self-Service Page
+
+A restricted page (`/hr`) that lets HR staff submit onboarding/offboarding requests without exposing the full admin dashboard (no license assignment, no Snipe-IT, no Zammad, no Graph user deletion, etc.).
+
+**Access:** Only users listed in `ALLOWED_HR` (see [Environment Variables](#environment-variables)). After SSO login, HR users are redirected straight to `/hr` and can also open `/progress`; every other route (`/`, `/tasks`, `/offboarding`, `/settings`, `/snipeit`) returns `403 Forbidden` for this role.
+
+**Onboarding tab** — fields: Name, Surname, Company (dropdown, built from [Company Matcher Configuration](#company-matcher-configuration)), Position, Mobile Number, Line Manager (searched from the company's tenant), Date (native date picker only — no manual typing).
+
+**Offboarding tab** — fields: Company (dropdown), Employee (searched from the company's tenant), Date.
+
+Submitted requests are created as normal `pending` tasks in the same store the admin dashboard manages — an HR submission is equivalent to an admin manually creating a draft task and filling in the basic fields. The admin then continues processing it as usual (License/Assets/Groups + Approve for onboarding; choose related accounts/assets + Execute for offboarding).
+
+Each tab optionally includes a **Teams Notification** block — see below. It only appears when Teams notifications are enabled in Settings.
+
+---
+
+## Teams Notifications (Optional)
+
+When enabled, creating a task from the [HR page](#hr-self-service-page) can post a message to a Microsoft Teams channel, optionally @mentioning specific people (e.g. "Offboarding - Jane Doe" + "@IT Colleague, please revoke her badge access."). **This feature is fully optional** — if you don't need it, leave `TEAMS_NOTIFICATIONS_ENABLED=false` (the default) and skip this section entirely; nothing else in the app depends on it.
+
+Delivery goes through a **Power Automate Workflow**, not a direct Microsoft Graph API call — Graph's `ChannelMessage.Send` permission only exists as a *Delegated* permission (no Application/app-only variant), which doesn't fit this app's daemon/service-account backend. Power Automate avoids having to manage a delegated user token for a bot account.
+
+### Step 1 — Create the Power Automate flow
+
+1. In Microsoft Teams, right-click the target channel → **Workflows** → search for and select the template **"Post to a channel when a webhook request is received"** (or create it directly at [make.powerautomate.com](https://make.powerautomate.com) with the trigger **"When a Teams webhook request is received"**).
+2. Pick the Team and channel where notifications should be posted, then create the flow.
+
+> This trigger's request format is fixed by Microsoft to a Bot-Framework-style `attachments` envelope — there is no editable "Schema" field, and that's expected. The flow just needs to relay whatever card it receives; the app builds the full card itself (see Step 2).
+
+### Step 2 — Configure the flow to relay the card as-is
+
+The default flow generated by the template already has the right shape. Make sure it looks like this:
+
+```
+Trigger: When a Teams webhook request is received
+For_each (@triggerOutputs()?['body']?['attachments'])
+  └── Compose            → Input: @item()?['content']
+  └── Post card in a chat or channel
+        Adaptive Card field = @{outputs('Compose')}
+        Team / Channel = the ones you picked in Step 1
+```
+
+Do **not** try to reconstruct the card manually inside the flow (e.g. with `concat()`/variables) — building the message, mention list, and JSON escaping is handled entirely by this app's backend (`server/services/teamsNotify.js`); the flow's only job is to relay `attachments[0].content` to the channel.
+
+### Step 3 — Get the trigger URL and configure `.env`
+
+1. Save the flow, then open the trigger step — it now shows an **HTTP POST URL**. Copy it.
+2. Treat this URL as a secret (it works like a password — anyone with it can post to your channel). Add it directly to `.env` on the server (it is **not** editable from the web Settings UI, for the same reason `ZAMMAD_URL`/`SNIPEIT_URL` aren't):
+   ```env
+   TEAMS_NOTIFICATIONS_WEBHOOK_URL=https://your-flow-trigger-url...
+   ```
+3. Restart the app, then enable the feature from **Settings → Teams Notifications** in the admin dashboard (or set `TEAMS_NOTIFICATIONS_ENABLED=true` directly in `.env`). Enabling via the UI is rejected with a clear error if the webhook URL above isn't configured yet — this is intentional, mirroring how `ZAMMAD_ENABLED`/`SNIPEIT_ENABLED` require their URL/token to already be set.
+
+### Step 4 — Test the flow directly (before relying on the app)
+
+```powershell
+$json = @'
+{
+  "type": "message",
+  "attachments": [
+    {
+      "contentType": "application/vnd.microsoft.card.adaptive",
+      "content": {
+        "type": "AdaptiveCard",
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "version": "1.4",
+        "body": [
+          { "type": "TextBlock", "weight": "Bolder", "size": "Medium", "text": "Offboarding - Test User", "wrap": true },
+          { "type": "TextBlock", "text": "<at>Test Mention</at> please double-check this.\n\nDate: 2026-01-01", "wrap": true }
+        ],
+        "msteams": {
+          "entities": [
+            { "type": "mention", "text": "<at>Test Mention</at>", "mentioned": { "id": "someone@yourcompany.com", "name": "Test Mention" } }
+          ]
+        }
+      }
+    }
+  ]
+}
+'@
+
+Invoke-RestMethod -Uri "<your trigger URL>" -Method Post -ContentType "application/json" -Body $json
+```
+
+Check the channel: the mention should render as a clickable, highlighted `@Test Mention`, not literal `<at>` text. If it doesn't render as a mention, double-check that the `<at>...</at>` text inside `body` matches the corresponding `entities[].text` **exactly**, and prefer the person's Azure AD Object ID over their email for `mentioned.id` if rendering is unreliable.
+
+### How the message is built
+
+Once wired up, every HR-page submission with Teams notifications enabled can include, in this order:
+1. **Title** (auto-generated: `Onboarding - {Name}` / `Offboarding - {Employee}`)
+2. **Free-text note** (optional, typed by HR)
+3. **Mention lines** (optional, each a person picked via a cross-tenant search + a short custom message)
+4. **Date** (always appended at the bottom, taken from the task's date field)
+
+A notification is only sent if there's a note and/or at least one mention — an empty Teams section sends nothing. A failed delivery (bad URL, flow down, etc.) is logged and never blocks task creation.
+
+---
+
 ## Project Structure
 
 ```
@@ -431,24 +552,28 @@ OAS/
 │   ├── index.html                  # Main HTML file
 │   ├── app.js                      # Frontend JavaScript
 │   ├── progress.js                 # Progress page JavaScript
+│   ├── hr.js                       # HR self-service page JavaScript
 │   ├── styles.css                  # Frontend styles
 │   └── images/                     # Image assets
 ├── server/                          # Backend application
 │   ├── server.js                   # Main server file
 │   ├── parser.js                   # Message parsing logic
 │   ├── middleware/
-│   │   └── requireAuth.js          # Authentication middleware
+│   │   └── requireAuth.js          # Authentication middleware (admin/spectator/hr role gates)
 │   ├── routes/
 │   │   ├── auth.js                 # Authentication endpoints
 │   │   ├── tasks.js                # Task management endpoints
 │   │   ├── settings.js             # Settings management endpoints
 │   │   ├── snipeit.js              # Snipe-IT integration endpoints
 │   │   ├── offboarding.js          # Offboarding workflow
+│   │   ├── hr.js                   # HR self-service page endpoints
 │   │   └── webhook.js              # Teams webhook handling
 │   ├── services/
 │   │   ├── auth.js                 # Authentication service
 │   │   ├── graph.js                # Microsoft Graph API wrapper
 │   │   ├── mail.js                 # Email service
+│   │   ├── offboardingPayload.js   # Shared offboarding task payload builder (admin + HR page)
+│   │   ├── teamsNotify.js          # Teams notification Adaptive Card builder/sender (optional feature)
 │   │   ├── snipeit.service.js      # Snipe-IT service
 │   │   ├── snipeitAssignStore.js   # Snipe-IT assignment storage
 │   │   ├── snipeitAssignWorker.js  # Snipe-IT assignment worker
@@ -457,7 +582,8 @@ OAS/
 │   │   ├── settingsStore.js        # Settings storage
 │   │   ├── zammad.service.js       # Zammad ticketing service
 │   ├── views/
-│   │   └── progress.html           # Progress page template
+│   │   ├── progress.html           # Progress page template
+│   │   └── hr.html                 # HR self-service page template
 │   └── db/                          # Data storage
 │       ├── tasks.json              # Tasks database
 │       └── snipeit_assign.json     # Snipe-IT assignments database
@@ -512,9 +638,10 @@ Mobile number: [Phone]
 - Webhook validation uses Teams HMAC signature from `Authorization` header
 - Session secret should be a strong random string in production
 - All API endpoints (except `/health` and `/webhook/teams`) require authentication
-- Access model:
-  - `ALLOWED_EMAILS`: full dashboard access (`/`) + progress (`/progress`)
-  - `ALLOWED_SPECTATORS`: progress-only access (`/progress`)
+- Access model (three roles, set by which `ALLOWED_*` list a user's email appears in):
+  - `ALLOWED_EMAILS` → `admin`: full dashboard access (`/`) + progress (`/progress`) + HR page (`/hr`)
+  - `ALLOWED_SPECTATORS` → `spectator`: progress-only access (`/progress`)
+  - `ALLOWED_HR` → `hr`: HR self-service page (`/hr`) + progress (`/progress`) only
 - In production, ensure `SESSION_SECRET` is set to a secure value
 
 ### Teams Webhook
@@ -570,6 +697,14 @@ Mobile number: [Phone]
 - Verify `.env` file is in the project root
 - Ensure `server/db/` directory has write permissions
 
+### Teams Notifications toggle won't save / "Save failed" in Settings
+- This is expected validation, not a bug: enabling `TEAMS_NOTIFICATIONS_ENABLED` via the Settings UI is rejected until `TEAMS_NOTIFICATIONS_WEBHOOK_URL` is already set directly in `.env` (see [Teams Notifications](#teams-notifications-optional), Step 3) — the same rule already applies to `ZAMMAD_ENABLED`/`SNIPEIT_ENABLED`.
+- Since the checkbox's value is submitted on every Settings save (not just when changed), leaving it checked while the URL is missing will block *all* settings saves until the URL is configured or the checkbox is unchecked.
+
+### Teams message sends but @mentions show as plain text
+- The `<at>Name</at>` text must match **exactly** between the visible message and the corresponding `entities[].text` entry — verify both sides in `server/services/teamsNotify.js` if you've customized it.
+- Try using the person's Azure AD Object ID instead of their email for `mentioned.id`.
+
 ---
 
 ## Support & Contributing
@@ -578,5 +713,5 @@ For issues, questions, or contributions, please contact the development team or 
 
 ---
 
-**Last Updated**: April 2026  
-**Version**: 1.0.0
+**Last Updated**: August 2026  
+**Version**: 1.1.0
