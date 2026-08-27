@@ -1,5 +1,4 @@
 const express = require("express");
-const path = require("path");
 const { buildCompanyMatchers, normalizeNamePart } = require("../parser");
 const { listUsers } = require("../services/graph");
 const { addTask } = require("../services/taskStore");
@@ -19,10 +18,6 @@ function buildOnboardingEmail(firstName, lastName, domain) {
   const local = [first, last].filter(Boolean).join(".") || first || "new.user";
   return `${local}@${domain}`;
 }
-
-router.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "views", "hr.html"));
-});
 
 router.get("/companies", (req, res) => {
   const companies = buildCompanyMatchers().map((matcher) => ({

@@ -59,6 +59,14 @@ app.use("/tasks", requireAuth, requireMainAccess, tasksRouter);
 app.use("/snipeit", requireAuth, requireMainAccess, snipeitRouter);
 app.use("/offboarding", requireAuth, requireMainAccess, offboardingRouter);
 app.use("/webhook", webhookRouter);
+
+app.get("/hr", (req, res) => {
+  const role = req.session?.user?.role;
+  if (!req.session?.user || (role !== "hr" && role !== "admin")) {
+    return res.redirect("/");
+  }
+  res.sendFile(path.join(__dirname, "views", "hr.html"));
+});
 app.use("/hr", requireAuth, requireHrAccess, hrRouter);
 
 app.get("/", (req, res) => {
