@@ -2,10 +2,10 @@ function isEnabled() {
   return String(process.env.TEAMS_NOTIFICATIONS_ENABLED || "false").trim().toLowerCase() === "true";
 }
 
-function buildAdaptiveCardPayload({ title, mentions }) {
+function buildAdaptiveCardPayload({ title, note, mentions, date }) {
   const rows = Array.isArray(mentions) ? mentions : [];
 
-  const lines = rows.map((row) => `<at>${row.name}</at> ${row.text}`);
+  const mentionLines = rows.map((row) => `<at>${row.name}</at> ${row.text}`);
   const entities = rows.map((row) => ({
     type: "mention",
     text: `<at>${row.name}</at>`,
@@ -14,6 +14,13 @@ function buildAdaptiveCardPayload({ title, mentions }) {
       name: row.name
     }
   }));
+
+  const bodyLines = [];
+  const cleanNote = String(note || "").trim();
+  if (cleanNote) bodyLines.push(cleanNote);
+  bodyLines.push(...mentionLines);
+  const cleanDate = String(date || "").trim();
+  if (cleanDate) bodyLines.push(`Date: ${cleanDate}`);
 
   return {
     type: "message",
@@ -34,7 +41,7 @@ function buildAdaptiveCardPayload({ title, mentions }) {
             },
             {
               type: "TextBlock",
-              text: lines.join("\n\n"),
+              text: bodyLines.join("\n\n"),
               wrap: true
             }
           ],
@@ -47,10 +54,11 @@ function buildAdaptiveCardPayload({ title, mentions }) {
   };
 }
 
-async function sendTeamsNotification({ title, mentions }) {
+async function sendTeamsNotification({ title, note, mentions, date }) {
   if (!isEnabled()) return;
   const rows = Array.isArray(mentions) ? mentions.filter((row) => row?.id && row?.name) : [];
-  if (rows.length === 0) return;
+  const cleanNote = String(note || "").trim();
+  if (rows.length === 0 && !cleanNote) return;
 
   const webhookUrl = String(process.env.TEAMS_NOTIFICATIONS_WEBHOOK_URL || "").trim();
   if (!webhookUrl) {
@@ -62,7 +70,7 @@ async function sendTeamsNotification({ title, mentions }) {
     const response = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildAdaptiveCardPayload({ title, mentions: rows }))
+      body: JSON.stringify(buildAdaptiveCardPayload({ title, note: cleanNote, mentions: rows, date }))
     });
     if (!response.ok) {
       const text = await response.text().catch(() => "");

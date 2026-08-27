@@ -47,9 +47,15 @@
       </div>
 
       <section class="progressScreen" aria-live="polite">
-       <div class="progressCard">
+       <div class="progressCard hrCard">
         <h2>HR Requests</h2>
-        <div class="sectionCard">
+
+        <div class="tasksTabs">
+          <button id="hrTabOnboardingBtn" class="ghost small active" type="button">Onboarding</button>
+          <button id="hrTabOffboardingBtn" class="ghost small" type="button">Offboarding</button>
+        </div>
+
+        <div id="hrOnboardingForm" class="sectionCard">
           <div class="sectionHeader">
             <h3>New Onboarding Request</h3>
             <p class="metaSmall">Submit a new employee for onboarding</p>
@@ -99,8 +105,8 @@
           <div id="hrOnboardingTeamsSection" class="hidden">
             <div class="sectionDivider"></div>
             <div class="field">
-              <label>Teams Notification</label>
-              <p class="metaSmall" id="hrOnboardingTeamsPreview">Onboarding - </p>
+              <label for="hrOnboardingTeamsNote">Teams Notification</label>
+              <textarea id="hrOnboardingTeamsNote" rows="3" placeholder="Optional message (no mentions required)"></textarea>
             </div>
             <div id="hrOnboardingMentions" class="mentionList"></div>
             <div class="field">
@@ -114,7 +120,7 @@
           <p id="hrOnboardingStatus" class="meta"></p>
         </div>
 
-        <div class="sectionCard">
+        <div id="hrOffboardingForm" class="sectionCard hidden">
           <div class="sectionHeader">
             <h3>New Offboarding Request</h3>
             <p class="metaSmall">Submit a departing employee for offboarding</p>
@@ -141,8 +147,8 @@
           <div id="hrOffboardingTeamsSection" class="hidden">
             <div class="sectionDivider"></div>
             <div class="field">
-              <label>Teams Notification</label>
-              <p class="metaSmall" id="hrOffboardingTeamsPreview">Offboarding - </p>
+              <label for="hrOffboardingTeamsNote">Teams Notification</label>
+              <textarea id="hrOffboardingTeamsNote" rows="3" placeholder="Optional message (no mentions required)"></textarea>
             </div>
             <div id="hrOffboardingMentions" class="mentionList"></div>
             <div class="field">

@@ -146,8 +146,9 @@ router.post("/onboarding", (req, res) => {
     return res.status(409).json({ ok: false, error: "A task for this employee and date already exists" });
   }
 
+  const teamsNote = String(body.teamsNote || "").trim();
   const teamsMentions = normalizeTeamsMentions(body.teamsMentions);
-  sendTeamsNotification({ title: `Onboarding - ${fullName}`, mentions: teamsMentions }).catch(() => {});
+  sendTeamsNotification({ title: `Onboarding - ${fullName}`, note: teamsNote, mentions: teamsMentions, date: startDate }).catch(() => {});
 
   res.status(201).json({ ok: true, task: result.task });
 });
@@ -192,9 +193,10 @@ router.post("/offboarding", (req, res) => {
     { skipDuplicate: true }
   );
 
+  const teamsNote = String(body.teamsNote || "").trim();
   const teamsMentions = normalizeTeamsMentions(body.teamsMentions);
   const title = `Offboarding - ${user.displayName || offboarding.email || ""}`;
-  sendTeamsNotification({ title, mentions: teamsMentions }).catch(() => {});
+  sendTeamsNotification({ title, note: teamsNote, mentions: teamsMentions, date: startDate }).catch(() => {});
 
   res.status(201).json({ ok: true, task: result.task });
 });

@@ -164,16 +164,12 @@ function applyTeamsUiVisibility() {
   byId("hrOffboardingTeamsSection").classList.toggle("hidden", !state.teamsNotificationsEnabled);
 }
 
-function updateOnboardingTeamsPreview() {
-  const first = byId("hrFirstName").value.trim();
-  const last = byId("hrLastName").value.trim();
-  const name = [first, last].filter(Boolean).join(" ");
-  byId("hrOnboardingTeamsPreview").textContent = `Onboarding - ${name}`;
-}
-
-function updateOffboardingTeamsPreview() {
-  const label = state.selectedEmployee ? state.selectedEmployee.displayName || state.selectedEmployee.mail || "" : "";
-  byId("hrOffboardingTeamsPreview").textContent = `Offboarding - ${label}`;
+function switchHrTab(tab) {
+  const isOnboarding = tab === "onboarding";
+  byId("hrTabOnboardingBtn").classList.toggle("active", isOnboarding);
+  byId("hrTabOffboardingBtn").classList.toggle("active", !isOnboarding);
+  byId("hrOnboardingForm").classList.toggle("hidden", !isOnboarding);
+  byId("hrOffboardingForm").classList.toggle("hidden", isOnboarding);
 }
 
 function renderMentionRows(formType) {
@@ -236,7 +232,6 @@ function resetEmployeeSelection() {
   const box = byId("hrOffboardingEmployee");
   box.textContent = "Not selected";
   box.classList.add("managerEmpty");
-  updateOffboardingTeamsPreview();
 }
 
 function onOnboardingCompanyChange() {
@@ -361,7 +356,6 @@ function selectPickedUser(user) {
     box.textContent = `${user.displayName || "Unnamed user"}${user.mail ? ` · ${user.mail}` : ""}`;
     box.classList.remove("managerEmpty");
     box.classList.remove("fieldInvalid");
-    updateOffboardingTeamsPreview();
   } else if (state.pickerTarget === "mention") {
     addMentionRow(state.pickerMentionForm, user);
   }
@@ -436,6 +430,7 @@ async function submitOnboarding() {
     phone: byId("hrPhone").value.trim(),
     manager: byId("hrManager").value.trim(),
     startDate: byId("hrStartDate").value,
+    teamsNote: byId("hrOnboardingTeamsNote").value.trim(),
     teamsMentions: state.onboardingMentions
       .filter((row) => row.text.trim())
       .map((row) => ({ id: row.id, name: row.name, text: row.text.trim() }))
@@ -474,9 +469,9 @@ async function submitOnboarding() {
     byId("hrStartDate").value = "";
     byId("hrChooseManagerBtn").disabled = true;
     resetManagerSelection();
+    byId("hrOnboardingTeamsNote").value = "";
     state.onboardingMentions = [];
     renderMentionRows("onboarding");
-    updateOnboardingTeamsPreview();
   } catch (error) {
     statusEl.textContent = `Failed to create task: ${error.message}`;
   } finally {
@@ -510,6 +505,7 @@ async function submitOffboarding() {
     companyKey,
     user: state.selectedEmployee,
     startDate,
+    teamsNote: byId("hrOffboardingTeamsNote").value.trim(),
     teamsMentions: state.offboardingMentions
       .filter((row) => row.text.trim())
       .map((row) => ({ id: row.id, name: row.name, text: row.text.trim() }))
@@ -525,6 +521,7 @@ async function submitOffboarding() {
     byId("hrOffboardingDate").value = "";
     byId("hrChooseEmployeeBtn").disabled = true;
     resetEmployeeSelection();
+    byId("hrOffboardingTeamsNote").value = "";
     state.offboardingMentions = [];
     renderMentionRows("offboarding");
   } catch (error) {
@@ -545,6 +542,9 @@ function init() {
     window.location.href = "/auth/logout";
   });
 
+  byId("hrTabOnboardingBtn").addEventListener("click", () => switchHrTab("onboarding"));
+  byId("hrTabOffboardingBtn").addEventListener("click", () => switchHrTab("offboarding"));
+
   byId("hrOnboardingCompany").addEventListener("change", onOnboardingCompanyChange);
   byId("hrOffboardingCompany").addEventListener("change", onOffboardingCompanyChange);
 
@@ -555,11 +555,6 @@ function init() {
   byId("hrUserModalClose").addEventListener("click", closeUserModal);
   byId("hrUserModalOverlay").addEventListener("click", closeUserModal);
   byId("hrUserSearch").addEventListener("input", (event) => debouncedSearch(event.target.value));
-
-  byId("hrFirstName").addEventListener("input", updateOnboardingTeamsPreview);
-  byId("hrLastName").addEventListener("input", updateOnboardingTeamsPreview);
-  updateOnboardingTeamsPreview();
-  updateOffboardingTeamsPreview();
 
   byId("hrOnboardingSubmitBtn").addEventListener("click", submitOnboarding);
   byId("hrOffboardingSubmitBtn").addEventListener("click", submitOffboarding);

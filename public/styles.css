@@ -712,6 +712,10 @@ body[data-theme="dark"] .iconBtn .moon {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 25%, transparent);
 }
 
+.hrCard {
+  overflow-y: auto;
+}
+
 .mentionList {
   display: grid;
   gap: 8px;
