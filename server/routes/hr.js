@@ -5,6 +5,7 @@ const { addTask } = require("../services/taskStore");
 const { buildOffboardingTaskPayload } = require("../services/offboardingPayload");
 const { getTenantKeysFromEnv } = require("../services/tenantConfig");
 const { isEnabled: isTeamsNotificationsEnabled, sendTeamsNotification } = require("../services/teamsNotify");
+const { getTeamsDefaults, saveTeamsDefault } = require("../services/teamsDefaultsStore");
 
 const router = express.Router();
 
@@ -71,6 +72,20 @@ router.get("/mention-users", async (req, res) => {
     console.error("[hr] mention-users search failed", error);
     res.status(500).json({ ok: false, error: error.message });
   }
+});
+
+router.get("/teams-defaults", (req, res) => {
+  res.json({ ok: true, defaults: getTeamsDefaults() });
+});
+
+router.post("/teams-defaults", (req, res) => {
+  const body = req.body || {};
+  const type = String(body.type || "").trim().toLowerCase();
+  if (type !== "onboarding" && type !== "offboarding") {
+    return res.status(400).json({ ok: false, error: "type must be 'onboarding' or 'offboarding'" });
+  }
+  const saved = saveTeamsDefault(type, { note: body.note, mentions: body.mentions });
+  res.json({ ok: true, defaults: saved });
 });
 
 router.get("/users", async (req, res) => {
@@ -148,7 +163,15 @@ router.post("/onboarding", (req, res) => {
 
   const teamsNote = String(body.teamsNote || "").trim();
   const teamsMentions = normalizeTeamsMentions(body.teamsMentions);
-  sendTeamsNotification({ title: `Onboarding - ${fullName}`, note: teamsNote, mentions: teamsMentions, date: startDate }).catch(() => {});
+  const teamsFields = [
+    { label: "Company", value: matcher.code },
+    { label: "Position", value: position },
+    { label: "Name", value: fullName },
+    { label: "Mobile number", value: phone },
+    { label: "Line Manager", value: manager },
+    { label: "Date", value: startDate }
+  ];
+  sendTeamsNotification({ title: `Onboarding - ${fullName}`, fields: teamsFields, note: teamsNote, mentions: teamsMentions }).catch(() => {});
 
   res.status(201).json({ ok: true, task: result.task });
 });
@@ -196,7 +219,12 @@ router.post("/offboarding", (req, res) => {
   const teamsNote = String(body.teamsNote || "").trim();
   const teamsMentions = normalizeTeamsMentions(body.teamsMentions);
   const title = `Offboarding - ${user.displayName || offboarding.email || ""}`;
-  sendTeamsNotification({ title, note: teamsNote, mentions: teamsMentions, date: startDate }).catch(() => {});
+  const teamsFields = [
+    { label: "Company", value: matcher.code },
+    { label: "Name", value: user.displayName || offboarding.email || "" },
+    { label: "Date", value: startDate }
+  ];
+  sendTeamsNotification({ title, fields: teamsFields, note: teamsNote, mentions: teamsMentions }).catch(() => {});
 
   res.status(201).json({ ok: true, task: result.task });
 });

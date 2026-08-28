@@ -14,7 +14,11 @@ const state = {
   sessionExpiredNotified: false,
   teamsNotificationsEnabled: false,
   onboardingMentions: [],
-  offboardingMentions: []
+  offboardingMentions: [],
+  teamsDefaults: {
+    onboarding: { note: "", mentions: [] },
+    offboarding: { note: "", mentions: [] }
+  }
 };
 
 function byId(id) {
@@ -162,6 +166,44 @@ async function loadCompanies() {
 function applyTeamsUiVisibility() {
   byId("hrOnboardingTeamsSection").classList.toggle("hidden", !state.teamsNotificationsEnabled);
   byId("hrOffboardingTeamsSection").classList.toggle("hidden", !state.teamsNotificationsEnabled);
+}
+
+async function loadTeamsDefaults() {
+  const data = await api("/hr/teams-defaults");
+  state.teamsDefaults = data.defaults || state.teamsDefaults;
+  applyTeamsDefault("onboarding");
+  applyTeamsDefault("offboarding");
+}
+
+function applyTeamsDefault(formType) {
+  const defaults = state.teamsDefaults?.[formType] || { note: "", mentions: [] };
+  const noteId = formType === "onboarding" ? "hrOnboardingTeamsNote" : "hrOffboardingTeamsNote";
+  byId(noteId).value = defaults.note || "";
+  const rows = (defaults.mentions || []).map((row) => ({ ...row }));
+  if (formType === "onboarding") {
+    state.onboardingMentions = rows;
+  } else {
+    state.offboardingMentions = rows;
+  }
+  renderMentionRows(formType);
+}
+
+async function saveTeamsDefault(formType) {
+  const noteId = formType === "onboarding" ? "hrOnboardingTeamsNote" : "hrOffboardingTeamsNote";
+  const statusId = formType === "onboarding" ? "hrOnboardingStatus" : "hrOffboardingStatus";
+  const note = byId(noteId).value.trim();
+  const mentions = formType === "onboarding" ? state.onboardingMentions : state.offboardingMentions;
+
+  try {
+    const data = await api("/hr/teams-defaults", {
+      method: "POST",
+      body: JSON.stringify({ type: formType, note, mentions })
+    });
+    state.teamsDefaults[formType] = data.defaults;
+    byId(statusId).textContent = "Default Teams message saved.";
+  } catch (error) {
+    byId(statusId).textContent = `Failed to save default: ${error.message}`;
+  }
 }
 
 function switchHrTab(tab) {
@@ -469,9 +511,7 @@ async function submitOnboarding() {
     byId("hrStartDate").value = "";
     byId("hrChooseManagerBtn").disabled = true;
     resetManagerSelection();
-    byId("hrOnboardingTeamsNote").value = "";
-    state.onboardingMentions = [];
-    renderMentionRows("onboarding");
+    applyTeamsDefault("onboarding");
   } catch (error) {
     statusEl.textContent = `Failed to create task: ${error.message}`;
   } finally {
@@ -521,9 +561,7 @@ async function submitOffboarding() {
     byId("hrOffboardingDate").value = "";
     byId("hrChooseEmployeeBtn").disabled = true;
     resetEmployeeSelection();
-    byId("hrOffboardingTeamsNote").value = "";
-    state.offboardingMentions = [];
-    renderMentionRows("offboarding");
+    applyTeamsDefault("offboarding");
   } catch (error) {
     statusEl.textContent = `Failed to create task: ${error.message}`;
   } finally {
@@ -552,6 +590,8 @@ function init() {
   byId("hrChooseEmployeeBtn").addEventListener("click", () => openUserModal("employee"));
   byId("hrAddOnboardingMentionBtn").addEventListener("click", () => openUserModal("mention", "onboarding"));
   byId("hrAddOffboardingMentionBtn").addEventListener("click", () => openUserModal("mention", "offboarding"));
+  byId("hrSaveOnboardingDefaultBtn").addEventListener("click", () => saveTeamsDefault("onboarding"));
+  byId("hrSaveOffboardingDefaultBtn").addEventListener("click", () => saveTeamsDefault("offboarding"));
   byId("hrUserModalClose").addEventListener("click", closeUserModal);
   byId("hrUserModalOverlay").addEventListener("click", closeUserModal);
   byId("hrUserSearch").addEventListener("input", (event) => debouncedSearch(event.target.value));
@@ -577,6 +617,10 @@ function init() {
   loadCompanies().catch((error) => {
     byId("hrOnboardingStatus").textContent = `Failed to load companies: ${error.message}`;
     byId("hrOffboardingStatus").textContent = `Failed to load companies: ${error.message}`;
+  });
+
+  loadTeamsDefaults().catch((error) => {
+    console.warn(`Failed to load Teams defaults: ${error.message}`);
   });
 
   checkAuthStatus().then((session) => {
