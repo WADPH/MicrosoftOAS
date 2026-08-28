@@ -77,15 +77,15 @@ const state = {
   appView: "main",
   sessionWatchTimer: null,
   taskSort: {
-    onboarding: { field: null, statuses: null },
-    offboarding: { field: null, statuses: null }
+    onboarding: { field: null, statuses: null, direction: "asc" },
+    offboarding: { field: null, statuses: null, direction: "asc" }
   }
 };
 
 const ONBOARDING_STATUS_OPTIONS = ["error", "pending", "unlicensed", "provisioned", "done"];
 const OFFBOARDING_STATUS_OPTIONS = ["error", "pending", "done"];
-const ONBOARDING_FILTER_STATUSES = ["pending", "processing", "unlicensed", "provisioned", "done", "error"];
-const OFFBOARDING_FILTER_STATUSES = ["pending", "processing", "done", "error"];
+const ONBOARDING_FILTER_STATUSES = ["done", "provisioned", "unlicensed", "pending", "error"];
+const OFFBOARDING_FILTER_STATUSES = ["done", "pending", "error"];
 
 function serverLog(message, level = "INFO") {
   console.log(`[${level}] ${message}`);
@@ -1746,12 +1746,13 @@ function getVisibleTasks(mode) {
     ? rows.filter((task) => config.statuses.has(String(task.status || "pending").toLowerCase()))
     : rows.slice();
 
+  const dir = config.direction === "desc" ? -1 : 1;
   if (config.field === "date") {
-    result.sort((a, b) => String(b.startDate || "").localeCompare(String(a.startDate || "")));
+    result.sort((a, b) => dir * String(a.startDate || "").localeCompare(String(b.startDate || "")));
   } else if (config.field === "name") {
-    result.sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || "")));
+    result.sort((a, b) => dir * String(a.fullName || "").localeCompare(String(b.fullName || "")));
   } else if (config.field === "status") {
-    result.sort((a, b) => String(a.status || "").localeCompare(String(b.status || "")));
+    result.sort((a, b) => dir * String(a.status || "").localeCompare(String(b.status || "")));
   }
 
   return result;
@@ -1762,15 +1763,23 @@ function currentSortMode() {
 }
 
 function updateTaskSortActiveButtons() {
-  const field = state.taskSort[currentSortMode()].field;
-  el("taskSortByDateBtn").classList.toggle("active", field === "date");
-  el("taskSortByNameBtn").classList.toggle("active", field === "name");
-  el("taskSortByStatusBtn").classList.toggle("active", field === "status");
+  const config = state.taskSort[currentSortMode()];
+  el("taskSortByDateBtn").classList.toggle("active", config.field === "date");
+  el("taskSortByNameBtn").classList.toggle("active", config.field === "name");
+  el("taskSortByStatusBtn").classList.toggle("active", config.field === "status");
+  el("taskSortAscBtn").classList.toggle("active", config.direction !== "desc");
+  el("taskSortDescBtn").classList.toggle("active", config.direction === "desc");
 }
 
 function setTaskSortField(field) {
   const config = state.taskSort[currentSortMode()];
   config.field = config.field === field ? null : field;
+  updateTaskSortActiveButtons();
+  renderCurrentTaskList();
+}
+
+function setTaskSortDirection(direction) {
+  state.taskSort[currentSortMode()].direction = direction;
   updateTaskSortActiveButtons();
   renderCurrentTaskList();
 }
@@ -1818,7 +1827,7 @@ function toggleTaskStatusFilter(status, isChecked) {
 }
 
 function resetTaskSort() {
-  state.taskSort[currentSortMode()] = { field: null, statuses: null };
+  state.taskSort[currentSortMode()] = { field: null, statuses: null, direction: "asc" };
   updateTaskSortActiveButtons();
   renderTaskFilterStatusList();
   renderCurrentTaskList();
@@ -4000,6 +4009,8 @@ function setupActions() {
   el("taskSortByDateBtn").onclick = () => setTaskSortField("date");
   el("taskSortByNameBtn").onclick = () => setTaskSortField("name");
   el("taskSortByStatusBtn").onclick = () => setTaskSortField("status");
+  el("taskSortAscBtn").onclick = () => setTaskSortDirection("asc");
+  el("taskSortDescBtn").onclick = () => setTaskSortDirection("desc");
   el("taskSortResetBtn").onclick = () => resetTaskSort();
 
   const refreshLicensesBtn = el("refreshLicensesBtn");
