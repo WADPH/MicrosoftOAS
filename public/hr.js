@@ -482,8 +482,6 @@ async function submitOnboarding() {
     [byId("hrFirstName"), payload.firstName],
     [byId("hrLastName"), payload.lastName],
     [byId("hrOnboardingCompany"), payload.companyKey],
-    [byId("hrPosition"), payload.position],
-    [byId("hrPhone"), payload.phone],
     [byId("hrManager"), payload.manager],
     [byId("hrStartDate"), payload.startDate]
   ];

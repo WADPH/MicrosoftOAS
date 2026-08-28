@@ -120,8 +120,8 @@ router.post("/onboarding", (req, res) => {
   const manager = String(body.manager || "").trim();
   const startDate = String(body.startDate || "").trim();
 
-  if (!firstName || !lastName || !companyKey || !position || !phone || !manager || !startDate) {
-    return res.status(400).json({ ok: false, error: "All fields are required" });
+  if (!firstName || !lastName || !companyKey || !manager || !startDate) {
+    return res.status(400).json({ ok: false, error: "Name, Surname, Company, Line Manager and Date are required" });
   }
 
   const matcher = findMatcherByKey(companyKey);
