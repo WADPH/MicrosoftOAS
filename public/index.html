@@ -86,6 +86,11 @@
                 <button id="tabOffboardingBtn" class="ghost small" type="button">Offboarding</button>
               </div>
               <div class="inlineRow">
+                <button id="sortFilterBtn" class="ghost inlineIconBtn" type="button" aria-label="Sort & Filter" title="Sort & Filter">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M4 6h16M7 12h10M10 18h4" />
+                  </svg>
+                </button>
                 <button id="refreshBtn" class="ghost inlineIconBtn" type="button" aria-label="Refresh" title="Refresh">
                   <svg viewBox="0 0 28 30" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                     <path d="M20 5v6h-6" />
@@ -95,6 +100,11 @@
                 <button id="onboardingNewBtn" class="ghost inlineIconBtn" type="button" aria-label="New" title="New">
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                     <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </button>
+                <button id="offboardingSortFilterBtn" class="ghost inlineIconBtn hidden" type="button" aria-label="Sort & Filter" title="Sort & Filter">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M4 6h16M7 12h10M10 18h4" />
                   </svg>
                 </button>
                 <button id="offboardingRefreshBtn" class="ghost inlineIconBtn hidden" type="button" aria-label="Refresh" title="Refresh">
@@ -198,6 +208,26 @@
               <p class="metaSmall">Assign from tenant or request via email</p>
             </div>
 
+            <div class="licenseSeatsCard">
+              <div class="licenseSeatsHeader">
+                <span class="licenseSeatsLabel">Business Premium free seats</span>
+                <div class="licenseSeatsActions">
+                  <span id="userLicenseBadge" class="userLicenseBadge hidden"></span>
+                  <button id="manualLicenseAssignBtn" type="button" class="primary small hidden">Assign</button>
+                  <button id="refreshLicensesBtn" class="ghost inlineIconBtn" type="button" aria-label="Refresh license availability" title="Refresh license availability">
+                    <svg viewBox="0 0 28 30" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                      <path d="M20 5v6h-6" />
+                      <path d="M20 11a8 8 0 1 0 2 5.3" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div id="premiumSeats" class="licenseSeatsValue">-</div>
+              <div id="premiumSeatsTenant" class="licenseSeatsTenant">-</div>
+            </div>
+
+            <div class="sectionDivider"></div>
+
             <div class="field">
               <label class="switch">
                 <input id="skipLicense" type="checkbox" />
@@ -205,8 +235,6 @@
                 <span class="switchText">Skip License</span>
               </label>
             </div>
-
-            <div class="sectionDivider"></div>
 
             <div id="licenseControlsWrap">
               <div class="rowBetween">
@@ -223,23 +251,6 @@
                     >?</span>
                   </span>
                 </label>
-              </div>
-              <div class="licenseSeatsCard">
-                <div class="licenseSeatsHeader">
-                  <span class="licenseSeatsLabel">Business Premium free seats</span>
-                  <div class="licenseSeatsActions">
-                    <span id="userLicenseBadge" class="userLicenseBadge hidden"></span>
-                    <button id="manualLicenseAssignBtn" type="button" class="primary small hidden">Assign</button>
-                    <button id="refreshLicensesBtn" class="ghost inlineIconBtn" type="button" aria-label="Refresh license availability" title="Refresh license availability">
-                      <svg viewBox="0 0 28 30" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path d="M20 5v6h-6" />
-                        <path d="M20 11a8 8 0 1 0 2 5.3" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                <div id="premiumSeats" class="licenseSeatsValue">-</div>
-                <div id="premiumSeatsTenant" class="licenseSeatsTenant">-</div>
               </div>
             </div>
 
@@ -691,6 +702,37 @@
           <button id="snipeitAllTasksModalClose" type="button" aria-label="Close">×</button>
         </div>
         <div id="snipeitAllTasksList" class="snipeitPendingList"></div>
+      </div>
+    </div>
+
+    <div id="taskSortModal" class="modal hidden" aria-hidden="true">
+      <div id="taskSortModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="taskSortModalTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="taskSortModalTitle">Sort & Filter</h3>
+            <p class="metaSmall">Choose how the task list is ordered and filtered</p>
+          </div>
+          <button id="taskSortModalClose" type="button" aria-label="Close">×</button>
+        </div>
+
+        <div class="field">
+          <label>Sort by</label>
+          <div class="tasksTabs">
+            <button id="taskSortByDateBtn" type="button" class="ghost small">Date</button>
+            <button id="taskSortByNameBtn" type="button" class="ghost small">Name</button>
+            <button id="taskSortByStatusBtn" type="button" class="ghost small">Status</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Filter by status</label>
+          <div id="taskFilterStatusList" class="taskFilterStatusList"></div>
+        </div>
+
+        <div class="actions">
+          <button id="taskSortResetBtn" type="button" class="ghost small">Reset</button>
+        </div>
       </div>
     </div>
 

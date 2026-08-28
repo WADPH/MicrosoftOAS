@@ -75,11 +75,17 @@ const state = {
   },
   sessionExpiredNotified: false,
   appView: "main",
-  sessionWatchTimer: null
+  sessionWatchTimer: null,
+  taskSort: {
+    onboarding: { field: null, statuses: null },
+    offboarding: { field: null, statuses: null }
+  }
 };
 
 const ONBOARDING_STATUS_OPTIONS = ["error", "pending", "unlicensed", "provisioned", "done"];
 const OFFBOARDING_STATUS_OPTIONS = ["error", "pending", "done"];
+const ONBOARDING_FILTER_STATUSES = ["pending", "processing", "unlicensed", "provisioned", "done", "error"];
+const OFFBOARDING_FILTER_STATUSES = ["pending", "processing", "done", "error"];
 
 function serverLog(message, level = "INFO") {
   console.log(`[${level}] ${message}`);
@@ -675,8 +681,10 @@ function setTaskMode(mode) {
   el("tabOnboardingBtn")?.classList.toggle("active", !isOffboarding);
   el("tabOffboardingBtn")?.classList.toggle("active", isOffboarding);
   el("refreshBtn")?.classList.toggle("hidden", isOffboarding);
+  el("sortFilterBtn")?.classList.toggle("hidden", isOffboarding);
   el("onboardingNewBtn")?.classList.toggle("hidden", isOffboarding);
   el("offboardingRefreshBtn")?.classList.toggle("hidden", !isOffboarding);
+  el("offboardingSortFilterBtn")?.classList.toggle("hidden", !isOffboarding);
   el("offboardingNewBtn")?.classList.toggle("hidden", !isOffboarding);
   el("offboardingTaskListHint")?.classList.toggle("hidden", !isOffboarding);
   const onboardingBlocks = Array.from(document.querySelectorAll("#onboardingDetails"));
@@ -1251,21 +1259,10 @@ function refreshMailVisibilityAndPreview() {
   const skipLicense = Boolean(el("skipLicense")?.checked);
   const anyAsset = hasAnyAssetSelected();
 
-  licenseSection.classList.toggle("hidden", !licenseRequired);
+  licenseSection.classList.toggle("hidden", skipLicense || !licenseRequired);
   assetsSection.classList.toggle("hidden", !anyAsset);
   if (licenseControlsWrap) {
-    licenseControlsWrap.classList.toggle("readonlySection", skipLicense);
-    const controls = licenseControlsWrap.querySelectorAll("input, textarea, select, button");
-    for (const control of controls) {
-      control.disabled = skipLicense;
-    }
-  }
-  if (licenseSection) {
-    licenseSection.classList.toggle("readonlySection", skipLicense);
-    const emailControls = licenseSection.querySelectorAll("input, textarea, select, button");
-    for (const control of emailControls) {
-      control.disabled = skipLicense;
-    }
+    licenseControlsWrap.classList.toggle("hidden", skipLicense);
   }
 
   if (!state.userEditedLicenseSubject) {
@@ -1656,7 +1653,15 @@ function renderTasks() {
     return "pending";
   };
 
-  for (const task of state.tasks) {
+  const visibleTasks = getVisibleTasks("onboarding");
+  if (visibleTasks.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "No tasks match the current filter";
+    list.appendChild(li);
+    return;
+  }
+
+  for (const task of visibleTasks) {
     const li = document.createElement("li");
     li.className = task.id === state.selectedId ? "active" : "";
     li.innerHTML = `
@@ -1694,7 +1699,15 @@ function renderOffboardingTasks() {
     return "pending";
   };
 
-  for (const task of rows) {
+  const visibleTasks = getVisibleTasks("offboarding");
+  if (visibleTasks.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "No tasks match the current filter";
+    list.appendChild(li);
+    return;
+  }
+
+  for (const task of visibleTasks) {
     const li = document.createElement("li");
     li.className = task.id === state.offboardingSelectedId ? "active" : "";
     const userUpn = task.offboarding?.email || task.email || "not specified";
@@ -1722,6 +1735,107 @@ function renderCurrentTaskList() {
   } else {
     renderTasks();
   }
+}
+
+function getVisibleTasks(mode) {
+  const source = mode === "offboarding" ? state.offboardingTasks : state.tasks;
+  const rows = Array.isArray(source) ? source : [];
+  const config = state.taskSort[mode];
+
+  let result = config.statuses
+    ? rows.filter((task) => config.statuses.has(String(task.status || "pending").toLowerCase()))
+    : rows.slice();
+
+  if (config.field === "date") {
+    result.sort((a, b) => String(b.startDate || "").localeCompare(String(a.startDate || "")));
+  } else if (config.field === "name") {
+    result.sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || "")));
+  } else if (config.field === "status") {
+    result.sort((a, b) => String(a.status || "").localeCompare(String(b.status || "")));
+  }
+
+  return result;
+}
+
+function currentSortMode() {
+  return state.taskMode === "offboarding" ? "offboarding" : "onboarding";
+}
+
+function updateTaskSortActiveButtons() {
+  const field = state.taskSort[currentSortMode()].field;
+  el("taskSortByDateBtn").classList.toggle("active", field === "date");
+  el("taskSortByNameBtn").classList.toggle("active", field === "name");
+  el("taskSortByStatusBtn").classList.toggle("active", field === "status");
+}
+
+function setTaskSortField(field) {
+  const config = state.taskSort[currentSortMode()];
+  config.field = config.field === field ? null : field;
+  updateTaskSortActiveButtons();
+  renderCurrentTaskList();
+}
+
+function renderTaskFilterStatusList() {
+  const mode = currentSortMode();
+  const statuses = mode === "offboarding" ? OFFBOARDING_FILTER_STATUSES : ONBOARDING_FILTER_STATUSES;
+  const activeSet = state.taskSort[mode].statuses;
+  const container = el("taskFilterStatusList");
+  container.innerHTML = "";
+
+  for (const status of statuses) {
+    const isChecked = !activeSet || activeSet.has(status);
+    const label = document.createElement("label");
+    label.className = "taskFilterStatusItem";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = isChecked;
+    checkbox.addEventListener("change", () => toggleTaskStatusFilter(status, checkbox.checked));
+
+    const span = document.createElement("span");
+    span.textContent = status;
+
+    label.appendChild(checkbox);
+    label.appendChild(span);
+    container.appendChild(label);
+  }
+}
+
+function toggleTaskStatusFilter(status, isChecked) {
+  const mode = currentSortMode();
+  const statuses = mode === "offboarding" ? OFFBOARDING_FILTER_STATUSES : ONBOARDING_FILTER_STATUSES;
+  const config = state.taskSort[mode];
+  const activeSet = config.statuses ? new Set(config.statuses) : new Set(statuses);
+
+  if (isChecked) {
+    activeSet.add(status);
+  } else {
+    activeSet.delete(status);
+  }
+
+  config.statuses = activeSet.size === statuses.length ? null : activeSet;
+  renderCurrentTaskList();
+}
+
+function resetTaskSort() {
+  state.taskSort[currentSortMode()] = { field: null, statuses: null };
+  updateTaskSortActiveButtons();
+  renderTaskFilterStatusList();
+  renderCurrentTaskList();
+}
+
+function openTaskSortModal() {
+  renderTaskFilterStatusList();
+  updateTaskSortActiveButtons();
+  const modal = el("taskSortModal");
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeTaskSortModal() {
+  const modal = el("taskSortModal");
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
 }
 
 function setCheckbox(id, value) {
@@ -3878,6 +3992,15 @@ function setupActions() {
       }
     }
   };
+
+  el("sortFilterBtn").onclick = () => openTaskSortModal();
+  el("offboardingSortFilterBtn").onclick = () => openTaskSortModal();
+  el("taskSortModalClose").onclick = () => closeTaskSortModal();
+  el("taskSortModalOverlay").onclick = () => closeTaskSortModal();
+  el("taskSortByDateBtn").onclick = () => setTaskSortField("date");
+  el("taskSortByNameBtn").onclick = () => setTaskSortField("name");
+  el("taskSortByStatusBtn").onclick = () => setTaskSortField("status");
+  el("taskSortResetBtn").onclick = () => resetTaskSort();
 
   const refreshLicensesBtn = el("refreshLicensesBtn");
   if (refreshLicensesBtn) {
