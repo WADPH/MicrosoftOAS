@@ -408,6 +408,8 @@ GET /hr                      # HR page (admin + hr roles only)
 GET /hr/companies            # Company dropdown options + Teams notification enabled flag
 GET /hr/users                # Tenant-scoped user search (Line Manager / Employee pickers)
 GET /hr/mention-users        # Cross-tenant user search (Teams @mention picker)
+GET /hr/teams-defaults       # Get the saved default Teams note/mentions (per request type)
+POST /hr/teams-defaults      # Save the default Teams note/mentions (per request type)
 POST /hr/onboarding          # Create a simplified onboarding task
 POST /hr/offboarding         # Create a simplified offboarding task
 ```
@@ -432,10 +434,10 @@ Automatically assign IT assets (laptops, monitors, etc.) to new employees.
 
 ### Zammad Ticketing System
 
-Automatically create support tickets for offboarding tasks.
+Automatically create a support ticket for every onboarding or offboarding request — whether it came in via the Teams webhook or was submitted from the [HR Self-Service Page](#hr-self-service-page).
 
 **Features:**
-- Automatic ticket creation for employee offboarding
+- Automatic ticket creation for both employee onboarding and offboarding
 - Tracks equipment return and system access removal
 - Integrates with existing ticketing workflow
 
@@ -448,15 +450,15 @@ Automatically create support tickets for offboarding tasks.
 
 ## HR Self-Service Page
 
-A restricted page (`/hr`) that lets HR staff submit onboarding/offboarding requests without exposing the full admin dashboard (no license assignment, no Snipe-IT, no Zammad, no Graph user deletion, etc.).
+A restricted page (`/hr`) that lets HR staff submit onboarding/offboarding requests without exposing the full admin dashboard (no license assignment, no Snipe-IT, no Graph user deletion, etc. — see below for what still happens automatically in the background).
 
 **Access:** Only users listed in `ALLOWED_HR` (see [Environment Variables](#environment-variables)). After SSO login, HR users are redirected straight to `/hr` and can also open `/progress`; every other route (`/`, `/tasks`, `/offboarding`, `/settings`, `/snipeit`) returns `403 Forbidden` for this role.
 
-**Onboarding tab** — fields: Name, Surname, Company (dropdown, built from [Company Matcher Configuration](#company-matcher-configuration)), Position, Mobile Number, Line Manager (searched from the company's tenant), Date (native date picker only — no manual typing).
+**Onboarding tab** — fields: Name Surname (single field — typed as one string, e.g. "Jane Doe", and split automatically into first/last name), Company (dropdown, built from [Company Matcher Configuration](#company-matcher-configuration)), Position *(optional)*, Mobile Number *(optional)*, Line Manager (searched from the company's tenant), Date (native date picker only — no manual typing). Only Name Surname, Company, Line Manager and Date are required to submit.
 
 **Offboarding tab** — fields: Company (dropdown), Employee (searched from the company's tenant), Date.
 
-Submitted requests are created as normal `pending` tasks in the same store the admin dashboard manages — an HR submission is equivalent to an admin manually creating a draft task and filling in the basic fields. The admin then continues processing it as usual (License/Assets/Groups + Approve for onboarding; choose related accounts/assets + Execute for offboarding).
+Submitted requests are created as normal `pending` tasks in the same store the admin dashboard manages — an HR submission is equivalent to an admin manually creating a draft task and filling in the basic fields. The admin then continues processing it as usual (License/Assets/Groups + Approve for onboarding; choose related accounts/assets + Execute for offboarding). If Zammad is enabled, a support ticket is also created automatically for the request, the same way it already is for tasks received via the Teams webhook.
 
 Each tab optionally includes a **Teams Notification** block — see below. It only appears when Teams notifications are enabled in Settings.
 
@@ -534,13 +536,15 @@ Check the channel: the mention should render as a clickable, highlighted `@Test 
 
 ### How the message is built
 
-Once wired up, every HR-page submission with Teams notifications enabled can include, in this order:
+Once wired up, every HR-page submission with Teams notifications enabled sends a message built in this order:
 1. **Title** (auto-generated: `Onboarding - {Name}` / `Offboarding - {Employee}`)
-2. **Free-text note** (optional, typed by HR)
-3. **Mention lines** (optional, each a person picked via a cross-tenant search + a short custom message)
-4. **Date** (always appended at the bottom, taken from the task's date field)
+2. **A fixed details block**, always included — Company / Position / Name / Mobile number / Line Manager / Date for onboarding; Company / Name / Date for offboarding
+3. **Free-text note** (optional, typed by HR)
+4. **Mention lines** (optional, each a person picked via a cross-tenant search + a short custom message)
 
-A notification is only sent if there's a note and/or at least one mention — an empty Teams section sends nothing. A failed delivery (bad URL, flow down, etc.) is logged and never blocks task creation.
+The note and mention list can be pre-filled from a saved default: each tab has a **Save as Default** button that stores the current note + mentions as the shared starting point for that request type (onboarding/offboarding) — the same default is pre-filled for every HR user and on every new request, until someone saves a new one. Editing or removing a mention for one specific request never changes the saved default.
+
+Because the details block is always included, a notification is sent for every submission (as long as the feature is enabled) — there's no "empty" case to skip. A failed delivery (bad URL, flow down, etc.) is logged and never blocks task creation, and a mentioned person who no longer exists in Entra simply renders as plain (non-clickable) text instead of breaking the message.
 
 ---
 
@@ -574,6 +578,7 @@ OAS/
 │   │   ├── mail.js                 # Email service
 │   │   ├── offboardingPayload.js   # Shared offboarding task payload builder (admin + HR page)
 │   │   ├── teamsNotify.js          # Teams notification Adaptive Card builder/sender (optional feature)
+│   │   ├── teamsDefaultsStore.js   # Saved default Teams note/mentions per request type (HR page)
 │   │   ├── snipeit.service.js      # Snipe-IT service
 │   │   ├── snipeitAssignStore.js   # Snipe-IT assignment storage
 │   │   ├── snipeitAssignWorker.js  # Snipe-IT assignment worker
@@ -586,7 +591,8 @@ OAS/
 │   │   └── hr.html                 # HR self-service page template
 │   └── db/                          # Data storage
 │       ├── tasks.json              # Tasks database
-│       └── snipeit_assign.json     # Snipe-IT assignments database
+│       ├── snipeit_assign.json     # Snipe-IT assignments database
+│       └── teamsDefaults.json      # Saved default Teams note/mentions per request type
 ├── .env.example                     # Environment variables example
 ├── .dockerignore                    # Docker ignore file
 ├── docker-compose.yml               # Docker Compose configuration
