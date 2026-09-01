@@ -6,6 +6,7 @@ const { buildOffboardingTaskPayload } = require("../services/offboardingPayload"
 const { getTenantKeysFromEnv } = require("../services/tenantConfig");
 const { isEnabled: isTeamsNotificationsEnabled, sendTeamsNotification } = require("../services/teamsNotify");
 const { getTeamsDefaults, saveTeamsDefault } = require("../services/teamsDefaultsStore");
+const { createOnboardingTicket, createOffboardingTicket } = require("../services/zammad.service");
 
 const router = express.Router();
 
@@ -172,6 +173,19 @@ router.post("/onboarding", (req, res) => {
   ];
   sendTeamsNotification({ title: `Onboarding - ${fullName}`, fields: teamsFields, note: teamsNote, mentions: teamsMentions }).catch(() => {});
 
+  const onboardingTicketBody = [
+    "Onboarding request created from OAS HR page.",
+    `Name: ${fullName}`,
+    `Company: ${matcher.code}`,
+    `Position: ${position}`,
+    `Mobile number: ${phone}`,
+    `Line Manager: ${manager}`,
+    `Date: ${startDate}`
+  ].join("\n");
+  createOnboardingTicket(result.task, { ticketBody: onboardingTicketBody }).catch((error) => {
+    console.error(`[hr] Failed to create Zammad onboarding ticket: ${error.message}`);
+  });
+
   res.status(201).json({ ok: true, task: result.task });
 });
 
@@ -202,11 +216,16 @@ router.post("/offboarding", (req, res) => {
     user
   });
 
+  const fullName = String(user.displayName || offboarding.email || "");
+  const { firstName, lastName } = splitName(fullName);
+
   const result = addTask(
     {
       taskType: "offboarding",
       status: "pending",
-      fullName: String(user.displayName || offboarding.email || ""),
+      fullName,
+      firstName,
+      lastName,
       company: offboarding.company || "",
       email: offboarding.email,
       startDate,
@@ -217,13 +236,23 @@ router.post("/offboarding", (req, res) => {
 
   const teamsNote = String(body.teamsNote || "").trim();
   const teamsMentions = normalizeTeamsMentions(body.teamsMentions);
-  const title = `Offboarding - ${user.displayName || offboarding.email || ""}`;
+  const title = `Offboarding - ${fullName}`;
   const teamsFields = [
     { label: "Company", value: matcher.code },
-    { label: "Name", value: user.displayName || offboarding.email || "" },
+    { label: "Name", value: fullName },
     { label: "Date", value: startDate }
   ];
   sendTeamsNotification({ title, fields: teamsFields, note: teamsNote, mentions: teamsMentions }).catch(() => {});
+
+  const offboardingTicketBody = [
+    "Offboarding request created from OAS HR page.",
+    `Name: ${fullName}`,
+    `Company: ${matcher.code}`,
+    `Date: ${startDate}`
+  ].join("\n");
+  createOffboardingTicket(result.task, { ticketBody: offboardingTicketBody }).catch((error) => {
+    console.error(`[hr] Failed to create Zammad offboarding ticket: ${error.message}`);
+  });
 
   res.status(201).json({ ok: true, task: result.task });
 });
