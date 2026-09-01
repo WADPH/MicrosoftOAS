@@ -1,5 +1,5 @@
 const express = require("express");
-const { buildCompanyMatchers, normalizeNamePart } = require("../parser");
+const { buildCompanyMatchers, normalizeNamePart, splitName } = require("../parser");
 const { listUsers } = require("../services/graph");
 const { addTask } = require("../services/taskStore");
 const { buildOffboardingTaskPayload } = require("../services/offboardingPayload");
@@ -112,16 +112,15 @@ router.get("/users", async (req, res) => {
 
 router.post("/onboarding", (req, res) => {
   const body = req.body || {};
-  const firstName = String(body.firstName || "").trim();
-  const lastName = String(body.lastName || "").trim();
+  const fullName = String(body.fullName || "").trim();
   const companyKey = String(body.companyKey || "").trim();
   const position = String(body.position || "").trim();
   const phone = String(body.phone || "").trim();
   const manager = String(body.manager || "").trim();
   const startDate = String(body.startDate || "").trim();
 
-  if (!firstName || !lastName || !companyKey || !manager || !startDate) {
-    return res.status(400).json({ ok: false, error: "Name, Surname, Company, Line Manager and Date are required" });
+  if (!fullName || !companyKey || !manager || !startDate) {
+    return res.status(400).json({ ok: false, error: "Name Surname, Company, Line Manager and Date are required" });
   }
 
   const matcher = findMatcherByKey(companyKey);
@@ -129,7 +128,7 @@ router.post("/onboarding", (req, res) => {
     return res.status(400).json({ ok: false, error: "Unknown company" });
   }
 
-  const fullName = `${firstName} ${lastName}`.trim();
+  const { firstName, lastName } = splitName(fullName);
   const email = buildOnboardingEmail(firstName, lastName, matcher.domain);
 
   const result = addTask({

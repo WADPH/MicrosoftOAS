@@ -465,8 +465,7 @@ async function submitOnboarding() {
   const statusEl = byId("hrOnboardingStatus");
   statusEl.textContent = "";
   const payload = {
-    firstName: byId("hrFirstName").value.trim(),
-    lastName: byId("hrLastName").value.trim(),
+    fullName: byId("hrFullName").value.trim(),
     companyKey: byId("hrOnboardingCompany").value,
     position: byId("hrPosition").value.trim(),
     phone: byId("hrPhone").value.trim(),
@@ -479,8 +478,7 @@ async function submitOnboarding() {
   };
 
   const requiredFields = [
-    [byId("hrFirstName"), payload.firstName],
-    [byId("hrLastName"), payload.lastName],
+    [byId("hrFullName"), payload.fullName],
     [byId("hrOnboardingCompany"), payload.companyKey],
     [byId("hrManager"), payload.manager],
     [byId("hrStartDate"), payload.startDate]
@@ -500,9 +498,8 @@ async function submitOnboarding() {
   submitBtn.disabled = true;
   try {
     await api("/hr/onboarding", { method: "POST", body: JSON.stringify(payload) });
-    showHrSuccess("Onboarding Task Created", `${payload.firstName} ${payload.lastName} has been submitted for onboarding.`);
-    byId("hrFirstName").value = "";
-    byId("hrLastName").value = "";
+    showHrSuccess("Onboarding Task Created", `${payload.fullName} has been submitted for onboarding.`);
+    byId("hrFullName").value = "";
     byId("hrOnboardingCompany").value = "";
     byId("hrPosition").value = "";
     byId("hrPhone").value = "";
@@ -603,7 +600,7 @@ function init() {
   setupDatePicker(byId("hrStartDate"));
   setupDatePicker(byId("hrOffboardingDate"));
 
-  ["hrFirstName", "hrLastName", "hrPosition", "hrPhone"].forEach((id) => {
+  ["hrFullName", "hrPosition", "hrPhone"].forEach((id) => {
     byId(id).addEventListener("input", clearFieldInvalid);
   });
   ["hrOnboardingCompany", "hrOffboardingCompany"].forEach((id) => {
