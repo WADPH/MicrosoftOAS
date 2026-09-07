@@ -57,12 +57,14 @@ function buildAdaptiveCardPayload({ title, fields, note, mentions }) {
 }
 
 async function sendTeamsNotification({ title, fields, note, mentions }) {
-  if (!isEnabled()) return;
+  if (!isEnabled()) {
+    return { sent: false, skipped: true, reason: "disabled" };
+  }
 
   const webhookUrl = String(process.env.TEAMS_NOTIFICATIONS_WEBHOOK_URL || "").trim();
   if (!webhookUrl) {
     console.warn("[teamsNotify] TEAMS_NOTIFICATIONS_ENABLED is true but TEAMS_NOTIFICATIONS_WEBHOOK_URL is not configured");
-    return;
+    return { sent: false, skipped: true, reason: "missing_webhook_url" };
   }
 
   const rows = Array.isArray(mentions) ? mentions.filter((row) => row?.id && row?.name) : [];
@@ -76,9 +78,12 @@ async function sendTeamsNotification({ title, fields, note, mentions }) {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       console.warn(`[teamsNotify] Webhook responded with ${response.status}: ${text}`);
+      return { sent: false, skipped: false, error: `Webhook responded with ${response.status}` };
     }
+    return { sent: true, skipped: false };
   } catch (error) {
     console.warn(`[teamsNotify] Failed to send Teams notification: ${error.message}`);
+    return { sent: false, skipped: false, error: error.message };
   }
 }
 

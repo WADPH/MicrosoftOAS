@@ -636,6 +636,17 @@ body[data-theme="dark"] .iconBtn .moon {
   color: var(--muted);
 }
 
+.taskDate {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#offboardingTargetDate {
+  margin-top: 8px;
+}
+
 .statusPill {
   font-size: 12px;
   padding: 6px 10px;

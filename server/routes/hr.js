@@ -1,12 +1,13 @@
 const express = require("express");
 const { buildCompanyMatchers, normalizeNamePart, splitName } = require("../parser");
 const { listUsers } = require("../services/graph");
-const { addTask } = require("../services/taskStore");
+const { addTask, updateTaskById } = require("../services/taskStore");
 const { buildOffboardingTaskPayload } = require("../services/offboardingPayload");
 const { getTenantKeysFromEnv } = require("../services/tenantConfig");
 const { isEnabled: isTeamsNotificationsEnabled, sendTeamsNotification } = require("../services/teamsNotify");
 const { getTeamsDefaults, saveTeamsDefault } = require("../services/teamsDefaultsStore");
 const { createOnboardingTicket, createOffboardingTicket } = require("../services/zammad.service");
+const { createExecutionLogger } = require("../services/executionLog");
 
 const router = express.Router();
 
@@ -161,6 +162,9 @@ router.post("/onboarding", (req, res) => {
     return res.status(409).json({ ok: false, error: "A task for this employee and date already exists" });
   }
 
+  const logger = createExecutionLogger("hr-onboarding");
+  logger.success(`Onboarding task created via HR page for ${fullName}`);
+
   const teamsNote = String(body.teamsNote || "").trim();
   const teamsMentions = normalizeTeamsMentions(body.teamsMentions);
   const teamsFields = [
@@ -171,7 +175,26 @@ router.post("/onboarding", (req, res) => {
     { label: "Line Manager", value: manager },
     { label: "Date", value: startDate }
   ];
-  sendTeamsNotification({ title: `Onboarding - ${fullName}`, fields: teamsFields, note: teamsNote, mentions: teamsMentions }).catch(() => {});
+
+  logger.info("Attempting to send Teams notification");
+  const task = updateTaskById(result.task.id, { executionLogs: logger.executionLogs }) || result.task;
+
+  sendTeamsNotification({ title: `Onboarding - ${fullName}`, fields: teamsFields, note: teamsNote, mentions: teamsMentions })
+    .then((outcome) => {
+      if (outcome?.sent) {
+        logger.success("Teams notification sent successfully");
+      } else if (outcome?.skipped) {
+        logger.info(`Teams notification skipped (${outcome.reason})`);
+      } else {
+        logger.error(`Teams notification failed: ${outcome?.error || "unknown error"}`);
+      }
+    })
+    .catch((error) => {
+      logger.error(`Teams notification failed: ${error.message}`);
+    })
+    .finally(() => {
+      updateTaskById(result.task.id, { executionLogs: logger.executionLogs });
+    });
 
   const onboardingTicketBody = [
     "Onboarding request created from OAS HR page.",
@@ -186,7 +209,7 @@ router.post("/onboarding", (req, res) => {
     console.error(`[hr] Failed to create Zammad onboarding ticket: ${error.message}`);
   });
 
-  res.status(201).json({ ok: true, task: result.task });
+  res.status(201).json({ ok: true, task });
 });
 
 router.post("/offboarding", (req, res) => {
@@ -234,6 +257,9 @@ router.post("/offboarding", (req, res) => {
     { skipDuplicate: true }
   );
 
+  const logger = createExecutionLogger("hr-offboarding");
+  logger.success(`Offboarding task created via HR page for ${fullName}`);
+
   const teamsNote = String(body.teamsNote || "").trim();
   const teamsMentions = normalizeTeamsMentions(body.teamsMentions);
   const title = `Offboarding - ${fullName}`;
@@ -242,7 +268,26 @@ router.post("/offboarding", (req, res) => {
     { label: "Name", value: fullName },
     { label: "Date", value: startDate }
   ];
-  sendTeamsNotification({ title, fields: teamsFields, note: teamsNote, mentions: teamsMentions }).catch(() => {});
+
+  logger.info("Attempting to send Teams notification");
+  const task = updateTaskById(result.task.id, { executionLogs: logger.executionLogs }) || result.task;
+
+  sendTeamsNotification({ title, fields: teamsFields, note: teamsNote, mentions: teamsMentions })
+    .then((outcome) => {
+      if (outcome?.sent) {
+        logger.success("Teams notification sent successfully");
+      } else if (outcome?.skipped) {
+        logger.info(`Teams notification skipped (${outcome.reason})`);
+      } else {
+        logger.error(`Teams notification failed: ${outcome?.error || "unknown error"}`);
+      }
+    })
+    .catch((error) => {
+      logger.error(`Teams notification failed: ${error.message}`);
+    })
+    .finally(() => {
+      updateTaskById(result.task.id, { executionLogs: logger.executionLogs });
+    });
 
   const offboardingTicketBody = [
     "Offboarding request created from OAS HR page.",
@@ -254,7 +299,7 @@ router.post("/offboarding", (req, res) => {
     console.error(`[hr] Failed to create Zammad offboarding ticket: ${error.message}`);
   });
 
-  res.status(201).json({ ok: true, task: result.task });
+  res.status(201).json({ ok: true, task });
 });
 
 module.exports = router;

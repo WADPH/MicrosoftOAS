@@ -969,8 +969,7 @@ async function selectOffboardingTask(id) {
   setInputValue("offboardingNote", task.note || "");
   const targetDateEl = el("offboardingTargetDate");
   if (targetDateEl) {
-    const rawDate = String(task.startDate || "").trim();
-    const targetDate = rawDate.includes("T") ? rawDate.slice(0, 10) : rawDate;
+    const targetDate = formatOffboardingTargetDate(task);
     targetDateEl.textContent = targetDate ? `Target date: ${targetDate}` : "";
     targetDateEl.classList.toggle("hidden", !targetDate);
   }
@@ -1678,6 +1677,11 @@ function renderTasks() {
   }
 }
 
+function formatOffboardingTargetDate(task) {
+  const rawDate = String(task?.startDate || "").trim();
+  return rawDate.includes("T") ? rawDate.slice(0, 10) : rawDate;
+}
+
 function renderOffboardingTasks() {
   const list = el("taskList");
   list.innerHTML = "";
@@ -1711,12 +1715,14 @@ function renderOffboardingTasks() {
     const li = document.createElement("li");
     li.className = task.id === state.offboardingSelectedId ? "active" : "";
     const userUpn = task.offboarding?.email || task.email || "not specified";
+    const targetDate = formatOffboardingTargetDate(task);
     li.innerHTML = `
       <div class="taskRow">
         <div class="taskMain">
           <div class="taskName">${String(task.fullName || userUpn).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
           <div class="taskMeta">${String(userUpn).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
         </div>
+        ${targetDate ? `<div class="taskDate">Target date: ${targetDate.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>` : ""}
         <div class="statusPill ${cls(task.status)}">${String(task.status || "pending").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
       </div>
     `;
