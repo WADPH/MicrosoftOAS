@@ -161,13 +161,43 @@ async function sendLicenseCancellationMail(offboarding = {}) {
   });
 }
 
+function buildReminderMail(task, reminder) {
+  const recipients = getRecipientConfig("REMINDER_NOTIFICATION");
+  const taskLabel = String(task.taskType || "onboarding").trim().toLowerCase() === "offboarding" ? "Offboarding" : "Onboarding";
+  const daysBefore = Number(reminder?.daysBefore || 0);
+  const dayLabel = daysBefore === 1 ? "1 day" : `${daysBefore} days`;
+  const targetDate = String(task.startDate || "").trim();
+  return {
+    to: recipients.to,
+    cc: recipients.cc,
+    subject: `Reminder: ${task.fullName || "Employee"} — ${dayLabel} until target date`,
+    body: `Hello,\n\nThis is a reminder that the ${taskLabel.toLowerCase()} task for ${task.fullName || "an employee"} (${task.company || "not specified"}) has its target date in ${dayLabel} (${targetDate}).\n\nBest regards,\nOAS`
+  };
+}
+
+async function sendReminderMail(task, reminder) {
+  const mail = buildReminderMail(task, reminder);
+  if (mail.to.length === 0) {
+    console.warn("[mail] REMINDER_NOTIFICATION_TO is empty, skipping reminder email");
+    return;
+  }
+  await sendMail({
+    subject: mail.subject,
+    body: mail.body,
+    to: mail.to,
+    cc: mail.cc
+  });
+}
+
 module.exports = {
   sendLicenseRequestMail,
   sendAssetsMail,
   sendLicenseCancellationMail,
+  sendReminderMail,
   humanizeAssetList,
   buildLicenseMail,
   buildAssetsMail,
   buildLicenseCancellationMail,
+  buildReminderMail,
   getLicenseRequestRecipients
 };

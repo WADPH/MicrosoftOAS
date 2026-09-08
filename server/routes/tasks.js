@@ -1,12 +1,15 @@
 const express = require("express");
+const crypto = require("crypto");
 const {
   getAllTasks,
   getTasksByType,
   getTaskById,
   addTask,
   updateTaskById,
-  deleteTaskById
+  deleteTaskById,
+  NOT_SPECIFIED
 } = require("../services/taskStore");
+const { computeRemindAt } = require("../services/reminderWorker");
 const { getCompanyMatcherOptions, getDefaultCompanyMatcher, resolveTenantKeyByEmail, buildCompanyMatchers, findCompanyMatcherByHints } = require("../parser");
 const { getDefaultTenantKey } = require("../services/tenantConfig");
 const {
@@ -505,6 +508,67 @@ router.delete("/:id", (req, res) => {
     return res.status(404).json({ error: "Task not found" });
   }
   return res.json({ success: true, id: removed.id });
+});
+
+router.get("/:id/reminders", (req, res) => {
+  const task = getTaskById(req.params.id);
+  if (!task) {
+    return res.status(404).json({ ok: false, error: "Task not found" });
+  }
+
+  if (Array.isArray(task.reminders) && task.reminders.length > 0) {
+    return res.json({ ok: true, reminders: task.reminders, startDate: task.startDate, isDefault: false });
+  }
+
+  const defaultDaysEnv = task.taskType === "offboarding"
+    ? process.env.OFFBOARDING_DEFAULT_REMINDER_DAYS
+    : process.env.ONBOARDING_DEFAULT_REMINDER_DAYS;
+  const defaultDays = String(defaultDaysEnv || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => /^\d+$/.test(x))
+    .map((x) => Number(x));
+
+  return res.json({
+    ok: true,
+    reminders: defaultDays.map((daysBefore) => ({ daysBefore })),
+    startDate: task.startDate,
+    isDefault: true
+  });
+});
+
+router.patch("/:id/reminders", (req, res) => {
+  const task = getTaskById(req.params.id);
+  if (!task) {
+    return res.status(404).json({ ok: false, error: "Task not found" });
+  }
+
+  const rawStartDate = String(task.startDate || "").trim();
+  if (!rawStartDate || rawStartDate === NOT_SPECIFIED) {
+    return res.status(400).json({ ok: false, error: "Set a target date for this task before scheduling reminders" });
+  }
+
+  const rawReminders = Array.isArray(req.body?.reminders) ? req.body.reminders : [];
+  const reminders = [];
+  for (const row of rawReminders) {
+    const daysBefore = Number(row?.daysBefore);
+    if (!Number.isFinite(daysBefore) || daysBefore <= 0) {
+      return res.status(400).json({ ok: false, error: "Each reminder must have a positive daysBefore value" });
+    }
+    const remindAt = computeRemindAt(rawStartDate, daysBefore);
+    if (!remindAt) {
+      return res.status(400).json({ ok: false, error: "Could not compute a reminder date from the task's target date" });
+    }
+    reminders.push({
+      id: crypto.randomUUID(),
+      daysBefore,
+      remindAt,
+      fired: false
+    });
+  }
+
+  const updated = updateTaskById(task.id, { reminders });
+  return res.json({ ok: true, reminders: updated.reminders });
 });
 
 router.post("/:id/approve", async (req, res) => {

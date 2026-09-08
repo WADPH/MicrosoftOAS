@@ -643,10 +643,6 @@ body[data-theme="dark"] .iconBtn .moon {
   flex-shrink: 0;
 }
 
-#offboardingTargetDate {
-  margin-top: 8px;
-}
-
 .statusPill {
   font-size: 12px;
   padding: 6px 10px;

@@ -194,7 +194,17 @@ function normalizeTask(task = {}) {
       : [],
     offboarding: normalizeOffboardingPayload(task.offboarding),
     createdAt: task.createdAt || new Date().toISOString(),
-    executionLogs: Array.isArray(task.executionLogs) ? task.executionLogs : []
+    executionLogs: Array.isArray(task.executionLogs) ? task.executionLogs : [],
+    reminders: Array.isArray(task.reminders)
+      ? task.reminders
+          .map((reminder) => ({
+            id: String(reminder?.id || crypto.randomUUID()),
+            daysBefore: Number(reminder?.daysBefore) || 0,
+            remindAt: String(reminder?.remindAt || "").trim(),
+            fired: Boolean(reminder?.fired)
+          }))
+          .filter((reminder) => reminder.daysBefore > 0 && reminder.remindAt)
+      : []
   };
 
   const defaults = buildDefaultMails(base);

@@ -129,10 +129,19 @@
           <section class="panel details">
             <div class="panelHeader">
               <h2 id="detailsTitle">Onboarding Details</h2>
-              <div class="statusControls">
-                <label for="taskStatusSelect" class="metaSmall">Status</label>
-                <select id="taskStatusSelect"></select>
-                <button id="taskStatusHelpBtn" class="ghost small" type="button" aria-label="Status help">?</button>
+              <div class="inlineRow">
+                <button id="openReminderModalBtn" class="ghost inlineIconBtn" type="button" aria-label="Set reminders" title="Set reminders">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <circle cx="12" cy="13" r="8" />
+                    <path d="M12 9v4l3 2" />
+                    <path d="M9 2h6" />
+                  </svg>
+                </button>
+                <div class="statusControls">
+                  <label for="taskStatusSelect" class="metaSmall">Status</label>
+                  <select id="taskStatusSelect"></select>
+                  <button id="taskStatusHelpBtn" class="ghost small" type="button" aria-label="Status help">?</button>
+                </div>
               </div>
             </div>
             <div class="panelContent" id="detailsPanelContent">
@@ -393,7 +402,10 @@
                 <button id="chooseOffboardingUserBtn" class="ghost" type="button">Choose User</button>
               </div>
               <div id="offboardingSelectedUser" class="managerEmpty">No user selected.</div>
-              <p id="offboardingTargetDate" class="metaSmall hidden"></p>
+              <div class="field">
+                <label for="offboardingDateInput">Target Date</label>
+                <input id="offboardingDateInput" type="date" autocomplete="off" />
+              </div>
             </div>
 
             <div class="sectionCard">
@@ -663,6 +675,25 @@
           </div>
         </div>
 
+        <div class="settingsSection">
+          <h3>Reminders</h3>
+          <p class="metaSmall">Email reminders based on a task's target date. Defaults are pre-filled (and editable) in the reminders window.</p>
+          <div class="field">
+            <label for="settingReminderNotificationTo" title="REMINDER_NOTIFICATION_TO">Notification Email(s)</label>
+            <input id="settingReminderNotificationTo" type="text" title="REMINDER_NOTIFICATION_TO" placeholder="one@example.com,two@example.com" />
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label for="settingOnboardingDefaultReminderDays" title="ONBOARDING_DEFAULT_REMINDER_DAYS">Onboarding Default (days before)</label>
+              <input id="settingOnboardingDefaultReminderDays" type="text" title="ONBOARDING_DEFAULT_REMINDER_DAYS" placeholder="3,1" />
+            </div>
+            <div class="field">
+              <label for="settingOffboardingDefaultReminderDays" title="OFFBOARDING_DEFAULT_REMINDER_DAYS">Offboarding Default (days before)</label>
+              <input id="settingOffboardingDefaultReminderDays" type="text" title="OFFBOARDING_DEFAULT_REMINDER_DAYS" placeholder="1" />
+            </div>
+          </div>
+        </div>
+
         <div id="snipeitPendingSection" class="settingsSection hidden">
           <div class="settingsSectionRow">
             <h3>Pending Assign Tasks</h3>
@@ -702,6 +733,38 @@
           <button id="snipeitAllTasksModalClose" type="button" aria-label="Close">×</button>
         </div>
         <div id="snipeitAllTasksList" class="snipeitPendingList"></div>
+      </div>
+    </div>
+
+    <div id="reminderModal" class="modal hidden" aria-hidden="true">
+      <div id="reminderModalOverlay" class="modalOverlay"></div>
+      <div class="modalContent" role="dialog" aria-modal="true" aria-labelledby="reminderModalTitle">
+        <div class="modalHeader">
+          <div>
+            <h3 id="reminderModalTitle">Set Reminders</h3>
+            <p id="reminderModalTargetDate" class="metaSmall">Target date: -</p>
+          </div>
+          <button id="reminderModalClose" type="button" aria-label="Close">×</button>
+        </div>
+
+        <div id="reminderModalNoDate" class="managerEmpty hidden">
+          Set a target date for this task before scheduling reminders.
+        </div>
+
+        <div id="reminderModalBody">
+          <div id="reminderList" class="mentionList"></div>
+          <div class="field">
+            <div class="inlineRow">
+              <input id="reminderCustomDays" type="number" min="1" step="1" placeholder="Days before" class="inlineRowFill" />
+              <button id="addReminderBtn" type="button" class="ghost small">Add reminder</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="saveRemindersBtn" type="button" class="primary">Save Reminders</button>
+        </div>
+        <p id="reminderModalStatus" class="meta"></p>
       </div>
     </div>
 

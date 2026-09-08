@@ -13,6 +13,7 @@ const hrRouter = require("./routes/hr");
 const requireAuth = require("./middleware/requireAuth");
 const { requireMainAccess, requireProgressAccess, requireProgressEditAccess, requireHrAccess } = require("./middleware/requireAuth");
 const { startSnipeitAssignWorker, processPendingAssignTasks } = require("./services/snipeitAssignWorker");
+const { startReminderWorker, processDueReminders } = require("./services/reminderWorker");
 const { getTasksByType } = require("./services/taskStore");
 const {
   getTaskAssetStatuses,
@@ -156,5 +157,9 @@ app.listen(port, () => {
   startSnipeitAssignWorker();
   processPendingAssignTasks().catch((error) => {
     console.error("[snipeit-worker] startup run failed", error.message);
+  });
+  startReminderWorker();
+  processDueReminders().catch((error) => {
+    console.error("[reminder-worker] startup run failed", error.message);
   });
 });

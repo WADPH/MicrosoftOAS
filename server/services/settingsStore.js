@@ -15,7 +15,10 @@ const EDITABLE_KEYS = [
   "SNIPEIT_MONITOR_PREFIX",
   "ZAMMAD_ENABLED",
   "ZAMMAD_DEFAULT_CUSTOMER",
-  "TEAMS_NOTIFICATIONS_ENABLED"
+  "TEAMS_NOTIFICATIONS_ENABLED",
+  "REMINDER_NOTIFICATION_TO",
+  "ONBOARDING_DEFAULT_REMINDER_DAYS",
+  "OFFBOARDING_DEFAULT_REMINDER_DAYS"
 ];
 
 const RESTRICTED_KEYS = [
@@ -120,6 +123,17 @@ function validateEmailList(field, value) {
   for (const email of emails) {
     if (!isValidEmail(email)) {
       const error = new Error(`${field} contains invalid email: ${email}`);
+      error.status = 400;
+      throw error;
+    }
+  }
+}
+
+function validateIntegerList(field, value) {
+  const items = splitCsv(value);
+  for (const item of items) {
+    if (!/^\d+$/.test(item)) {
+      const error = new Error(`${field} contains an invalid number: ${item}`);
       error.status = 400;
       throw error;
     }
@@ -285,6 +299,15 @@ function validateUpdates(updates) {
       }
     }
   }
+  if (Object.prototype.hasOwnProperty.call(updates, "REMINDER_NOTIFICATION_TO")) {
+    validateEmailList("REMINDER_NOTIFICATION_TO", updates.REMINDER_NOTIFICATION_TO);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "ONBOARDING_DEFAULT_REMINDER_DAYS")) {
+    validateIntegerList("ONBOARDING_DEFAULT_REMINDER_DAYS", updates.ONBOARDING_DEFAULT_REMINDER_DAYS);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "OFFBOARDING_DEFAULT_REMINDER_DAYS")) {
+    validateIntegerList("OFFBOARDING_DEFAULT_REMINDER_DAYS", updates.OFFBOARDING_DEFAULT_REMINDER_DAYS);
+  }
 }
 
 function ensureAllowedPayloadKeys(payload) {
@@ -436,6 +459,9 @@ function getCurrentSettings() {
     ZAMMAD_ENABLED: normalizeEnvStoredValue(envMap.ZAMMAD_ENABLED || process.env.ZAMMAD_ENABLED || "false") || "false",
     ZAMMAD_DEFAULT_CUSTOMER: normalizeEnvStoredValue(envMap.ZAMMAD_DEFAULT_CUSTOMER || process.env.ZAMMAD_DEFAULT_CUSTOMER || ""),
     TEAMS_NOTIFICATIONS_ENABLED: normalizeEnvStoredValue(envMap.TEAMS_NOTIFICATIONS_ENABLED || process.env.TEAMS_NOTIFICATIONS_ENABLED || "false") || "false",
+    REMINDER_NOTIFICATION_TO: normalizeEnvStoredValue(envMap.REMINDER_NOTIFICATION_TO || process.env.REMINDER_NOTIFICATION_TO || ""),
+    ONBOARDING_DEFAULT_REMINDER_DAYS: normalizeEnvStoredValue(envMap.ONBOARDING_DEFAULT_REMINDER_DAYS || process.env.ONBOARDING_DEFAULT_REMINDER_DAYS || ""),
+    OFFBOARDING_DEFAULT_REMINDER_DAYS: normalizeEnvStoredValue(envMap.OFFBOARDING_DEFAULT_REMINDER_DAYS || process.env.OFFBOARDING_DEFAULT_REMINDER_DAYS || ""),
     tenants,
     companies: parseCompanyMatchersFromEnvMap(envMap, tenants),
     companyMatcher: parseCompanyMatchersFromEnvMap(envMap, tenants)

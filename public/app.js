@@ -967,12 +967,7 @@ async function selectOffboardingTask(id) {
   renderTaskStatusOptions(task.status, "offboarding");
   updateTaskErrorView(task);
   setInputValue("offboardingNote", task.note || "");
-  const targetDateEl = el("offboardingTargetDate");
-  if (targetDateEl) {
-    const targetDate = formatOffboardingTargetDate(task);
-    targetDateEl.textContent = targetDate ? `Target date: ${targetDate}` : "";
-    targetDateEl.classList.toggle("hidden", !targetDate);
-  }
+  setInputValue("offboardingDateInput", formatOffboardingTargetDate(task));
   state.offboardingSelectedId = id;
   renderCurrentTaskList();
   applyZammadUiVisibility();
@@ -1184,6 +1179,7 @@ function buildOffboardingPayload(validateForExecute = false) {
     user,
     email: user.userPrincipalName || user.mail,
     note: String(el("offboardingNote")?.value || "").trim(),
+    startDate: String(el("offboardingDateInput")?.value || "").trim(),
     deleteUser,
     sendLicenseCancelEmail,
     licenseCancelMail: {
@@ -1853,6 +1849,121 @@ function closeTaskSortModal() {
   modal.setAttribute("aria-hidden", "true");
 }
 
+const reminderState = {
+  taskId: null,
+  reminders: [],
+  startDate: ""
+};
+
+function currentReminderTaskId() {
+  return state.taskMode === "offboarding" ? state.offboardingSelectedId : state.selectedId;
+}
+
+function renderReminderList() {
+  const container = el("reminderList");
+  container.innerHTML = "";
+
+  if (reminderState.reminders.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "managerEmpty";
+    empty.textContent = "No reminders scheduled.";
+    container.appendChild(empty);
+    return;
+  }
+
+  reminderState.reminders.forEach((reminder, index) => {
+    const row = document.createElement("div");
+    row.className = "mentionRow";
+
+    const label = document.createElement("div");
+    label.className = "mentionRowName";
+    label.textContent = reminder.daysBefore === 1 ? "1 day before" : `${reminder.daysBefore} days before`;
+
+    const dateLabel = document.createElement("div");
+    dateLabel.className = "subtitle";
+    dateLabel.textContent = reminder.remindAt ? `on ${reminder.remindAt}` : "will be computed on save";
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "mentionRowRemove";
+    removeBtn.setAttribute("aria-label", "Remove reminder");
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => {
+      reminderState.reminders.splice(index, 1);
+      renderReminderList();
+    });
+
+    row.appendChild(label);
+    row.appendChild(dateLabel);
+    row.appendChild(removeBtn);
+    container.appendChild(row);
+  });
+}
+
+function addCustomReminder() {
+  const input = el("reminderCustomDays");
+  const days = Number(input.value);
+  if (!Number.isFinite(days) || days <= 0) {
+    el("reminderModalStatus").textContent = "Enter a positive number of days.";
+    return;
+  }
+  reminderState.reminders.push({ daysBefore: Math.round(days) });
+  input.value = "";
+  el("reminderModalStatus").textContent = "";
+  renderReminderList();
+}
+
+async function saveReminders() {
+  const statusEl = el("reminderModalStatus");
+  statusEl.textContent = "";
+  if (!reminderState.taskId) return;
+
+  try {
+    const data = await api(`/tasks/${encodeURIComponent(reminderState.taskId)}/reminders`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reminders: reminderState.reminders.map((reminder) => ({ daysBefore: reminder.daysBefore }))
+      })
+    });
+    reminderState.reminders = Array.isArray(data.reminders) ? data.reminders.map((reminder) => ({ ...reminder })) : [];
+    renderReminderList();
+    statusEl.textContent = "Reminders saved.";
+  } catch (error) {
+    statusEl.textContent = `Failed to save reminders: ${error.message}`;
+  }
+}
+
+async function openReminderModal(taskId) {
+  if (!taskId) return;
+  reminderState.taskId = taskId;
+  el("reminderModalStatus").textContent = "";
+
+  const modal = el("reminderModal");
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+
+  try {
+    const data = await api(`/tasks/${encodeURIComponent(taskId)}/reminders`);
+    reminderState.startDate = String(data.startDate || "").trim();
+    reminderState.reminders = Array.isArray(data.reminders) ? data.reminders.map((reminder) => ({ ...reminder })) : [];
+
+    const hasDate = Boolean(reminderState.startDate) && reminderState.startDate.toLowerCase() !== "not specified";
+    el("reminderModalNoDate").classList.toggle("hidden", hasDate);
+    el("reminderModalBody").classList.toggle("hidden", !hasDate);
+    el("saveRemindersBtn").disabled = !hasDate;
+    el("reminderModalTargetDate").textContent = hasDate ? `Target date: ${reminderState.startDate}` : "Target date: -";
+    renderReminderList();
+  } catch (error) {
+    el("reminderModalStatus").textContent = `Failed to load reminders: ${error.message}`;
+  }
+}
+
+function closeReminderModal() {
+  const modal = el("reminderModal");
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+}
+
 function setCheckbox(id, value) {
   const input = el(id);
   if (input) input.checked = Boolean(value);
@@ -1861,6 +1972,31 @@ function setCheckbox(id, value) {
 function setInputValue(id, value) {
   const input = el(id);
   if (input) input.value = value;
+}
+
+function setupDatePicker(input) {
+  const supportsShowPicker = typeof input.showPicker === "function";
+  const open = () => {
+    if (!supportsShowPicker) return;
+    try {
+      input.showPicker();
+    } catch {
+      // ignore - browser refused (e.g. not a user gesture)
+    }
+  };
+  // Note: the input is intentionally NOT set readOnly - showPicker() throws
+  // InvalidStateError on a readonly/disabled control, which silently blocked
+  // the picker from ever opening. Manual typing is blocked via keydown instead.
+  input.addEventListener("click", open);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Tab" || event.key === "Shift" || event.key === "Escape") return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      open();
+      return;
+    }
+    event.preventDefault();
+  });
 }
 
 function setTextValue(id, value) {
@@ -2945,6 +3081,9 @@ function fillSettingsForm(values = {}) {
   el("settingZammadEnabled").checked = String(values.ZAMMAD_ENABLED || "false").toLowerCase() === "true";
   el("settingZammadDefaultCustomer").value = String(values.ZAMMAD_DEFAULT_CUSTOMER || "");
   el("settingTeamsNotificationsEnabled").checked = String(values.TEAMS_NOTIFICATIONS_ENABLED || "false").toLowerCase() === "true";
+  el("settingReminderNotificationTo").value = String(values.REMINDER_NOTIFICATION_TO || "");
+  el("settingOnboardingDefaultReminderDays").value = String(values.ONBOARDING_DEFAULT_REMINDER_DAYS || "");
+  el("settingOffboardingDefaultReminderDays").value = String(values.OFFBOARDING_DEFAULT_REMINDER_DAYS || "");
   const companies = values.companies || values.companyMatcher || [];
   renderCompanyMatcher(companies, values.tenants || []);
   state.snipeitConfig.enabled = el("settingSnipeitEnabled").checked;
@@ -2966,6 +3105,9 @@ function readSettingsForm() {
     ZAMMAD_ENABLED: String(Boolean(el("settingZammadEnabled").checked)),
     ZAMMAD_DEFAULT_CUSTOMER: el("settingZammadDefaultCustomer").value.trim(),
     TEAMS_NOTIFICATIONS_ENABLED: String(Boolean(el("settingTeamsNotificationsEnabled").checked)),
+    REMINDER_NOTIFICATION_TO: el("settingReminderNotificationTo").value.trim(),
+    ONBOARDING_DEFAULT_REMINDER_DAYS: el("settingOnboardingDefaultReminderDays").value.trim(),
+    OFFBOARDING_DEFAULT_REMINDER_DAYS: el("settingOffboardingDefaultReminderDays").value.trim(),
     companyMatcher: companyMatcher.map((row) => ({
       key: normalizeCompanyMatcherKey(row.key),
       patterns: row.patterns
@@ -3187,6 +3329,7 @@ async function approveTask() {
     
     showProgressComplete(`Approval completed: ${summary || "Done"}`);
     addProgressLog("✓ Task approved successfully", "success");
+    openReminderModal(state.selectedId);
   } catch (error) {
     showProgressError(`Approval failed: ${error.message}`);
     addProgressLog(`✕ Error: ${error.message}`, "error");
@@ -3258,6 +3401,14 @@ async function deleteTask() {
 }
 
 function setupActions() {
+  setupDatePicker(el("offboardingDateInput"));
+
+  el("openReminderModalBtn").onclick = () => openReminderModal(currentReminderTaskId());
+  el("reminderModalClose").onclick = () => closeReminderModal();
+  el("reminderModalOverlay").onclick = () => closeReminderModal();
+  el("addReminderBtn").onclick = () => addCustomReminder();
+  el("saveRemindersBtn").onclick = () => saveReminders();
+
   // Progress Modal handlers
   const progressModalClose = el("progressModalClose");
   const progressModalCloseBtn = el("progressModalCloseBtn");
@@ -3502,6 +3653,7 @@ function setupActions() {
         
         showProgressComplete(`Offboarding completed: ${summary}`);
         addProgressLog("✓ Offboarding completed successfully", "success");
+        openReminderModal(state.offboardingSelectedId);
       } catch (error) {
         showProgressError(`Offboarding failed: ${error.message}`);
         addProgressLog(`✕ Error: ${error.message}`, "error");

@@ -91,6 +91,7 @@ router.post("/tasks", (req, res) => {
   }
 
   const note = String(payload.note || "").trim();
+  const startDate = String(payload.startDate || "").trim();
 
   if (payload.taskId) {
     const existing = getTaskById(String(payload.taskId));
@@ -104,6 +105,7 @@ router.post("/tasks", (req, res) => {
       company: offboarding.company || existing.company || "",
       email: offboarding.email,
       note,
+      ...(startDate ? { startDate } : {}),
       offboarding
     });
     return res.json({ ok: true, task: updated });
@@ -116,7 +118,7 @@ router.post("/tasks", (req, res) => {
       fullName: String(offboarding.user?.displayName || offboarding.email || ""),
       company: offboarding.company || "",
       email: offboarding.email,
-      startDate: new Date().toISOString(),
+      startDate: startDate || new Date().toISOString(),
       note,
       offboarding
     },
