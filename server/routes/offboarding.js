@@ -6,6 +6,7 @@ const { addTask, getTasksByType, getTaskById, updateTaskById } = require("../ser
 const { sendLicenseCancellationMail, getLicenseRequestRecipients } = require("../services/mail");
 const { buildOffboardingTaskPayload } = require("../services/offboardingPayload");
 const { seedDefaultReminders } = require("../services/reminderWorker");
+const { createLogCollector } = require("../services/executionLog");
 
 const router = express.Router();
 
@@ -270,11 +271,16 @@ router.post("/execute", async (req, res) => {
     entra: []
   };
   let task = null;
+  const initiatedBy = String(req.user?.email || "unknown admin").trim();
+
+  const logCollector = createLogCollector();
+  logCollector.startCapture();
 
   try {
     if (payload.taskId) {
       task = getTaskById(String(payload.taskId));
       if (!task) {
+        logCollector.stopCapture();
         return res.status(404).json({ ok: false, error: "Offboarding task not found" });
       }
       task = updateTaskById(task.id, {
@@ -297,7 +303,7 @@ router.post("/execute", async (req, res) => {
       task = created.task;
     }
 
-    console.log(`[offboarding] Started for ${email} (tenant=${tenant})`);
+    console.log(`[offboarding] Started by ${initiatedBy} for ${email} (tenant=${tenant})`);
     if (sendLicenseCancelEmail) {
       console.log(`[offboarding] Attempting to send license cancellation email for tenant ${tenant}`);
       try {
@@ -393,22 +399,24 @@ router.post("/execute", async (req, res) => {
       (steps.snipeit || []).some((x) => x.status === "failed");
     if (hasErrors) {
       console.warn("[offboarding] Offboarding task completed with errors");
-      task = updateTaskById(task.id, { status: "error", offboarding, errorMessage: "Offboarding completed with partial errors" });
+      task = updateTaskById(task.id, { status: "error", offboarding, errorMessage: "Offboarding completed with partial errors", executionLogs: logCollector.logs });
     } else {
       console.log("[offboarding] Offboarding task completed");
-      task = updateTaskById(task.id, { status: "done", offboarding, errorMessage: "" });
+      task = updateTaskById(task.id, { status: "done", offboarding, errorMessage: "", executionLogs: logCollector.logs });
     }
 
+    logCollector.stopCapture();
     return res.json({ ok: true, steps, task });
   } catch (error) {
     console.error(`[offboarding] Offboarding task completed with errors: ${error.message || "unknown error"}`);
     if (task?.id) {
       try {
-        updateTaskById(String(task.id), { status: "error", errorMessage: error.message || "Offboarding execution failed" });
+        updateTaskById(String(task.id), { status: "error", errorMessage: error.message || "Offboarding execution failed", executionLogs: logCollector.logs });
       } catch {
         // ignore
       }
     }
+    logCollector.stopCapture();
     return res.status(500).json({ ok: false, error: error.message || "Offboarding execution failed", steps });
   }
 });

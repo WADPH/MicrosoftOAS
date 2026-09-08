@@ -598,7 +598,8 @@ router.post("/:id/approve", async (req, res) => {
     }
     const taskForProvision = getTaskById(existingTask.id) || existingTask;
 
-    console.log(`[approve] Started for ${existingTask.fullName} (${existingTask.email})`);
+    const initiatedBy = String(req.user?.email || "unknown admin").trim();
+    console.log(`[approve] Started by ${initiatedBy} for ${existingTask.fullName} (${existingTask.email})`);
     const tenantKey = resolveTenantKeyByEmail(existingTask.email);
     console.log(`[approve] Resolved tenant ${tenantKey || "default"} for ${existingTask.email}`);
 
