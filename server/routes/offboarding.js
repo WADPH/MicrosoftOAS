@@ -5,6 +5,7 @@ const { isEnabled: isSnipeitEnabled, getAssignedAssetsByEmail, checkinAsset } = 
 const { addTask, getTasksByType, getTaskById, updateTaskById } = require("../services/taskStore");
 const { sendLicenseCancellationMail, getLicenseRequestRecipients } = require("../services/mail");
 const { buildOffboardingTaskPayload } = require("../services/offboardingPayload");
+const { seedDefaultReminders } = require("../services/reminderWorker");
 
 const router = express.Router();
 
@@ -108,6 +109,9 @@ router.post("/tasks", (req, res) => {
       ...(startDate ? { startDate } : {}),
       offboarding
     });
+    if (startDate) {
+      seedDefaultReminders(updated);
+    }
     return res.json({ ok: true, task: updated });
   }
 
@@ -118,12 +122,17 @@ router.post("/tasks", (req, res) => {
       fullName: String(offboarding.user?.displayName || offboarding.email || ""),
       company: offboarding.company || "",
       email: offboarding.email,
+      // Fall back to "now" only as a technical placeholder when no real date was
+      // provided - never treat that fallback as a genuine target date for reminders.
       startDate: startDate || new Date().toISOString(),
       note,
       offboarding
     },
     { skipDuplicate: true }
   );
+  if (startDate) {
+    seedDefaultReminders(created.task);
+  }
 
   return res.status(201).json({ ok: true, task: created.task });
 });

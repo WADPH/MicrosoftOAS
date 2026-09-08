@@ -9,7 +9,7 @@ const {
   deleteTaskById,
   NOT_SPECIFIED
 } = require("../services/taskStore");
-const { computeRemindAt } = require("../services/reminderWorker");
+const { computeRemindAt, seedDefaultReminders } = require("../services/reminderWorker");
 const { getCompanyMatcherOptions, getDefaultCompanyMatcher, resolveTenantKeyByEmail, buildCompanyMatchers, findCompanyMatcherByHints } = require("../parser");
 const { getDefaultTenantKey } = require("../services/tenantConfig");
 const {
@@ -150,6 +150,8 @@ router.post("/new", (req, res) => {
       monitor: false
     }
   }, { skipDuplicate: true });
+
+  seedDefaultReminders(result.task);
 
   return res.status(201).json({ ok: true, task: result.task });
 });
@@ -498,6 +500,8 @@ router.patch("/:id", async (req, res) => {
   if (!updated) {
     return res.status(404).json({ error: "Task not found" });
   }
+
+  seedDefaultReminders(updated);
 
   return res.json(updated);
 });

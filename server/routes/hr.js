@@ -8,6 +8,7 @@ const { isEnabled: isTeamsNotificationsEnabled, sendTeamsNotification } = requir
 const { getTeamsDefaults, saveTeamsDefault } = require("../services/teamsDefaultsStore");
 const { createOnboardingTicket, createOffboardingTicket } = require("../services/zammad.service");
 const { createExecutionLogger } = require("../services/executionLog");
+const { seedDefaultReminders } = require("../services/reminderWorker");
 
 const router = express.Router();
 
@@ -162,6 +163,8 @@ router.post("/onboarding", (req, res) => {
     return res.status(409).json({ ok: false, error: "A task for this employee and date already exists" });
   }
 
+  seedDefaultReminders(result.task);
+
   const logger = createExecutionLogger("hr-onboarding");
   logger.success(`Onboarding task created via HR page for ${fullName}`);
 
@@ -256,6 +259,8 @@ router.post("/offboarding", (req, res) => {
     },
     { skipDuplicate: true }
   );
+
+  seedDefaultReminders(result.task);
 
   const logger = createExecutionLogger("hr-offboarding");
   logger.success(`Offboarding task created via HR page for ${fullName}`);

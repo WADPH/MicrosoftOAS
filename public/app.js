@@ -1675,6 +1675,7 @@ function renderTasks() {
 
 function formatOffboardingTargetDate(task) {
   const rawDate = String(task?.startDate || "").trim();
+  if (!rawDate || rawDate.toLowerCase() === "not specified") return "";
   return rawDate.includes("T") ? rawDate.slice(0, 10) : rawDate;
 }
 
@@ -1712,13 +1713,13 @@ function renderOffboardingTasks() {
     li.className = task.id === state.offboardingSelectedId ? "active" : "";
     const userUpn = task.offboarding?.email || task.email || "not specified";
     const targetDate = formatOffboardingTargetDate(task);
+    const metaText = targetDate ? `${userUpn} · ${targetDate}` : userUpn;
     li.innerHTML = `
       <div class="taskRow">
         <div class="taskMain">
           <div class="taskName">${String(task.fullName || userUpn).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
-          <div class="taskMeta">${String(userUpn).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+          <div class="taskMeta">${String(metaText).replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
         </div>
-        ${targetDate ? `<div class="taskDate">Target date: ${targetDate.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>` : ""}
         <div class="statusPill ${cls(task.status)}">${String(task.status || "pending").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
       </div>
     `;
@@ -1926,8 +1927,9 @@ async function saveReminders() {
       })
     });
     reminderState.reminders = Array.isArray(data.reminders) ? data.reminders.map((reminder) => ({ ...reminder })) : [];
-    renderReminderList();
-    statusEl.textContent = "Reminders saved.";
+    const targetStatusEl = state.taskMode === "offboarding" ? el("offboardingStatus") : el("status");
+    if (targetStatusEl) targetStatusEl.textContent = "Reminders saved.";
+    closeReminderModal();
   } catch (error) {
     statusEl.textContent = `Failed to save reminders: ${error.message}`;
   }

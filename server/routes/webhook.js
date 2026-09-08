@@ -6,6 +6,7 @@ const { extractMessageText, flattenPayloadStrings, parseOnboardingMessage, parse
 const { addTask, NOT_SPECIFIED } = require("../services/taskStore");
 const { findUserByDisplayName } = require("../services/graph");
 const { createOnboardingTicket, createOffboardingTicket } = require("../services/zammad.service");
+const { seedDefaultReminders } = require("../services/reminderWorker");
 
 const router = express.Router();
 const WEBHOOK_LOG_DIR = path.join(__dirname, "..", "soutes");
@@ -276,6 +277,8 @@ router.post("/teams", async (req, res) => {
 
     const result = addTask(normalized);
 
+    seedDefaultReminders(result.task);
+
     console.log(`[webhook] Offboarding task created: ${result.task.id} for ${result.task.fullName}`);
 
     // Create Zammad ticket asynchronously
@@ -395,6 +398,8 @@ router.post("/teams", async (req, res) => {
     }
 
     console.log(`[webhook] Task created: ${result.task.id} for ${result.task.fullName}`);
+
+    seedDefaultReminders(result.task);
 
     // Create Zammad ticket asynchronously (non-blocking)
     // DO NOT pass senderEmail: customer must be Teams message sender, not onboarding user
