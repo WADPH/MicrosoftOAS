@@ -520,13 +520,15 @@ router.get("/:id/reminders", (req, res) => {
     return res.status(404).json({ ok: false, error: "Task not found" });
   }
 
+  if (task.taskType === "offboarding") {
+    return res.status(400).json({ ok: false, error: "Reminders are not available for offboarding tasks" });
+  }
+
   if (Array.isArray(task.reminders) && task.reminders.length > 0) {
     return res.json({ ok: true, reminders: task.reminders, startDate: task.startDate, isDefault: false });
   }
 
-  const defaultDaysEnv = task.taskType === "offboarding"
-    ? process.env.OFFBOARDING_DEFAULT_REMINDER_DAYS
-    : process.env.ONBOARDING_DEFAULT_REMINDER_DAYS;
+  const defaultDaysEnv = process.env.ONBOARDING_DEFAULT_REMINDER_DAYS;
   const defaultDays = String(defaultDaysEnv || "")
     .split(",")
     .map((x) => x.trim())
@@ -545,6 +547,10 @@ router.patch("/:id/reminders", (req, res) => {
   const task = getTaskById(req.params.id);
   if (!task) {
     return res.status(404).json({ ok: false, error: "Task not found" });
+  }
+
+  if (task.taskType === "offboarding") {
+    return res.status(400).json({ ok: false, error: "Reminders are not available for offboarding tasks" });
   }
 
   const rawStartDate = String(task.startDate || "").trim();

@@ -208,7 +208,7 @@ router.post("/onboarding", (req, res) => {
     `Line Manager: ${manager}`,
     `Date: ${startDate}`
   ].join("\n");
-  createOnboardingTicket(result.task, { ticketBody: onboardingTicketBody }).catch((error) => {
+  createOnboardingTicket(result.task, { ticketBody: onboardingTicketBody, senderEmail: req.user?.email }).catch((error) => {
     console.error(`[hr] Failed to create Zammad onboarding ticket: ${error.message}`);
   });
 
@@ -300,7 +300,7 @@ router.post("/offboarding", (req, res) => {
     `Company: ${matcher.code}`,
     `Date: ${startDate}`
   ].join("\n");
-  createOffboardingTicket(result.task, { ticketBody: offboardingTicketBody }).catch((error) => {
+  createOffboardingTicket(result.task, { ticketBody: offboardingTicketBody, senderEmail: req.user?.email }).catch((error) => {
     console.error(`[hr] Failed to create Zammad offboarding ticket: ${error.message}`);
   });
 

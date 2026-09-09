@@ -677,20 +677,14 @@
 
         <div class="settingsSection">
           <h3>Reminders</h3>
-          <p class="metaSmall">Email reminders based on a task's target date. Defaults are pre-filled (and editable) in the reminders window.</p>
+          <p class="metaSmall">Email reminders based on an onboarding task's target date. Defaults are pre-filled (and editable) in the reminders window. Not available for offboarding tasks.</p>
           <div class="field">
             <label for="settingReminderNotificationTo" title="REMINDER_NOTIFICATION_TO">Notification Email(s)</label>
             <input id="settingReminderNotificationTo" type="text" title="REMINDER_NOTIFICATION_TO" placeholder="one@example.com,two@example.com" />
           </div>
-          <div class="grid2">
-            <div class="field">
-              <label for="settingOnboardingDefaultReminderDays" title="ONBOARDING_DEFAULT_REMINDER_DAYS">Onboarding Default (days before)</label>
-              <input id="settingOnboardingDefaultReminderDays" type="text" title="ONBOARDING_DEFAULT_REMINDER_DAYS" placeholder="3,1" />
-            </div>
-            <div class="field">
-              <label for="settingOffboardingDefaultReminderDays" title="OFFBOARDING_DEFAULT_REMINDER_DAYS">Offboarding Default (days before)</label>
-              <input id="settingOffboardingDefaultReminderDays" type="text" title="OFFBOARDING_DEFAULT_REMINDER_DAYS" placeholder="1" />
-            </div>
+          <div class="field">
+            <label for="settingOnboardingDefaultReminderDays" title="ONBOARDING_DEFAULT_REMINDER_DAYS">Onboarding Default (days before)</label>
+            <input id="settingOnboardingDefaultReminderDays" type="text" title="ONBOARDING_DEFAULT_REMINDER_DAYS" placeholder="3,1" />
           </div>
         </div>
 

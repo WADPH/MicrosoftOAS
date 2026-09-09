@@ -687,6 +687,7 @@ function setTaskMode(mode) {
   el("offboardingSortFilterBtn")?.classList.toggle("hidden", !isOffboarding);
   el("offboardingNewBtn")?.classList.toggle("hidden", !isOffboarding);
   el("offboardingTaskListHint")?.classList.toggle("hidden", !isOffboarding);
+  el("openReminderModalBtn")?.classList.toggle("hidden", isOffboarding);
   const onboardingBlocks = Array.from(document.querySelectorAll("#onboardingDetails"));
   const offboardingBlocks = Array.from(document.querySelectorAll("#offboardingDetails"));
   for (const block of onboardingBlocks) {
@@ -3085,7 +3086,6 @@ function fillSettingsForm(values = {}) {
   el("settingTeamsNotificationsEnabled").checked = String(values.TEAMS_NOTIFICATIONS_ENABLED || "false").toLowerCase() === "true";
   el("settingReminderNotificationTo").value = String(values.REMINDER_NOTIFICATION_TO || "");
   el("settingOnboardingDefaultReminderDays").value = String(values.ONBOARDING_DEFAULT_REMINDER_DAYS || "");
-  el("settingOffboardingDefaultReminderDays").value = String(values.OFFBOARDING_DEFAULT_REMINDER_DAYS || "");
   const companies = values.companies || values.companyMatcher || [];
   renderCompanyMatcher(companies, values.tenants || []);
   state.snipeitConfig.enabled = el("settingSnipeitEnabled").checked;
@@ -3109,7 +3109,6 @@ function readSettingsForm() {
     TEAMS_NOTIFICATIONS_ENABLED: String(Boolean(el("settingTeamsNotificationsEnabled").checked)),
     REMINDER_NOTIFICATION_TO: el("settingReminderNotificationTo").value.trim(),
     ONBOARDING_DEFAULT_REMINDER_DAYS: el("settingOnboardingDefaultReminderDays").value.trim(),
-    OFFBOARDING_DEFAULT_REMINDER_DAYS: el("settingOffboardingDefaultReminderDays").value.trim(),
     companyMatcher: companyMatcher.map((row) => ({
       key: normalizeCompanyMatcherKey(row.key),
       patterns: row.patterns
@@ -3655,7 +3654,6 @@ function setupActions() {
         
         showProgressComplete(`Offboarding completed: ${summary}`);
         addProgressLog("✓ Offboarding completed successfully", "success");
-        openReminderModal(state.offboardingSelectedId);
       } catch (error) {
         showProgressError(`Offboarding failed: ${error.message}`);
         addProgressLog(`✕ Error: ${error.message}`, "error");

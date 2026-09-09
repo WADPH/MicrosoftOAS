@@ -24,11 +24,8 @@ function computeRemindAt(startDate, daysBefore) {
   return base.toISOString().slice(0, 10);
 }
 
-function getDefaultReminderDays(taskType) {
-  const envVar = String(taskType || "").trim().toLowerCase() === "offboarding"
-    ? process.env.OFFBOARDING_DEFAULT_REMINDER_DAYS
-    : process.env.ONBOARDING_DEFAULT_REMINDER_DAYS;
-  return String(envVar || "")
+function getDefaultReminderDays() {
+  return String(process.env.ONBOARDING_DEFAULT_REMINDER_DAYS || "")
     .split(",")
     .map((x) => x.trim())
     .filter((x) => /^\d+$/.test(x))
@@ -40,16 +37,18 @@ function getDefaultReminderDays(taskType) {
  * Auto-seeds a task's reminders from the configured default schedule the first
  * time it has both a real target date and no reminders yet - regardless of how
  * the task was created (HR page, admin manual entry, Teams webhook). No-ops
- * (and never overwrites) once a task already has any reminders.
+ * (and never overwrites) once a task already has any reminders. Reminders only
+ * apply to onboarding tasks - offboarding tasks never get any.
  */
 function seedDefaultReminders(task) {
   if (!task || !task.id) return null;
+  if (task.taskType === "offboarding") return null;
   if (Array.isArray(task.reminders) && task.reminders.length > 0) return null;
 
   const rawStartDate = String(task.startDate || "").trim();
   if (!rawStartDate || rawStartDate.toLowerCase() === "not specified") return null;
 
-  const defaultDays = getDefaultReminderDays(task.taskType);
+  const defaultDays = getDefaultReminderDays();
   if (defaultDays.length === 0) return null;
 
   const reminders = defaultDays

@@ -17,8 +17,7 @@ const EDITABLE_KEYS = [
   "ZAMMAD_DEFAULT_CUSTOMER",
   "TEAMS_NOTIFICATIONS_ENABLED",
   "REMINDER_NOTIFICATION_TO",
-  "ONBOARDING_DEFAULT_REMINDER_DAYS",
-  "OFFBOARDING_DEFAULT_REMINDER_DAYS"
+  "ONBOARDING_DEFAULT_REMINDER_DAYS"
 ];
 
 const RESTRICTED_KEYS = [
@@ -305,9 +304,6 @@ function validateUpdates(updates) {
   if (Object.prototype.hasOwnProperty.call(updates, "ONBOARDING_DEFAULT_REMINDER_DAYS")) {
     validateIntegerList("ONBOARDING_DEFAULT_REMINDER_DAYS", updates.ONBOARDING_DEFAULT_REMINDER_DAYS);
   }
-  if (Object.prototype.hasOwnProperty.call(updates, "OFFBOARDING_DEFAULT_REMINDER_DAYS")) {
-    validateIntegerList("OFFBOARDING_DEFAULT_REMINDER_DAYS", updates.OFFBOARDING_DEFAULT_REMINDER_DAYS);
-  }
 }
 
 function ensureAllowedPayloadKeys(payload) {
@@ -461,7 +457,6 @@ function getCurrentSettings() {
     TEAMS_NOTIFICATIONS_ENABLED: normalizeEnvStoredValue(envMap.TEAMS_NOTIFICATIONS_ENABLED || process.env.TEAMS_NOTIFICATIONS_ENABLED || "false") || "false",
     REMINDER_NOTIFICATION_TO: normalizeEnvStoredValue(envMap.REMINDER_NOTIFICATION_TO || process.env.REMINDER_NOTIFICATION_TO || ""),
     ONBOARDING_DEFAULT_REMINDER_DAYS: normalizeEnvStoredValue(envMap.ONBOARDING_DEFAULT_REMINDER_DAYS || process.env.ONBOARDING_DEFAULT_REMINDER_DAYS || ""),
-    OFFBOARDING_DEFAULT_REMINDER_DAYS: normalizeEnvStoredValue(envMap.OFFBOARDING_DEFAULT_REMINDER_DAYS || process.env.OFFBOARDING_DEFAULT_REMINDER_DAYS || ""),
     tenants,
     companies: parseCompanyMatchersFromEnvMap(envMap, tenants),
     companyMatcher: parseCompanyMatchersFromEnvMap(envMap, tenants)
