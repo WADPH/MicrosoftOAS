@@ -467,6 +467,21 @@
               <div id="offboardingAssetsList" class="snipeitAssetList"></div>
             </div>
 
+            <div id="offboardingWizerSection" class="sectionCard hidden">
+              <div class="sectionHeader">
+                <h3>Wizer</h3>
+                <p class="metaSmall">Wizer account found by the user's email (Wizer API only supports disabling, not deleting)</p>
+              </div>
+              <div class="field">
+                <label class="switch">
+                  <input id="offboardingWizerDisableUser" type="checkbox" checked />
+                  <span class="switchTrack" aria-hidden="true"><span class="switchThumb"></span></span>
+                  <span class="switchText">Disable Wizer User</span>
+                </label>
+              </div>
+              <div id="offboardingWizerList" class="snipeitAssetList"></div>
+            </div>
+
             <div class="sectionCard">
               <div class="sectionHeader">
                 <h3>Preview</h3>
@@ -547,6 +562,9 @@
             <li><code>ZAMMAD_URL — Base URL of your Zammad instance</code></li>
             <li><code>ZAMMAD_API_TOKEN — API token from Zammad</code></li>
             <li><code>TEAMS_NOTIFICATIONS_WEBHOOK_URL — Power Automate flow trigger URL</code></li>
+            <li><code>WIZER_API_KEY — API key from Wizer admin (Settings → Integration)</code></li>
+            <li><code>WIZER_COMPANY_ID — Your Wizer company ID</code></li>
+            <li><code>WIZER_API_URL — Optional, defaults to https://gateway.wizer-training.com</code></li>
           </ul>
         </div>
 
@@ -671,6 +689,28 @@
           </div>
           <div class="settingsRestricted">
             <div class="restrictedTitle" title="TEAMS_NOTIFICATIONS_WEBHOOK_URL">Teams Webhook URL</div>
+            <p class="metaSmall">This value must be configured in <code>.env</code> for security reasons.</p>
+          </div>
+        </div>
+
+        <div class="settingsSection">
+          <h3>Wizer Integration</h3>
+          <p class="metaSmall">Offboarding only: look up the user in Wizer by email and disable the Wizer account on Execute.</p>
+          <div class="grid2">
+            <div class="field">
+              <label class="switch">
+                <input id="settingWizerEnabled" type="checkbox" />
+                <span class="switchTrack" aria-hidden="true"><span class="switchThumb"></span></span>
+                <span class="switchText">Enable Wizer Integration</span>
+              </label>
+            </div>
+          </div>
+          <div class="settingsRestricted">
+            <div class="restrictedTitle" title="WIZER_API_KEY">Wizer API Key</div>
+            <p class="metaSmall">This value must be configured in <code>.env</code> for security reasons.</p>
+          </div>
+          <div class="settingsRestricted">
+            <div class="restrictedTitle" title="WIZER_COMPANY_ID">Wizer Company ID</div>
             <p class="metaSmall">This value must be configured in <code>.env</code> for security reasons.</p>
           </div>
         </div>

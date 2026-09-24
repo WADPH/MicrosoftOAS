@@ -2,6 +2,7 @@ const express = require("express");
 const { getTenantKeysFromEnv, normalizeTenantKey } = require("../services/tenantConfig");
 const { listUsers, deleteUserById, getUserByEmail } = require("../services/graph");
 const { isEnabled: isSnipeitEnabled, getAssignedAssetsByEmail, checkinAsset } = require("../services/snipeit.service");
+const { isEnabled: isWizerEnabled, findUsersByEmail: findWizerUsersByEmail, disableUserByEmail: disableWizerUserByEmail } = require("../services/wizer.service");
 const { addTask, getTasksByType, getTaskById, updateTaskById } = require("../services/taskStore");
 const { sendLicenseCancellationMail, getLicenseRequestRecipients } = require("../services/mail");
 const { buildOffboardingTaskPayload } = require("../services/offboardingPayload");
@@ -67,6 +68,7 @@ router.get("/meta", (req, res) => {
     ok: true,
     tenants: getTenantKeysFromEnv(),
     snipeitEnabled: isSnipeitEnabled(),
+    wizerEnabled: isWizerEnabled(),
     licenseCancelDefaults: {
       to: recipients.to,
       cc: recipients.cc
@@ -237,6 +239,25 @@ router.get("/snipeit-assets", async (req, res) => {
   }
 });
 
+router.get("/wizer-users", async (req, res) => {
+  try {
+    if (!isWizerEnabled()) {
+      return res.json({ ok: true, enabled: false, users: [] });
+    }
+
+    const email = String(req.query.email || "").trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({ ok: false, error: "email is required" });
+    }
+
+    const users = await findWizerUsersByEmail(email);
+    return res.json({ ok: true, enabled: true, users });
+  } catch (error) {
+    const status = Number(error.status || 500);
+    return res.status(status).json({ ok: false, error: error.message || "Failed to load Wizer users" });
+  }
+});
+
 router.post("/execute", async (req, res) => {
   const payload = req.body || {};
   const offboarding = buildOffboardingTaskPayload(payload);
@@ -246,6 +267,8 @@ router.post("/execute", async (req, res) => {
   const sendLicenseCancelEmail = offboarding.sendLicenseCancelEmail;
   const accountsToDelete = offboarding.accountsToDelete;
   const assetsToCheckin = offboarding.assetsToCheckin;
+  const wizerDisableUser = offboarding.wizerDisableUser;
+  const wizerUsersToDisable = offboarding.wizerUsersToDisable;
 
   if (!tenant) {
     return res.status(400).json({ ok: false, error: "tenant is required" });
@@ -268,7 +291,8 @@ router.post("/execute", async (req, res) => {
   const steps = {
     email: [],
     snipeit: [],
-    entra: []
+    entra: [],
+    wizer: []
   };
   let task = null;
   const initiatedBy = String(req.user?.email || "unknown admin").trim();
@@ -393,10 +417,30 @@ router.post("/execute", async (req, res) => {
       }
     }
 
+    if (isWizerEnabled() && wizerDisableUser && wizerUsersToDisable.length > 0) {
+      for (const wizerUser of wizerUsersToDisable) {
+        console.log(`[offboarding] Attempting to disable Wizer user ${wizerUser.email}`);
+        try {
+          await disableWizerUserByEmail(wizerUser.email);
+          console.log(`[offboarding] Successfully disabled Wizer user ${wizerUser.email}`);
+          steps.wizer.push({ user: wizerUser.email, status: "disabled" });
+        } catch (error) {
+          if (Number(error.status || 0) === 404) {
+            console.warn(`[offboarding] Wizer user ${wizerUser.email} not found; treating as already removed`);
+            steps.wizer.push({ user: wizerUser.email, status: "not_found" });
+            continue;
+          }
+          console.error(`[offboarding] Failed to disable Wizer user ${wizerUser.email}: ${error.message || "disable failed"}`);
+          steps.wizer.push({ user: wizerUser.email, status: "failed", error: error.message || "disable failed" });
+        }
+      }
+    }
+
     const hasErrors =
       (steps.email || []).some((x) => x.status === "failed") ||
       (steps.entra || []).some((x) => x.status === "failed") ||
-      (steps.snipeit || []).some((x) => x.status === "failed");
+      (steps.snipeit || []).some((x) => x.status === "failed") ||
+      (steps.wizer || []).some((x) => x.status === "failed");
     if (hasErrors) {
       console.warn("[offboarding] Offboarding task completed with errors");
       task = updateTaskById(task.id, { status: "error", offboarding, errorMessage: "Offboarding completed with partial errors", executionLogs: logCollector.logs });

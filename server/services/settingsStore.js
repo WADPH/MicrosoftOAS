@@ -16,6 +16,7 @@ const EDITABLE_KEYS = [
   "ZAMMAD_ENABLED",
   "ZAMMAD_DEFAULT_CUSTOMER",
   "TEAMS_NOTIFICATIONS_ENABLED",
+  "WIZER_ENABLED",
   "REMINDER_NOTIFICATION_TO",
   "ONBOARDING_DEFAULT_REMINDER_DAYS"
 ];
@@ -32,7 +33,10 @@ const RESTRICTED_KEYS = [
   "SNIPEIT_API_KEY",
   "ZAMMAD_URL",
   "ZAMMAD_API_TOKEN",
-  "TEAMS_NOTIFICATIONS_WEBHOOK_URL"
+  "TEAMS_NOTIFICATIONS_WEBHOOK_URL",
+  "WIZER_API_URL",
+  "WIZER_API_KEY",
+  "WIZER_COMPANY_ID"
 ];
 
 function normalizeNewlines(text) {
@@ -298,6 +302,23 @@ function validateUpdates(updates) {
       }
     }
   }
+  if (Object.prototype.hasOwnProperty.call(updates, "WIZER_ENABLED")) {
+    const value = String(updates.WIZER_ENABLED || "").trim().toLowerCase();
+    if (!["true", "false"].includes(value)) {
+      const error = new Error("WIZER_ENABLED must be true or false");
+      error.status = 400;
+      throw error;
+    }
+    if (value === "true") {
+      const apiKey = String(process.env.WIZER_API_KEY || "").trim();
+      const companyId = String(process.env.WIZER_COMPANY_ID || "").trim();
+      if (!apiKey || !companyId) {
+        const error = new Error("WIZER_API_KEY and WIZER_COMPANY_ID must be configured in .env before enabling");
+        error.status = 400;
+        throw error;
+      }
+    }
+  }
   if (Object.prototype.hasOwnProperty.call(updates, "REMINDER_NOTIFICATION_TO")) {
     validateEmailList("REMINDER_NOTIFICATION_TO", updates.REMINDER_NOTIFICATION_TO);
   }
@@ -455,6 +476,7 @@ function getCurrentSettings() {
     ZAMMAD_ENABLED: normalizeEnvStoredValue(envMap.ZAMMAD_ENABLED || process.env.ZAMMAD_ENABLED || "false") || "false",
     ZAMMAD_DEFAULT_CUSTOMER: normalizeEnvStoredValue(envMap.ZAMMAD_DEFAULT_CUSTOMER || process.env.ZAMMAD_DEFAULT_CUSTOMER || ""),
     TEAMS_NOTIFICATIONS_ENABLED: normalizeEnvStoredValue(envMap.TEAMS_NOTIFICATIONS_ENABLED || process.env.TEAMS_NOTIFICATIONS_ENABLED || "false") || "false",
+    WIZER_ENABLED: normalizeEnvStoredValue(envMap.WIZER_ENABLED || process.env.WIZER_ENABLED || "false") || "false",
     REMINDER_NOTIFICATION_TO: normalizeEnvStoredValue(envMap.REMINDER_NOTIFICATION_TO || process.env.REMINDER_NOTIFICATION_TO || ""),
     ONBOARDING_DEFAULT_REMINDER_DAYS: normalizeEnvStoredValue(envMap.ONBOARDING_DEFAULT_REMINDER_DAYS || process.env.ONBOARDING_DEFAULT_REMINDER_DAYS || ""),
     tenants,

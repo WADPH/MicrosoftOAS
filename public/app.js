@@ -11,6 +11,7 @@ const state = {
   userEditedAssetsSubject: false,
   userEditedAssetsBody: false,
   zammadEnabled: false,
+  wizerEnabled: false,
   zammadAgents: [],
   selectedZammadAgentId: null,
   settings: null,
@@ -62,7 +63,9 @@ const state = {
     userRequestId: 0,
     relatedAccounts: [],
     snipeitAssets: [],
+    wizerUsers: [],
     deleteUser: true,
+    wizerDisableUser: true,
     sendLicenseCancelEmail: true,
     licenseCancelMail: {
       to: [],
@@ -822,20 +825,61 @@ function renderOffboardingAssets() {
   updateOffboardingPreview();
 }
 
+function renderOffboardingWizer() {
+  const section = el("offboardingWizerSection");
+  const list = el("offboardingWizerList");
+  if (!section || !list) return;
+
+  const enabled = Boolean(state.wizerEnabled);
+  section.classList.toggle("hidden", !enabled);
+  list.innerHTML = "";
+
+  if (!enabled) {
+    updateOffboardingPreview();
+    return;
+  }
+
+  const users = Array.isArray(state.offboarding.wizerUsers) ? state.offboarding.wizerUsers : [];
+  if (users.length === 0) {
+    list.innerHTML = `<div class="managerEmpty">No Wizer user found for this email.</div>`;
+    updateOffboardingPreview();
+    return;
+  }
+
+  users.forEach((wizerUser, index) => {
+    const name = [wizerUser.firstName, wizerUser.lastName].filter(Boolean).join(" ");
+    const meta = [name, wizerUser.role, wizerUser.isDisabled ? "already disabled" : ""].filter(Boolean).join(" · ");
+    const row = document.createElement("label");
+    row.className = "checkTile offboardingCheckTile";
+    row.innerHTML = `
+      <input type="checkbox" class="offboardingWizerCheck" data-index="${index}" ${wizerUser.selected ? "checked" : ""} />
+      <span class="checkMark" aria-hidden="true"></span>
+      <div>
+        <div class="checkText">${String(wizerUser.email || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+        <div class="assetMeta">${meta.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+  updateOffboardingPreview();
+}
+
 function updateOffboardingPreview() {
   const box = el("offboardingPreview");
   if (!box) return;
   const deleteUser = Boolean(el("offboardingDeleteUser")?.checked);
   const accountCount = state.offboarding.relatedAccounts.filter((row) => row.selected).length;
   const assetCount = state.offboarding.snipeitAssets.filter((row) => row.selected).length;
+  const wizerCount = state.offboarding.wizerUsers.filter((row) => row.selected).length;
   const user = state.offboarding.selectedUser;
   if (!user) {
     box.textContent = "No actions selected yet.";
     return;
   }
+  const wizerPart = state.wizerEnabled ? ` | Disable Wizer: ${state.offboarding.wizerDisableUser ? wizerCount : 0}` : "";
   box.innerHTML = `
     <div class="assetTag">${String(user.userPrincipalName || user.mail || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</div>
-    <div class="assetMeta">Delete accounts: ${deleteUser ? accountCount : 0} | Checkin assets: ${assetCount} | License email: ${state.offboarding.sendLicenseCancelEmail ? "on" : "off"}</div>
+    <div class="assetMeta">Delete accounts: ${deleteUser ? accountCount : 0} | Checkin assets: ${assetCount}${wizerPart} | License email: ${state.offboarding.sendLicenseCancelEmail ? "on" : "off"}</div>
   `;
 }
 
@@ -917,7 +961,9 @@ function resetOffboardingState() {
   state.offboarding.selectedUser = null;
   state.offboarding.relatedAccounts = [];
   state.offboarding.snipeitAssets = [];
+  state.offboarding.wizerUsers = [];
   state.offboarding.deleteUser = true;
+  state.offboarding.wizerDisableUser = true;
   state.offboarding.sendLicenseCancelEmail = true;
   state.offboarding.userEditedLicenseSubject = false;
   state.offboarding.userEditedLicenseBody = false;
@@ -928,9 +974,11 @@ function resetOffboardingState() {
     body: buildDefaultOffboardingLicenseBody()
   };
   if (el("offboardingDeleteUser")) el("offboardingDeleteUser").checked = true;
+  if (el("offboardingWizerDisableUser")) el("offboardingWizerDisableUser").checked = true;
   renderOffboardingSelectedUser();
   renderOffboardingAccounts();
   renderOffboardingAssets();
+  renderOffboardingWizer();
   fillOffboardingLicenseCancelMailFromState();
   el("offboardingStatus").textContent = "";
   renderCurrentTaskList();
@@ -1002,16 +1050,23 @@ async function selectOffboardingTask(id) {
   state.offboarding.snipeitAssets = Array.isArray(payload.assetsToCheckin)
     ? payload.assetsToCheckin.map((row) => ({ ...row, selected: true }))
     : [];
+  state.offboarding.wizerDisableUser = payload.wizerDisableUser !== false;
+  if (el("offboardingWizerDisableUser")) el("offboardingWizerDisableUser").checked = state.offboarding.wizerDisableUser;
+  state.offboarding.wizerUsers = Array.isArray(payload.wizerUsersToDisable)
+    ? payload.wizerUsersToDisable.map((row) => ({ ...row, selected: true }))
+    : [];
 
   renderOffboardingSelectedUser();
   renderOffboardingAccounts();
   renderOffboardingAssets();
+  renderOffboardingWizer();
   fillOffboardingLicenseCancelMailFromState();
 
   const shouldAutoLoadRelatedData =
     Boolean(state.offboarding.selectedUser) &&
     state.offboarding.relatedAccounts.length === 0 &&
-    state.offboarding.snipeitAssets.length === 0;
+    state.offboarding.snipeitAssets.length === 0 &&
+    state.offboarding.wizerUsers.length === 0;
 
   if (shouldAutoLoadRelatedData) {
     try {
@@ -1030,6 +1085,8 @@ async function selectOffboardingTask(id) {
 
 async function loadOffboardingMeta() {
   const data = await api("/offboarding/meta");
+  state.wizerEnabled = Boolean(data?.wizerEnabled);
+  renderOffboardingWizer();
   state.offboarding.tenants = Array.isArray(data?.tenants) ? data.tenants : [];
   state.offboarding.selectedTenant = state.offboarding.tenants[0] || "";
   state.offboarding.licenseDefaults = {
@@ -1128,6 +1185,20 @@ async function loadOffboardingAccountAndAssets() {
   }
   renderOffboardingAssets();
   fillOffboardingLicenseCancelMailFromState();
+
+  state.offboarding.wizerUsers = [];
+  if (state.wizerEnabled) {
+    try {
+      const wizerData = await api(`/offboarding/wizer-users?email=${encodeURIComponent(email)}`);
+      state.offboarding.wizerUsers = (Array.isArray(wizerData?.users) ? wizerData.users : []).map((row) => ({
+        ...row,
+        selected: !row.isDisabled
+      }));
+    } catch (error) {
+      el("offboardingStatus").textContent = `Wizer lookup failed: ${error.message}`;
+    }
+  }
+  renderOffboardingWizer();
 }
 
 function openOffboardingUserModal() {
@@ -1190,7 +1261,15 @@ function buildOffboardingPayload(validateForExecute = false) {
       body: licenseBody || buildDefaultOffboardingLicenseBody()
     },
     accountsToDelete,
-    assetsToCheckin
+    assetsToCheckin,
+    wizerDisableUser: Boolean(el("offboardingWizerDisableUser")?.checked ?? true),
+    wizerUsersToDisable: state.offboarding.wizerUsers.filter((row) => row.selected).map((row) => ({
+      id: row.id,
+      email: row.email,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      role: row.role
+    }))
   };
 }
 
@@ -3084,6 +3163,7 @@ function fillSettingsForm(values = {}) {
   el("settingZammadEnabled").checked = String(values.ZAMMAD_ENABLED || "false").toLowerCase() === "true";
   el("settingZammadDefaultCustomer").value = String(values.ZAMMAD_DEFAULT_CUSTOMER || "");
   el("settingTeamsNotificationsEnabled").checked = String(values.TEAMS_NOTIFICATIONS_ENABLED || "false").toLowerCase() === "true";
+  el("settingWizerEnabled").checked = String(values.WIZER_ENABLED || "false").toLowerCase() === "true";
   el("settingReminderNotificationTo").value = String(values.REMINDER_NOTIFICATION_TO || "");
   el("settingOnboardingDefaultReminderDays").value = String(values.ONBOARDING_DEFAULT_REMINDER_DAYS || "");
   const companies = values.companies || values.companyMatcher || [];
@@ -3107,6 +3187,7 @@ function readSettingsForm() {
     ZAMMAD_ENABLED: String(Boolean(el("settingZammadEnabled").checked)),
     ZAMMAD_DEFAULT_CUSTOMER: el("settingZammadDefaultCustomer").value.trim(),
     TEAMS_NOTIFICATIONS_ENABLED: String(Boolean(el("settingTeamsNotificationsEnabled").checked)),
+    WIZER_ENABLED: String(Boolean(el("settingWizerEnabled").checked)),
     REMINDER_NOTIFICATION_TO: el("settingReminderNotificationTo").value.trim(),
     ONBOARDING_DEFAULT_REMINDER_DAYS: el("settingOnboardingDefaultReminderDays").value.trim(),
     companyMatcher: companyMatcher.map((row) => ({
@@ -3213,6 +3294,8 @@ async function saveSettings() {
     }
   }
   await loadMeta();
+  state.wizerEnabled = String(state.settings?.WIZER_ENABLED || "false").toLowerCase() === "true";
+  renderOffboardingWizer();
   await loadSnipeitAssignTasks().catch(() => {});
   if (state.selectedId) {
     selectTask(state.selectedId);
@@ -3624,6 +3707,26 @@ function setupActions() {
     });
   }
 
+  const offboardingWizerDisableUser = el("offboardingWizerDisableUser");
+  if (offboardingWizerDisableUser) {
+    offboardingWizerDisableUser.addEventListener("change", () => {
+      state.offboarding.wizerDisableUser = offboardingWizerDisableUser.checked;
+      updateOffboardingPreview();
+    });
+  }
+
+  const offboardingWizerList = el("offboardingWizerList");
+  if (offboardingWizerList) {
+    offboardingWizerList.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.classList.contains("offboardingWizerCheck")) return;
+      const wizerUser = state.offboarding.wizerUsers[Number(target.getAttribute("data-index"))];
+      if (wizerUser) wizerUser.selected = target.checked;
+      updateOffboardingPreview();
+    });
+  }
+
   const offboardingExecuteBtn = el("offboardingExecuteBtn");
   if (offboardingExecuteBtn) {
     offboardingExecuteBtn.onclick = async () => {
@@ -3650,7 +3753,8 @@ function setupActions() {
 
         const entraSummary = (result?.steps?.entra || []).map((x) => `${x.user}:${x.status}`).join(", ");
         const snipeitSummary = (result?.steps?.snipeit || []).map((x) => `${x.id}:${x.status}`).join(", ");
-        const summary = `Entra[${entraSummary || "-"}], SnipeIT[${snipeitSummary || "-"}]`;
+        const wizerSummary = (result?.steps?.wizer || []).map((x) => `${x.user}:${x.status}`).join(", ");
+        const summary = `Entra[${entraSummary || "-"}], SnipeIT[${snipeitSummary || "-"}]${state.wizerEnabled ? `, Wizer[${wizerSummary || "-"}]` : ""}`;
         
         showProgressComplete(`Offboarding completed: ${summary}`);
         addProgressLog("✓ Offboarding completed successfully", "success");

@@ -134,6 +134,18 @@ function normalizeOffboardingPayload(value = {}) {
             companyName: String(row?.companyName || "").trim()
           }))
           .filter((row) => Number.isFinite(row.id))
+      : [],
+    wizerDisableUser: value.wizerDisableUser !== false,
+    wizerUsersToDisable: Array.isArray(value.wizerUsersToDisable)
+      ? value.wizerUsersToDisable
+          .map((row) => ({
+            id: String(row?.id || "").trim(),
+            email: String(row?.email || "").trim().toLowerCase(),
+            firstName: String(row?.firstName || "").trim(),
+            lastName: String(row?.lastName || "").trim(),
+            role: String(row?.role || "").trim()
+          }))
+          .filter((row) => row.email)
       : []
   };
 }

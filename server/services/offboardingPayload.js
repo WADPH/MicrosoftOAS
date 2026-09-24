@@ -15,6 +15,18 @@ function buildOffboardingTaskPayload(payload = {}) {
   const sendLicenseCancelEmail = payload.sendLicenseCancelEmail !== false;
   const accountsToDelete = Array.isArray(payload.accountsToDelete) ? payload.accountsToDelete : [];
   const assetsToCheckin = Array.isArray(payload.assetsToCheckin) ? payload.assetsToCheckin : [];
+  const wizerDisableUser = payload.wizerDisableUser !== false;
+  const wizerUsersToDisable = Array.isArray(payload.wizerUsersToDisable)
+    ? payload.wizerUsersToDisable
+        .map((row) => ({
+          id: String(row?.id || "").trim(),
+          email: String(row?.email || "").trim().toLowerCase(),
+          firstName: String(row?.firstName || "").trim(),
+          lastName: String(row?.lastName || "").trim(),
+          role: String(row?.role || "").trim()
+        }))
+        .filter((row) => row.email)
+    : [];
   const legacyMail = payload.email && typeof payload.email === "object" ? payload.email : {};
   const licenseCancelMail = payload.licenseCancelMail || legacyMail || {};
   return {
@@ -34,7 +46,9 @@ function buildOffboardingTaskPayload(payload = {}) {
     },
     user,
     accountsToDelete,
-    assetsToCheckin
+    assetsToCheckin,
+    wizerDisableUser,
+    wizerUsersToDisable
   };
 }
 
