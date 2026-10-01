@@ -10,7 +10,9 @@ const snipeitRouter = require("./routes/snipeit");
 const offboardingRouter = require("./routes/offboarding");
 const webhookRouter = require("./routes/webhook");
 const hrRouter = require("./routes/hr");
+const externalRouter = require("./routes/external");
 const requireAuth = require("./middleware/requireAuth");
+const requireApiClient = require("./middleware/requireApiClient");
 const { requireMainAccess, requireProgressAccess, requireProgressEditAccess, requireHrAccess } = require("./middleware/requireAuth");
 const { startSnipeitAssignWorker, processPendingAssignTasks } = require("./services/snipeitAssignWorker");
 const { startReminderWorker, processDueReminders } = require("./services/reminderWorker");
@@ -34,6 +36,9 @@ app.use(
   })
 );
 app.use(express.urlencoded({ extended: true }));
+
+// Service-to-service API (API key, no session) - mounted before the session middleware
+app.use("/api/external", requireApiClient, externalRouter);
 
 app.use(
   session({

@@ -225,8 +225,7 @@ function buildCompanyMatchers() {
       patterns: parseEnvList(process.env[`COMPANY_MATCHER_${key}_PATTERNS`]),
       domain: String(process.env[`COMPANY_MATCHER_${key}_DOMAIN`] || "").trim(),
       code: normalizeCompanyCodeValue(process.env[`COMPANY_MATCHER_${key}_CODE`]),
-      tenant: normalizeTenantKey(process.env[`COMPANY_MATCHER_${key}_TENANT`] || defaultTenant),
-      groups: String(process.env[`COMPANY_MATCHER_${key}_GROUPS`] || "")
+      tenant: normalizeTenantKey(process.env[`COMPANY_MATCHER_${key}_TENANT`] || defaultTenant),      groups: String(process.env[`COMPANY_MATCHER_${key}_GROUPS`] || "")
         .split(",")
         .map((item) => String(item || "").trim())
         .filter(Boolean)

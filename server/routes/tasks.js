@@ -11,7 +11,9 @@ const {
 } = require("../services/taskStore");
 const { computeRemindAt, seedDefaultReminders } = require("../services/reminderWorker");
 const { getCompanyMatcherOptions, getDefaultCompanyMatcher, resolveTenantKeyByEmail, buildCompanyMatchers, findCompanyMatcherByHints } = require("../parser");
-const { getDefaultTenantKey } = require("../services/tenantConfig");
+const { getDefaultTenantKey, normalizeTenantKey } = require("../services/tenantConfig");
+const { getPtoTenantKey } = require("../services/pto.service");
+const { validatePtoFields } = require("../services/ptoFields");
 const {
   getUserByEmail,
   getUserLicenseInfo,
@@ -37,6 +39,8 @@ const { listAgents, createManualOnboardingTicket, createManualOffboardingTicket 
 const { createExecutionLogger, createLogCollector } = require("../services/executionLog");
 
 const router = express.Router();
+
+const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function hasSkuAssigned(user, skuId) {
   const targetSku = String(skuId || "").trim().toLowerCase();
@@ -445,7 +449,11 @@ router.patch("/:id", async (req, res) => {
     "licenseMail",
     "assetsMail",
     "snipeitAssets",
-    "entraGroups"
+    "entraGroups",
+    "microsoftUserId",
+    "isResident",
+    "fullNameAzerbaijani",
+    "leaveDate"
   ];
   const updates = {};
 
@@ -466,6 +474,23 @@ router.patch("/:id", async (req, res) => {
       const status = Number(error.status || 400);
       return res.status(status).json({ error: error.message || "Invalid snipeitAssets" });
     }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "microsoftUserId")) {
+    updates.microsoftUserId = String(updates.microsoftUserId || "").trim().toLowerCase();
+    if (updates.microsoftUserId && !GUID_PATTERN.test(updates.microsoftUserId)) {
+      return res.status(400).json({ error: "Microsoft User ID must be the Entra object ID (GUID)" });
+    }
+  }
+  if (["isResident", "fullNameAzerbaijani", "leaveDate", "startDate"].some((key) => Object.prototype.hasOwnProperty.call(updates, key))) {
+    const currentTask = getTaskById(req.params.id);
+    if (!currentTask) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+    const ptoFields = validatePtoFields(updates, currentTask);
+    if (ptoFields.error) {
+      return res.status(400).json({ error: ptoFields.error });
+    }
+    Object.assign(updates, ptoFields.values);
   }
   if (Object.prototype.hasOwnProperty.call(updates, "entraGroups")) {
     if (!Array.isArray(updates.entraGroups)) {
@@ -622,6 +647,19 @@ router.post("/:id/approve", async (req, res) => {
       }
     } else {
       console.log(`[approve] User already exists, skipping create for ${existingTask.email}`);
+    }
+
+    // Fill the Microsoft User ID for PTO, but only for accounts in PTO's tenant (an id from
+    // another tenant can't sign in to PTO) and never over a value IT entered by hand.
+    const resolvedUserId = String(user?.id || "").trim().toLowerCase();
+    if (resolvedUserId && normalizeTenantKey(tenantKey) === getPtoTenantKey()) {
+      if (!existingTask.microsoftUserId) {
+        updateTaskById(existingTask.id, { microsoftUserId: resolvedUserId });
+      } else if (existingTask.microsoftUserId !== resolvedUserId) {
+        console.warn(
+          `[approve] Microsoft User ID for ${existingTask.email} (${existingTask.microsoftUserId}) differs from Graph (${resolvedUserId}); keeping the manual value`
+        );
+      }
     }
 
     let task = getTaskById(existingTask.id) || existingTask;

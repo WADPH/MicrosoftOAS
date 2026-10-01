@@ -9,6 +9,8 @@ const { getTeamsDefaults, saveTeamsDefault } = require("../services/teamsDefault
 const { createOnboardingTicket, createOffboardingTicket } = require("../services/zammad.service");
 const { createExecutionLogger } = require("../services/executionLog");
 const { seedDefaultReminders } = require("../services/reminderWorker");
+const { isEnabled: isPtoEnabled, getPositions: getPtoPositions } = require("../services/pto.service");
+const { validatePtoFields } = require("../services/ptoFields");
 
 const router = express.Router();
 
@@ -44,6 +46,19 @@ router.get("/companies", (req, res) => {
     tenant: matcher.tenant
   }));
   res.json({ ok: true, companies, teamsNotificationsEnabled: isTeamsNotificationsEnabled() });
+});
+
+router.get("/positions", async (req, res) => {
+  if (!isPtoEnabled()) {
+    return res.json({ ok: true, enabled: false, positions: [] });
+  }
+  try {
+    const positions = await getPtoPositions();
+    res.json({ ok: true, enabled: true, positions });
+  } catch (error) {
+    console.warn(`[hr] Failed to load positions from PTO: ${error.message}`);
+    res.status(502).json({ ok: false, error: "Failed to load positions from PTO" });
+  }
 });
 
 router.get("/mention-users", async (req, res) => {
@@ -126,6 +141,20 @@ router.post("/onboarding", (req, res) => {
     return res.status(400).json({ ok: false, error: "Name Surname, Company, Line Manager and Date are required" });
   }
 
+  const ptoFields = validatePtoFields(
+    {
+      isResident: body.isResident,
+      fullNameAzerbaijani: body.fullNameAzerbaijani,
+      leaveDate: body.leaveDate,
+      startDate
+    },
+    {},
+    { requireResidency: true }
+  );
+  if (ptoFields.error) {
+    return res.status(400).json({ ok: false, error: ptoFields.error });
+  }
+
   const matcher = findMatcherByKey(companyKey);
   if (!matcher || !matcher.code || !matcher.domain) {
     return res.status(400).json({ ok: false, error: "Unknown company" });
@@ -137,6 +166,7 @@ router.post("/onboarding", (req, res) => {
   const result = addTask({
     taskType: "onboarding",
     status: "pending",
+    ...ptoFields.values,
     fullName,
     firstName,
     lastName,

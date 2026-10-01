@@ -168,6 +168,11 @@ function normalizeTask(task = {}) {
     errorMessage: String(task.errorMessage || "").trim(),
     startDate: normalizeString(task.startDate),
     email: normalizeString(task.email),
+    microsoftUserId: String(task.microsoftUserId || "").trim().toLowerCase(),
+    // PTO fields - kept empty (not NOT_SPECIFIED) when unknown, since they are sent to PTO as-is
+    isResident: typeof task.isResident === "boolean" ? task.isResident : null,
+    fullNameAzerbaijani: String(task.fullNameAzerbaijani || "").trim(),
+    leaveDate: String(task.leaveDate || "").trim(),
     skipLicense: Boolean(task.skipLicense),
     licenseRequired: task.licenseRequired !== false,
     assets,
@@ -194,6 +199,7 @@ function normalizeTask(task = {}) {
       : [],
     offboarding: normalizeOffboardingPayload(task.offboarding),
     createdAt: task.createdAt || new Date().toISOString(),
+    updatedAt: task.updatedAt || task.createdAt || new Date().toISOString(),
     executionLogs: Array.isArray(task.executionLogs) ? task.executionLogs : [],
     reminders: Array.isArray(task.reminders)
       ? task.reminders
@@ -347,7 +353,8 @@ function updateTaskById(id, updates) {
     assets: nextAssets,
     offboarding: updates.offboarding ? { ...(current.offboarding || {}), ...updates.offboarding } : current.offboarding,
     id: current.id,
-    createdAt: current.createdAt
+    createdAt: current.createdAt,
+    updatedAt: new Date().toISOString()
   });
 
   tasks[index] = updated;
@@ -374,6 +381,7 @@ module.exports = {
   deleteTaskById,
   normalizeTask,
   NOT_SPECIFIED,
+  ONBOARDING_STATUSES,
   TASK_TYPE_ONBOARDING,
   TASK_TYPE_OFFBOARDING
 };
