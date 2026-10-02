@@ -66,6 +66,11 @@
             <input id="hrFullName" type="text" />
           </div>
 
+          <div class="field">
+            <label for="hrFullNameAzerbaijani">Full Name (Azerbaijani)</label>
+            <input id="hrFullNameAzerbaijani" type="text" maxlength="100" placeholder="Optional" />
+          </div>
+
           <div class="grid2">
             <div class="field">
               <label for="hrOnboardingCompany">Company</label>
@@ -73,6 +78,7 @@
             </div>
             <div class="field">
               <label for="hrPosition">Position</label>
+              <select id="hrPositionSelect" class="hidden"></select>
               <input id="hrPosition" type="text" />
             </div>
           </div>
@@ -85,6 +91,21 @@
             <div class="field">
               <label for="hrStartDate">Date</label>
               <input id="hrStartDate" type="date" autocomplete="off" />
+            </div>
+          </div>
+
+          <div class="grid2">
+            <div class="field">
+              <label for="hrResidency">Residency</label>
+              <select id="hrResidency">
+                <option value="">Select residency</option>
+                <option value="true">Resident</option>
+                <option value="false">Non-Resident</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="hrLeaveDate">Contract end date (fixed-term only)</label>
+              <input id="hrLeaveDate" type="date" autocomplete="off" />
             </div>
           </div>
 

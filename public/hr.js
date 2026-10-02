@@ -13,6 +13,7 @@ const state = {
   sessionWatchTimer: null,
   sessionExpiredNotified: false,
   teamsNotificationsEnabled: false,
+  usePositionSelect: false,
   onboardingMentions: [],
   offboardingMentions: [],
   teamsDefaults: {
@@ -161,6 +162,38 @@ async function loadCompanies() {
   populateCompanySelect(byId("hrOnboardingCompany"));
   populateCompanySelect(byId("hrOffboardingCompany"));
   applyTeamsUiVisibility();
+}
+
+// Positions come from the PTO app; if it's disabled or unreachable the free-text input stays.
+async function loadPositions() {
+  const data = await api("/hr/positions");
+  const positions = Array.isArray(data.positions) ? data.positions : [];
+  if (!data.enabled || positions.length === 0) return;
+
+  const select = byId("hrPositionSelect");
+  select.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Select position";
+  select.appendChild(placeholder);
+  for (const position of positions) {
+    const option = document.createElement("option");
+    option.value = position.name;
+    option.textContent = position.name;
+    if (position.officialTitle && position.officialTitle !== position.name) {
+      option.title = position.officialTitle;
+    }
+    select.appendChild(option);
+  }
+
+  state.usePositionSelect = true;
+  select.classList.remove("hidden");
+  byId("hrPosition").classList.add("hidden");
+}
+
+function getPositionValue() {
+  const field = state.usePositionSelect ? byId("hrPositionSelect") : byId("hrPosition");
+  return field.value.trim();
 }
 
 function applyTeamsUiVisibility() {
@@ -420,6 +453,12 @@ function setupDatePicker(input) {
   input.addEventListener("click", open);
   input.addEventListener("keydown", (event) => {
     if (event.key === "Tab" || event.key === "Shift" || event.key === "Escape") return;
+    if (event.key === "Backspace" || event.key === "Delete") {
+      event.preventDefault();
+      input.value = "";
+      input.dispatchEvent(new Event("change"));
+      return;
+    }
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       open();
@@ -464,13 +503,17 @@ function debouncedSearch(value) {
 async function submitOnboarding() {
   const statusEl = byId("hrOnboardingStatus");
   statusEl.textContent = "";
+  const residencyValue = byId("hrResidency").value;
   const payload = {
     fullName: byId("hrFullName").value.trim(),
     companyKey: byId("hrOnboardingCompany").value,
-    position: byId("hrPosition").value.trim(),
+    position: getPositionValue(),
     phone: byId("hrPhone").value.trim(),
     manager: byId("hrManager").value.trim(),
     startDate: byId("hrStartDate").value,
+    isResident: residencyValue === "" ? null : residencyValue === "true",
+    fullNameAzerbaijani: byId("hrFullNameAzerbaijani").value.trim(),
+    leaveDate: byId("hrLeaveDate").value,
     teamsNote: byId("hrOnboardingTeamsNote").value.trim(),
     teamsMentions: state.onboardingMentions
       .filter((row) => row.text.trim())
@@ -481,7 +524,8 @@ async function submitOnboarding() {
     [byId("hrFullName"), payload.fullName],
     [byId("hrOnboardingCompany"), payload.companyKey],
     [byId("hrManager"), payload.manager],
-    [byId("hrStartDate"), payload.startDate]
+    [byId("hrStartDate"), payload.startDate],
+    [byId("hrResidency"), residencyValue]
   ];
   let allValid = true;
   for (const [field, value] of requiredFields) {
@@ -493,6 +537,11 @@ async function submitOnboarding() {
     statusEl.textContent = "Please fill in all required fields.";
     return;
   }
+  if (payload.leaveDate && payload.leaveDate <= payload.startDate) {
+    markFieldValidity(byId("hrLeaveDate"), false);
+    statusEl.textContent = "Contract end date must be after the start date.";
+    return;
+  }
 
   const submitBtn = byId("hrOnboardingSubmitBtn");
   submitBtn.disabled = true;
@@ -502,8 +551,12 @@ async function submitOnboarding() {
     byId("hrFullName").value = "";
     byId("hrOnboardingCompany").value = "";
     byId("hrPosition").value = "";
+    byId("hrPositionSelect").value = "";
     byId("hrPhone").value = "";
     byId("hrStartDate").value = "";
+    byId("hrResidency").value = "";
+    byId("hrFullNameAzerbaijani").value = "";
+    byId("hrLeaveDate").value = "";
     byId("hrChooseManagerBtn").disabled = true;
     resetManagerSelection();
     applyTeamsDefault("onboarding");
@@ -598,20 +651,26 @@ function init() {
   byId("hrSuccessModalOverlay").addEventListener("click", closeHrSuccessModal);
 
   setupDatePicker(byId("hrStartDate"));
+  setupDatePicker(byId("hrLeaveDate"));
   setupDatePicker(byId("hrOffboardingDate"));
 
   ["hrFullName", "hrPosition", "hrPhone"].forEach((id) => {
     byId(id).addEventListener("input", clearFieldInvalid);
   });
-  ["hrOnboardingCompany", "hrOffboardingCompany"].forEach((id) => {
+  ["hrOnboardingCompany", "hrOffboardingCompany", "hrResidency"].forEach((id) => {
     byId(id).addEventListener("change", clearFieldInvalid);
   });
   byId("hrStartDate").addEventListener("change", clearFieldInvalid);
+  byId("hrLeaveDate").addEventListener("change", clearFieldInvalid);
   byId("hrOffboardingDate").addEventListener("change", clearFieldInvalid);
 
   loadCompanies().catch((error) => {
     byId("hrOnboardingStatus").textContent = `Failed to load companies: ${error.message}`;
     byId("hrOffboardingStatus").textContent = `Failed to load companies: ${error.message}`;
+  });
+
+  loadPositions().catch((error) => {
+    console.warn(`Failed to load positions: ${error.message}`);
   });
 
   loadTeamsDefaults().catch((error) => {
