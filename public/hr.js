@@ -13,7 +13,7 @@ const state = {
   sessionWatchTimer: null,
   sessionExpiredNotified: false,
   teamsNotificationsEnabled: false,
-  usePositionSelect: false,
+  usePositionSelect: true,
   onboardingMentions: [],
   offboardingMentions: [],
   teamsDefaults: {
