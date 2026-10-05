@@ -13,7 +13,8 @@ const state = {
   sessionWatchTimer: null,
   sessionExpiredNotified: false,
   teamsNotificationsEnabled: false,
-  usePositionSelect: true,
+  ptoEnabled: false,
+  usePositionSelect: false,
   onboardingMentions: [],
   offboardingMentions: [],
   teamsDefaults: {
@@ -159,9 +160,11 @@ async function loadCompanies() {
   state.companies = Array.isArray(data.companies) ? data.companies : [];
   state.companiesByKey = new Map(state.companies.map((company) => [company.key, company]));
   state.teamsNotificationsEnabled = Boolean(data.teamsNotificationsEnabled);
+  state.ptoEnabled = Boolean(data.ptoEnabled);
   populateCompanySelect(byId("hrOnboardingCompany"));
   populateCompanySelect(byId("hrOffboardingCompany"));
   applyTeamsUiVisibility();
+  byId("hrPtoFields").classList.toggle("hidden", !state.ptoEnabled);
 }
 
 // Positions come from the PTO app; if it's disabled or unreachable the free-text input stays.
@@ -524,9 +527,11 @@ async function submitOnboarding() {
     [byId("hrFullName"), payload.fullName],
     [byId("hrOnboardingCompany"), payload.companyKey],
     [byId("hrManager"), payload.manager],
-    [byId("hrStartDate"), payload.startDate],
-    [byId("hrResidency"), residencyValue]
+    [byId("hrStartDate"), payload.startDate]
   ];
+  if (state.ptoEnabled) {
+    requiredFields.push([byId("hrResidency"), residencyValue]);
+  }
   let allValid = true;
   for (const [field, value] of requiredFields) {
     const isValid = Boolean(String(value || "").trim());
@@ -537,7 +542,7 @@ async function submitOnboarding() {
     statusEl.textContent = "Please fill in all required fields.";
     return;
   }
-  if (payload.leaveDate && payload.leaveDate <= payload.startDate) {
+  if (state.ptoEnabled && payload.leaveDate && payload.leaveDate <= payload.startDate) {
     markFieldValidity(byId("hrLeaveDate"), false);
     statusEl.textContent = "Contract end date must be after the start date.";
     return;

@@ -12,7 +12,7 @@ const {
 const { computeRemindAt, seedDefaultReminders } = require("../services/reminderWorker");
 const { getCompanyMatcherOptions, getDefaultCompanyMatcher, resolveTenantKeyByEmail, buildCompanyMatchers, findCompanyMatcherByHints } = require("../parser");
 const { getDefaultTenantKey, normalizeTenantKey } = require("../services/tenantConfig");
-const { isEnabled: isPtoEnabled } = require("../services/pto.service");
+const { isEnabled: isPtoEnabled, getPositions: getPtoPositions } = require("../services/pto.service");
 const { validatePtoFields } = require("../services/ptoFields");
 const {
   getUserByEmail,
@@ -157,6 +157,20 @@ router.post("/new", (req, res) => {
   seedDefaultReminders(result.task);
 
   return res.status(201).json({ ok: true, task: result.task });
+});
+
+// `enabled` is reported separately so the PTO-only fields stay visible even when the positions call fails
+router.get("/meta/pto", async (req, res) => {
+  if (!isPtoEnabled()) {
+    return res.json({ ok: true, enabled: false, positions: [] });
+  }
+  try {
+    const positions = await getPtoPositions();
+    return res.json({ ok: true, enabled: true, positions });
+  } catch (error) {
+    console.warn(`[tasks] Failed to load positions from PTO: ${error.message}`);
+    return res.json({ ok: true, enabled: true, positions: [], error: "Failed to load positions from PTO" });
+  }
 });
 
 router.get("/meta/options", (req, res) => {

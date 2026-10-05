@@ -11,6 +11,10 @@ const state = {
   userEditedAssetsSubject: false,
   userEditedAssetsBody: false,
   zammadEnabled: false,
+  pto: {
+    enabled: false,
+    positions: []
+  },
   zammadAgents: [],
   selectedZammadAgentId: null,
   settings: null,
@@ -210,6 +214,7 @@ async function initApp() {
   // Non-critical data is loaded in background to keep initial load responsive.
   loadSnipeitConfig().catch(() => {});
   loadZammadAvailability().catch(() => {});
+  loadPtoMeta().catch(() => {});
   loadOffboardingMeta().catch(() => {});
   loadOffboardingTasks().catch(() => {});
 }
@@ -1977,6 +1982,57 @@ function setInputValue(id, value) {
   if (input) input.value = value;
 }
 
+function usePtoPositionSelect() {
+  return state.pto.enabled && state.pto.positions.length > 0;
+}
+
+function renderPositionField(value) {
+  const raw = String(value || "").trim();
+  const select = el("positionSelect");
+  const input = el("position");
+  const useSelect = usePtoPositionSelect();
+  select.classList.toggle("hidden", !useSelect);
+  input.classList.toggle("hidden", useSelect);
+  input.value = raw;
+  if (!useSelect) return;
+
+  const current = raw.toLowerCase() === "not specified" ? "" : raw;
+  select.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Select position";
+  select.appendChild(placeholder);
+  // Older tasks may hold free text that isn't a PTO position; keep it selectable so saving doesn't drop it
+  if (current && !state.pto.positions.some((position) => position.name === current)) {
+    const legacy = document.createElement("option");
+    legacy.value = current;
+    legacy.textContent = `${current} (not in PTO list)`;
+    select.appendChild(legacy);
+  }
+  for (const position of state.pto.positions) {
+    const option = document.createElement("option");
+    option.value = position.name;
+    option.textContent = position.name;
+    if (position.officialTitle && position.officialTitle !== position.name) {
+      option.title = position.officialTitle;
+    }
+    select.appendChild(option);
+  }
+  select.value = current;
+}
+
+function getPositionValue() {
+  return (usePtoPositionSelect() ? el("positionSelect") : el("position")).value.trim();
+}
+
+async function loadPtoMeta() {
+  const data = await api("/tasks/meta/pto");
+  state.pto.enabled = Boolean(data?.enabled);
+  state.pto.positions = Array.isArray(data?.positions) ? data.positions : [];
+  el("ptoFields")?.classList.toggle("hidden", !state.pto.enabled);
+  renderPositionField(getCurrentTask()?.position || el("position").value);
+}
+
 function setupDatePicker(input) {
   const supportsShowPicker = typeof input.showPicker === "function";
   const open = () => {
@@ -2094,7 +2150,7 @@ function selectTask(id) {
 
   setInputValue("email", task.email || "");
   setInputValue("company", task.company || "");
-  setInputValue("position", task.position || "");
+  renderPositionField(task.position || "");
   setInputValue("phone", task.phone || "");
   setInputValue("manager", task.manager || "");
   setInputValue("note", task.note || "");
@@ -3246,7 +3302,7 @@ function buildPatchPayload() {
     company: el("company").value.trim(),
     companyCode: el("company").value,
     companyDomain: el("companyDomain").value,
-    position: el("position").value.trim(),
+    position: getPositionValue(),
     phone: el("phone").value.trim(),
     manager: el("manager").value.trim(),
     note: el("note").value.trim(),
@@ -3282,6 +3338,11 @@ function buildPatchPayload() {
       tenant: group.tenant || getOnboardingTenantForGroups()
     }))
   };
+  // The date picker can't show a non-ISO legacy value (e.g. unparsed webhook text); don't overwrite it with blank
+  const storedStartDate = String(getCurrentTask()?.startDate || "").trim();
+  if (!payload.startDate && storedStartDate && storedStartDate.toLowerCase() !== "not specified" && !/^\d{4}-\d{2}-\d{2}$/.test(storedStartDate)) {
+    delete payload.startDate;
+  }
   return payload;
 }
 
@@ -3409,6 +3470,8 @@ async function deleteTask() {
 
 function setupActions() {
   setupDatePicker(el("offboardingDateInput"));
+  setupDatePicker(el("startDate"));
+  setupDatePicker(el("leaveDate"));
 
   el("openReminderModalBtn").onclick = () => openReminderModal(currentReminderTaskId());
   el("reminderModalClose").onclick = () => closeReminderModal();

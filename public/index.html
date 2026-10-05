@@ -160,7 +160,7 @@
               </div>
               <div class="field">
                 <label for="startDate">Start Date</label>
-                <input id="startDate" type="text" placeholder="YYYY-MM-DD" />
+                <input id="startDate" type="date" autocomplete="off" />
               </div>
 
               <div class="field">
@@ -187,6 +187,7 @@
               </div>
               <div class="field">
                 <label for="position">Position</label>
+                <select id="positionSelect" class="hidden"></select>
                 <input id="position" type="text" />
               </div>
 
@@ -208,21 +209,26 @@
                   <button id="toggleUserTempPassBtn" type="button" class="ghost small" aria-label="Show password">Show</button>
                 </div>
               </div>
-              <div class="field">
-                <label for="isResident">Residency</label>
-                <select id="isResident">
-                  <option value="">Not specified</option>
-                  <option value="true">Resident</option>
-                  <option value="false">Non-Resident</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="fullNameAzerbaijani">Full Name (Azerbaijani)</label>
-                <input id="fullNameAzerbaijani" type="text" maxlength="100" />
-              </div>
-              <div class="field">
-                <label for="leaveDate">Contract End Date</label>
-                <input id="leaveDate" type="text" placeholder="YYYY-MM-DD" />
+            </div>
+            <div id="ptoFields" class="ptoGroup hidden">
+              <h4>PTO</h4>
+              <div class="grid2">
+                <div class="field">
+                  <label for="isResident">Residency</label>
+                  <select id="isResident">
+                    <option value="">Not specified</option>
+                    <option value="true">Resident</option>
+                    <option value="false">Non-Resident</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="fullNameAzerbaijani">Full Name (Azerbaijani)</label>
+                  <input id="fullNameAzerbaijani" type="text" maxlength="100" />
+                </div>
+                <div class="field">
+                  <label for="leaveDate">Contract End Date</label>
+                  <input id="leaveDate" type="date" autocomplete="off" />
+                </div>
               </div>
             </div>
           </div>

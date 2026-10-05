@@ -45,7 +45,7 @@ router.get("/companies", (req, res) => {
     domain: matcher.domain,
     tenant: matcher.tenant
   }));
-  res.json({ ok: true, companies, teamsNotificationsEnabled: isTeamsNotificationsEnabled() });
+  res.json({ ok: true, companies, teamsNotificationsEnabled: isTeamsNotificationsEnabled(), ptoEnabled: isPtoEnabled() });
 });
 
 router.get("/positions", async (req, res) => {
@@ -141,16 +141,19 @@ router.post("/onboarding", (req, res) => {
     return res.status(400).json({ ok: false, error: "Name Surname, Company, Line Manager and Date are required" });
   }
 
-  const ptoFields = validatePtoFields(
-    {
-      isResident: body.isResident,
-      fullNameAzerbaijani: body.fullNameAzerbaijani,
-      leaveDate: body.leaveDate,
-      startDate
-    },
-    {},
-    { requireResidency: true }
-  );
+  // PTO-only fields are hidden on the form when the integration is off, so don't require or store them then
+  const ptoFields = isPtoEnabled()
+    ? validatePtoFields(
+        {
+          isResident: body.isResident,
+          fullNameAzerbaijani: body.fullNameAzerbaijani,
+          leaveDate: body.leaveDate,
+          startDate
+        },
+        {},
+        { requireResidency: true }
+      )
+    : { values: {} };
   if (ptoFields.error) {
     return res.status(400).json({ ok: false, error: ptoFields.error });
   }

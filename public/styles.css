@@ -1050,6 +1050,19 @@ body[data-theme="dark"] .iconBtn .moon {
   margin-top: 8px;
 }
 
+.ptoGroup {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.ptoGroup h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .settingsSubsection h4 {
   margin: 0 0 8px;
   font-size: 13px;
