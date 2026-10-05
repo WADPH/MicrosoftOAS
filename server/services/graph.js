@@ -121,6 +121,23 @@ async function getUserByEmail(email, tenantKey) {
   }
 }
 
+// Finds the user's object in `tenantKey` by own UPN/mail, or the cross-tenant (MTO/B2B) copy whose UPN is "<local>_<domain>#EXT#@...".
+async function findUserInTenantByEmail(email, tenantKey) {
+  const normalized = String(email || "").trim().toLowerCase();
+  if (!normalized.includes("@")) return null;
+
+  const quoted = normalized.replace(/'/g, "''");
+  const extPrefix = `${quoted.replace("@", "_")}#EXT#`;
+  const filter = `userPrincipalName eq '${quoted}' or mail eq '${quoted}' or startswith(userPrincipalName,'${extPrefix}')`;
+  const path = `/users?$select=id,userPrincipalName,mail,userType&$filter=${encodeURIComponent(filter)}`;
+  const result = await graphRequest("GET", path, undefined, tenantKey);
+  const users = Array.isArray(result?.value) ? result.value : [];
+  const exact = users.find(
+    (user) => String(user.userPrincipalName || "").toLowerCase() === normalized || String(user.mail || "").toLowerCase() === normalized
+  );
+  return exact || users[0] || null;
+}
+
 async function getUserLicenseInfo(email, tenantKey) {
   try {
     return await graphRequest(
@@ -422,6 +439,7 @@ module.exports = {
   normalizeTenantKey,
   getDefaultTenantKey,
   getUserByEmail,
+  findUserInTenantByEmail,
   getUserLicenseInfo,
   listUsers,
   findUserByDisplayName,

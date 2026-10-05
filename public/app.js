@@ -2030,7 +2030,9 @@ async function loadPtoMeta() {
   state.pto.enabled = Boolean(data?.enabled);
   state.pto.positions = Array.isArray(data?.positions) ? data.positions : [];
   el("ptoFields")?.classList.toggle("hidden", !state.pto.enabled);
+  el("objectIdPendingSection")?.classList.toggle("hidden", !state.pto.enabled);
   renderPositionField(getCurrentTask()?.position || el("position").value);
+  loadTaskBackgroundJobs().catch(() => {});
 }
 
 function setupDatePicker(input) {
@@ -2203,6 +2205,7 @@ function selectTask(id) {
   
   // Display execution logs
   displayOnboardingLogs(task);
+  loadTaskBackgroundJobs().catch(() => {});
 }
 
 async function loadMeta() {
@@ -2566,6 +2569,7 @@ async function loadSnipeitConfig() {
     console.warn("Failed to load Snipe-IT config", error);
   }
   applySnipeitUiVisibility();
+  loadTaskBackgroundJobs().catch(() => {});
 }
 
 function applySnipeitUiVisibility() {
@@ -2824,6 +2828,135 @@ async function handleSnipeitPendingAction(event) {
   } finally {
     button.disabled = false;
   }
+  loadTaskBackgroundJobs().catch(() => {});
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function renderObjectIdJobsList(listId, jobs, emptyText) {
+  const list = el(listId);
+  if (!list) return;
+  list.innerHTML = "";
+  if (!Array.isArray(jobs) || jobs.length === 0) {
+    list.innerHTML = `<div class="managerEmpty">${escapeHtml(emptyText)}</div>`;
+    return;
+  }
+
+  for (const job of jobs) {
+    const status = String(job.status || "pending").toLowerCase();
+    const isPending = status === "pending";
+    const nextAt = Date.parse(job.nextAttemptAt || 0);
+    const eta = isPending && !Number.isNaN(nextAt) ? ` (${formatRelativeTime(nextAt - Date.now())})` : "";
+    const timing = isPending
+      ? `Next check: ${job.nextAttemptAt || "-"}${eta}`
+      : `Finished: ${job.completedAt || job.lastAttemptAt || "-"}`;
+    const resultLine = status === "completed" ? `Object ID: ${job.objectId}` : job.error ? `Last result: ${job.error}` : "";
+    const history = Array.isArray(job.history) ? job.history.slice().reverse() : [];
+    const historyHtml = history
+      .map((entry) => `<div class="assetMeta">${escapeHtml(entry.at)} · ${escapeHtml(entry.result)} · ${escapeHtml(entry.message)}</div>`)
+      .join("");
+
+    const row = document.createElement("div");
+    row.className = "snipeitPendingItem";
+    row.innerHTML = `
+      <div class="pendingMain">
+        <div class="assetTag">${escapeHtml(job.email)}</div>
+        <div class="assetMeta">PTO tenant: ${escapeHtml(job.tenant)} | Status: ${escapeHtml(status)} | Attempts: ${Number(job.attempts || 0)}</div>
+        <div class="assetMeta">Created: ${escapeHtml(job.createdAt)} | ${escapeHtml(timing)}</div>
+        ${resultLine ? `<div class="assetMeta">${escapeHtml(resultLine)}</div>` : ""}
+        ${historyHtml ? `<details><summary class="assetMeta">History (${history.length})</summary>${historyHtml}</details>` : ""}
+      </div>
+      <div class="pendingActions">
+        ${isPending ? `<button type="button" class="ghost small" data-action="force" data-id="${escapeHtml(job.id)}">Force Find</button>` : ""}
+        <button type="button" class="danger small" data-action="delete" data-id="${escapeHtml(job.id)}">Delete</button>
+      </div>
+    `;
+    list.appendChild(row);
+  }
+}
+
+async function loadObjectIdJobsList({ includeAll = false, listId = "objectIdPendingJobs" } = {}) {
+  if (!state.pto.enabled) return;
+  const data = await api(includeAll ? "/object-id/jobs?status=all" : "/object-id/jobs");
+  renderObjectIdJobsList(listId, Array.isArray(data?.jobs) ? data.jobs : [], includeAll ? "No Object ID lookups found." : "No pending Object ID lookups.");
+}
+
+function openObjectIdAllJobsModal() {
+  el("objectIdAllJobsModal").classList.remove("hidden");
+  el("objectIdAllJobsModal").setAttribute("aria-hidden", "false");
+  loadObjectIdJobsList({ includeAll: true, listId: "objectIdAllJobsList" }).catch((error) => {
+    el("settingsStatus").textContent = `Failed to load Object ID lookups: ${error.message}`;
+  });
+}
+
+function closeObjectIdAllJobsModal() {
+  el("objectIdAllJobsModal").classList.add("hidden");
+  el("objectIdAllJobsModal").setAttribute("aria-hidden", "true");
+}
+
+async function handleObjectIdJobAction(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const action = button.getAttribute("data-action");
+  const id = button.getAttribute("data-id");
+  if (!id) return;
+
+  button.disabled = true;
+  try {
+    if (action === "force") {
+      await api(`/object-id/jobs/${encodeURIComponent(id)}/force`, { method: "POST" });
+    }
+    if (action === "delete") {
+      await api(`/object-id/jobs/${encodeURIComponent(id)}`, { method: "DELETE" });
+    }
+    await loadObjectIdJobsList();
+    if (!el("objectIdAllJobsModal").classList.contains("hidden")) {
+      await loadObjectIdJobsList({ includeAll: true, listId: "objectIdAllJobsList" });
+    }
+    // A successful lookup adds a log line to the task; refresh only the logs so unsaved form edits survive
+    state.tasks = await api("/tasks?type=onboarding");
+    const currentTask = getCurrentTask();
+    if (state.taskMode === "onboarding" && currentTask) displayOnboardingLogs(currentTask);
+  } catch (error) {
+    el("settingsStatus").textContent = `Object ID lookup action failed: ${error.message}`;
+  } finally {
+    button.disabled = false;
+  }
+  loadTaskBackgroundJobs().catch(() => {});
+}
+
+let taskBackgroundJobsRequestId = 0;
+
+async function loadTaskBackgroundJobs() {
+  const section = el("taskBackgroundJobsSection");
+  if (!section) return;
+  const taskId = state.selectedId;
+  const requestId = ++taskBackgroundJobsRequestId;
+  if (!taskId) {
+    section.classList.add("hidden");
+    return;
+  }
+
+  const query = `status=all&taskId=${encodeURIComponent(taskId)}`;
+  const [snipeitJobs, objectIdJobs] = await Promise.all([
+    state.snipeitConfig.enabled
+      ? api(`/snipeit/assign-tasks?${query}`).then((data) => data?.tasks || []).catch(() => [])
+      : [],
+    state.pto.enabled ? api(`/object-id/jobs?${query}`).then((data) => data?.jobs || []).catch(() => []) : []
+  ]);
+  if (requestId !== taskBackgroundJobsRequestId || state.selectedId !== taskId) return;
+
+  el("taskSnipeitJobsBlock").classList.toggle("hidden", snipeitJobs.length === 0);
+  el("taskObjectIdJobsBlock").classList.toggle("hidden", objectIdJobs.length === 0);
+  if (snipeitJobs.length) renderSnipeitAssignTasksList("taskSnipeitJobsList", snipeitJobs, "");
+  if (objectIdJobs.length) renderObjectIdJobsList("taskObjectIdJobsList", objectIdJobs, "");
+  section.classList.toggle("hidden", snipeitJobs.length === 0 && objectIdJobs.length === 0);
 }
 
 function createCompanyMatcherCard(entry = {}, tenantOptions = []) {
@@ -3220,6 +3353,7 @@ async function loadSettings() {
   fillSettingsForm(state.settings);
   applyZammadUiVisibility();
   await loadSnipeitAssignTasks().catch(() => {});
+  await loadObjectIdJobsList().catch(() => {});
   return state.settings;
 }
 
@@ -4036,6 +4170,23 @@ function setupActions() {
   if (snipeitAllTasksModalOverlay) {
     snipeitAllTasksModalOverlay.onclick = () => closeSnipeitAllTasksModal();
   }
+
+  for (const listId of ["objectIdPendingJobs", "objectIdAllJobsList", "taskObjectIdJobsList"]) {
+    el(listId)?.addEventListener("click", (event) => handleObjectIdJobAction(event));
+  }
+  el("taskSnipeitJobsList")?.addEventListener("click", (event) => handleSnipeitPendingAction(event));
+
+  const refreshObjectIdJobsBtn = el("refreshObjectIdJobsBtn");
+  if (refreshObjectIdJobsBtn) {
+    refreshObjectIdJobsBtn.onclick = () => {
+      loadObjectIdJobsList().catch((error) => {
+        el("settingsStatus").textContent = `Failed to load Object ID lookups: ${error.message}`;
+      });
+    };
+  }
+  el("viewAllObjectIdJobsBtn")?.addEventListener("click", () => openObjectIdAllJobsModal());
+  el("objectIdAllJobsModalClose")?.addEventListener("click", () => closeObjectIdAllJobsModal());
+  el("objectIdAllJobsModalOverlay")?.addEventListener("click", () => closeObjectIdAllJobsModal());
 
   const settingsSaveBtn = el("settingsSaveBtn");
   if (settingsSaveBtn) {

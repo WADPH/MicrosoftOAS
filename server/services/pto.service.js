@@ -10,7 +10,7 @@ function isEnabled() {
   return String(process.env.PTO_ENABLED || "").trim().toLowerCase() === "true";
 }
 
-// Tenant whose app credentials are used to get a token for the PTO API.
+// Tenant PTO signs people in with: its app credentials call the PTO API, and Object IDs are looked up there.
 function getPtoTenantKey() {
   return normalizeTenantKey(process.env.PTO_TENANT || getDefaultTenantKey());
 }
@@ -95,5 +95,6 @@ async function getPositions() {
 
 module.exports = {
   isEnabled,
+  getPtoTenantKey,
   getPositions
 };

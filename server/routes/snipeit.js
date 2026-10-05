@@ -38,11 +38,14 @@ router.get("/assets", async (req, res) => {
 
 router.get("/assign-tasks", (req, res) => {
   const status = String(req.query.status || "pending").trim().toLowerCase();
-  const allTasks = listAssignTasks();
-  let tasks = allTasks;
+  const taskId = String(req.query.taskId || "").trim();
+  let tasks = listAssignTasks();
 
   if (status !== "all") {
-    tasks = allTasks.filter((task) => String(task.status || "").toLowerCase() === status);
+    tasks = tasks.filter((task) => String(task.status || "").toLowerCase() === status);
+  }
+  if (taskId) {
+    tasks = tasks.filter((task) => task.taskId === taskId);
   }
 
   return res.json({ ok: true, tasks, checkIntervalMs: CHECK_INTERVAL_MS });

@@ -12,10 +12,16 @@ const {
 const { computeRemindAt, seedDefaultReminders } = require("../services/reminderWorker");
 const { getCompanyMatcherOptions, getDefaultCompanyMatcher, resolveTenantKeyByEmail, buildCompanyMatchers, findCompanyMatcherByHints } = require("../parser");
 const { getDefaultTenantKey, normalizeTenantKey } = require("../services/tenantConfig");
-const { isEnabled: isPtoEnabled, getPositions: getPtoPositions } = require("../services/pto.service");
+const { isEnabled: isPtoEnabled, getPtoTenantKey, getPositions: getPtoPositions } = require("../services/pto.service");
+const {
+  queueObjectIdLookup,
+  completePendingLookupForTask,
+  CHECK_INTERVAL_MS: OBJECT_ID_CHECK_INTERVAL_MS
+} = require("../services/objectIdLookupWorker");
 const { validatePtoFields } = require("../services/ptoFields");
 const {
   getUserByEmail,
+  findUserInTenantByEmail,
   getUserLicenseInfo,
   createUser,
   updateUserUsageLocation,
@@ -655,19 +661,33 @@ router.post("/:id/approve", async (req, res) => {
       console.log(`[approve] User already exists, skipping create for ${existingTask.email}`);
     }
 
+    // PTO signs people in with its own tenant, so the Object ID comes from there. Users created in
+    // another tenant appear there only after cross-tenant (MTO) sync, so a miss is retried in the background.
     if (isPtoEnabled()) {
-      const userTenantKey = normalizeTenantKey(tenantKey || getDefaultTenantKey());
+      const ptoTenantKey = getPtoTenantKey();
+      const createdInPtoTenant = normalizeTenantKey(tenantKey || getDefaultTenantKey()) === ptoTenantKey;
+      let lookupError = "";
+      let entraObjectId = "";
       try {
-        const tenantUser = user?.id ? user : await getUserByEmail(existingTask.email, tenantKey);
-        const entraObjectId = String(tenantUser?.id || "").trim().toLowerCase();
-        if (entraObjectId) {
-          updateTaskById(existingTask.id, { entraObjectId });
-          console.log(`[approve] Object ID saved for ${existingTask.email} (tenant ${userTenantKey}): ${entraObjectId}`);
-        } else {
-          console.warn(`[approve] Object ID not found for ${existingTask.email} in tenant ${userTenantKey}`);
-        }
+        const ptoUser = createdInPtoTenant && user?.id ? user : await findUserInTenantByEmail(existingTask.email, ptoTenantKey);
+        entraObjectId = String(ptoUser?.id || "").trim().toLowerCase();
       } catch (objectIdError) {
-        console.error(`[approve] Object ID lookup failed for ${existingTask.email} in tenant ${userTenantKey}: ${objectIdError.message}`);
+        lookupError = objectIdError.message;
+        console.error(`[approve] Object ID lookup failed for ${existingTask.email} in PTO tenant ${ptoTenantKey}: ${lookupError}`);
+      }
+
+      if (entraObjectId) {
+        updateTaskById(existingTask.id, { entraObjectId });
+        completePendingLookupForTask(existingTask.id, entraObjectId);
+        console.log(`[approve] Object ID saved for ${existingTask.email} (PTO tenant ${ptoTenantKey}): ${entraObjectId}`);
+      } else {
+        const reason = lookupError
+          ? `Lookup failed during approve: ${lookupError}`
+          : `User not found in PTO tenant ${ptoTenantKey} during approve`;
+        queueObjectIdLookup({ taskId: existingTask.id, email: existingTask.email, tenant: ptoTenantKey, reason });
+        console.warn(
+          `[approve] Object ID not available yet for ${existingTask.email} in PTO tenant ${ptoTenantKey}; background lookup queued (every ${OBJECT_ID_CHECK_INTERVAL_MS / 60000} min)`
+        );
       }
     } else {
       console.log("[approve] Object ID collection skipped (PTO integration disabled)");

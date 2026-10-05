@@ -7,6 +7,7 @@ const authRouter = require("./routes/auth");
 const settingsRouter = require("./routes/settings");
 const tasksRouter = require("./routes/tasks");
 const snipeitRouter = require("./routes/snipeit");
+const objectIdRouter = require("./routes/objectId");
 const offboardingRouter = require("./routes/offboarding");
 const webhookRouter = require("./routes/webhook");
 const hrRouter = require("./routes/hr");
@@ -16,6 +17,7 @@ const requireApiClient = require("./middleware/requireApiClient");
 const { requireMainAccess, requireProgressAccess, requireProgressEditAccess, requireHrAccess } = require("./middleware/requireAuth");
 const { startSnipeitAssignWorker, processPendingAssignTasks } = require("./services/snipeitAssignWorker");
 const { startReminderWorker, processDueReminders } = require("./services/reminderWorker");
+const { startObjectIdLookupWorker, processPendingLookups } = require("./services/objectIdLookupWorker");
 const { getTasksByType } = require("./services/taskStore");
 const {
   getTaskAssetStatuses,
@@ -63,6 +65,7 @@ app.use("/auth", authRouter);
 app.use("/settings", requireAuth, requireMainAccess, settingsRouter);
 app.use("/tasks", requireAuth, requireMainAccess, tasksRouter);
 app.use("/snipeit", requireAuth, requireMainAccess, snipeitRouter);
+app.use("/object-id", requireAuth, requireMainAccess, objectIdRouter);
 app.use("/offboarding", requireAuth, requireMainAccess, offboardingRouter);
 app.use("/webhook", webhookRouter);
 
@@ -166,5 +169,9 @@ app.listen(port, () => {
   startReminderWorker();
   processDueReminders().catch((error) => {
     console.error("[reminder-worker] startup run failed", error.message);
+  });
+  startObjectIdLookupWorker();
+  processPendingLookups().catch((error) => {
+    console.error("[object-id-worker] startup run failed", error.message);
   });
 });
