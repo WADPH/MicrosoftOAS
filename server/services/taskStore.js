@@ -168,7 +168,8 @@ function normalizeTask(task = {}) {
     errorMessage: String(task.errorMessage || "").trim(),
     startDate: normalizeString(task.startDate),
     email: normalizeString(task.email),
-    microsoftUserId: String(task.microsoftUserId || "").trim().toLowerCase(),
+    // Object ID of the user in the PTO tenant; legacy tasks stored it as microsoftUserId
+    entraObjectId: String(task.entraObjectId || task.microsoftUserId || "").trim().toLowerCase(),
     // PTO fields - kept empty (not NOT_SPECIFIED) when unknown, since they are sent to PTO as-is
     isResident: typeof task.isResident === "boolean" ? task.isResident : null,
     fullNameAzerbaijani: String(task.fullNameAzerbaijani || "").trim(),

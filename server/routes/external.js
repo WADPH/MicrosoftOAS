@@ -27,7 +27,7 @@ function toExternalOnboarding(task) {
   return {
     id: task.id,
     status: task.status,
-    accountCreated: ACCOUNT_CREATED_STATUSES.has(task.status) || Boolean(task.microsoftUserId),
+    accountCreated: ACCOUNT_CREATED_STATUSES.has(task.status) || Boolean(task.entraObjectId),
     tenant: valueOrNull(matcher?.tenant || getDefaultTenantKey()),
     fullName: valueOrNull(task.fullName),
     fullNameAzerbaijani: valueOrNull(task.fullNameAzerbaijani),
@@ -37,7 +37,7 @@ function toExternalOnboarding(task) {
     company: valueOrNull(task.company),
     joinDate: startDate && ISO_DATE_PATTERN.test(startDate) ? startDate : null,
     leaveDate: ISO_DATE_PATTERN.test(task.leaveDate) ? task.leaveDate : null,
-    microsoftPersonId: valueOrNull(task.microsoftUserId),
+    microsoftPersonId: valueOrNull(task.entraObjectId),
     createdAt: task.createdAt,
     updatedAt: task.updatedAt
   };

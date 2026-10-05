@@ -10,7 +10,7 @@ function isEnabled() {
   return String(process.env.PTO_ENABLED || "").trim().toLowerCase() === "true";
 }
 
-// The tenant PTO signs people in with. Only Entra ids from this tenant are valid in PTO.
+// Tenant whose app credentials are used to get a token for the PTO API.
 function getPtoTenantKey() {
   return normalizeTenantKey(process.env.PTO_TENANT || getDefaultTenantKey());
 }
@@ -95,6 +95,5 @@ async function getPositions() {
 
 module.exports = {
   isEnabled,
-  getPtoTenantKey,
   getPositions
 };

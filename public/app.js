@@ -2099,7 +2099,6 @@ function selectTask(id) {
   setInputValue("manager", task.manager || "");
   setInputValue("note", task.note || "");
   setInputValue("userTempPass", task.userTempPass || "");
-  setInputValue("microsoftUserId", task.microsoftUserId || "");
   setInputValue("isResident", typeof task.isResident === "boolean" ? String(task.isResident) : "");
   setInputValue("fullNameAzerbaijani", task.fullNameAzerbaijani || "");
   setInputValue("leaveDate", task.leaveDate || "");
@@ -3252,7 +3251,6 @@ function buildPatchPayload() {
     manager: el("manager").value.trim(),
     note: el("note").value.trim(),
     userTempPass: el("userTempPass").value,
-    microsoftUserId: el("microsoftUserId").value.trim(),
     isResident: el("isResident").value === "" ? null : el("isResident").value === "true",
     fullNameAzerbaijani: el("fullNameAzerbaijani").value.trim(),
     leaveDate: el("leaveDate").value.trim(),

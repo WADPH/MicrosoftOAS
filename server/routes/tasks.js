@@ -12,7 +12,7 @@ const {
 const { computeRemindAt, seedDefaultReminders } = require("../services/reminderWorker");
 const { getCompanyMatcherOptions, getDefaultCompanyMatcher, resolveTenantKeyByEmail, buildCompanyMatchers, findCompanyMatcherByHints } = require("../parser");
 const { getDefaultTenantKey, normalizeTenantKey } = require("../services/tenantConfig");
-const { getPtoTenantKey } = require("../services/pto.service");
+const { isEnabled: isPtoEnabled } = require("../services/pto.service");
 const { validatePtoFields } = require("../services/ptoFields");
 const {
   getUserByEmail,
@@ -40,7 +40,6 @@ const { createExecutionLogger, createLogCollector } = require("../services/execu
 
 const router = express.Router();
 
-const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function hasSkuAssigned(user, skuId) {
   const targetSku = String(skuId || "").trim().toLowerCase();
@@ -450,7 +449,6 @@ router.patch("/:id", async (req, res) => {
     "assetsMail",
     "snipeitAssets",
     "entraGroups",
-    "microsoftUserId",
     "isResident",
     "fullNameAzerbaijani",
     "leaveDate"
@@ -473,12 +471,6 @@ router.patch("/:id", async (req, res) => {
     } catch (error) {
       const status = Number(error.status || 400);
       return res.status(status).json({ error: error.message || "Invalid snipeitAssets" });
-    }
-  }
-  if (Object.prototype.hasOwnProperty.call(updates, "microsoftUserId")) {
-    updates.microsoftUserId = String(updates.microsoftUserId || "").trim().toLowerCase();
-    if (updates.microsoftUserId && !GUID_PATTERN.test(updates.microsoftUserId)) {
-      return res.status(400).json({ error: "Microsoft User ID must be the Entra object ID (GUID)" });
     }
   }
   if (["isResident", "fullNameAzerbaijani", "leaveDate", "startDate"].some((key) => Object.prototype.hasOwnProperty.call(updates, key))) {
@@ -649,17 +641,22 @@ router.post("/:id/approve", async (req, res) => {
       console.log(`[approve] User already exists, skipping create for ${existingTask.email}`);
     }
 
-    // Fill the Microsoft User ID for PTO, but only for accounts in PTO's tenant (an id from
-    // another tenant can't sign in to PTO) and never over a value IT entered by hand.
-    const resolvedUserId = String(user?.id || "").trim().toLowerCase();
-    if (resolvedUserId && normalizeTenantKey(tenantKey) === getPtoTenantKey()) {
-      if (!existingTask.microsoftUserId) {
-        updateTaskById(existingTask.id, { microsoftUserId: resolvedUserId });
-      } else if (existingTask.microsoftUserId !== resolvedUserId) {
-        console.warn(
-          `[approve] Microsoft User ID for ${existingTask.email} (${existingTask.microsoftUserId}) differs from Graph (${resolvedUserId}); keeping the manual value`
-        );
+    if (isPtoEnabled()) {
+      const userTenantKey = normalizeTenantKey(tenantKey || getDefaultTenantKey());
+      try {
+        const tenantUser = user?.id ? user : await getUserByEmail(existingTask.email, tenantKey);
+        const entraObjectId = String(tenantUser?.id || "").trim().toLowerCase();
+        if (entraObjectId) {
+          updateTaskById(existingTask.id, { entraObjectId });
+          console.log(`[approve] Object ID saved for ${existingTask.email} (tenant ${userTenantKey}): ${entraObjectId}`);
+        } else {
+          console.warn(`[approve] Object ID not found for ${existingTask.email} in tenant ${userTenantKey}`);
+        }
+      } catch (objectIdError) {
+        console.error(`[approve] Object ID lookup failed for ${existingTask.email} in tenant ${userTenantKey}: ${objectIdError.message}`);
       }
+    } else {
+      console.log("[approve] Object ID collection skipped (PTO integration disabled)");
     }
 
     let task = getTaskById(existingTask.id) || existingTask;
