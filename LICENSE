@@ -1,21 +1,201 @@
-MIT License
+# PROPRIETARY SOFTWARE LICENSE AGREEMENT
 
-Copyright (c) 2026 WADPH
+**OAS — Onboarding Automation System**
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+**Version 1.0**
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Copyright (c) 2026 Adil Hasanov. All rights reserved, subject to the terms of this License and applicable law.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Licensor: Adil Hasanov  
+Software: OAS (Onboarding Automation System)  
+Contact: foreverforadil@gmail.com  
+Governing Law: Republic of Azerbaijan
+
+## 1. Definitions
+
+For the purposes of this License:
+
+**"Software"** means OAS (Onboarding Automation System), including its source code, object code, executables, scripts, documentation, user interface, original designs, and other materials owned by the Licensor and distributed as part of the Software.
+
+**"Licensor"** means Adil Hasanov, the individual author and rights holder of the Software, to the extent of the rights legally owned by him.
+
+**"Licensee"** means an individual or legal entity that lawfully obtains a license to use the Software.
+
+**"Purchase Terms"** means the applicable pricing, payment, subscription, device-limit, and licensing conditions presented to the Licensee at the time of purchase or subscription.
+
+## 2. Ownership and Intellectual Property
+
+The Software is proprietary software. All intellectual property rights in the Software, including copyright and other applicable rights, remain with the Licensor, except for third-party components and materials governed by their respective licenses.
+
+Purchasing, downloading, installing, or using the Software does not transfer ownership of the Software or its intellectual property rights to the Licensee.
+
+All rights not expressly granted under this License are reserved by the Licensor.
+
+Nothing in this License grants the Licensor ownership of intellectual property belonging to third parties.
+
+## 3. Grant of License
+
+Subject to payment of the applicable fees and compliance with this License, the Licensor grants the Licensee a limited, non-exclusive, non-transferable, non-sublicensable license to install and execute the Software for its intended functionality.
+
+The license permits internal use by the Licensee within the Licensee's own organization, provided that such use complies with the applicable Purchase Terms and the one-device restriction in Section 4.
+
+The Licensee receives permission to use the Software only. No right to sell, redistribute, modify, publish, sublicense, or otherwise commercially exploit the Software is granted.
+
+The Licensee may not transfer the license to another person or organization without the Licensor's prior written consent.
+
+## 4. Device Limitation
+
+Unless expressly authorized in writing by the Licensor, each purchased license permits installation and use of the Software on one device at a time.
+
+The Licensee shall not use a single license to authorize simultaneous installations or use on multiple devices beyond the permitted limit.
+
+Any device transfer, replacement, reactivation, or additional installation is subject to the applicable Purchase Terms or the Licensor's written authorization.
+
+## 5. License Duration and Payment
+
+The Software may be licensed under either of the following models, as specified in the applicable Purchase Terms.
+
+### 5.1 Perpetual License
+
+A perpetual license permits continued use of the licensed version of the Software after the applicable purchase fee has been paid, subject to this License.
+
+A perpetual license does not automatically include future major versions, upgrades, maintenance, technical support, hosting, or online services unless expressly included in the Purchase Terms.
+
+### 5.2 Subscription License
+
+A subscription license permits use of the Software for the duration of the paid subscription period.
+
+Upon expiration or termination of a subscription, the Licensee must cease using subscription-dependent functionality and comply with any applicable deactivation or removal requirements, subject to mandatory rights under applicable law.
+
+### 5.3 Payment Requirements
+
+The Licensee must pay all applicable fees in accordance with the Purchase Terms.
+
+A purchase or subscription does not grant ownership of the Software or any rights beyond those expressly granted by this License.
+
+Refunds, cancellations, renewals, taxes, and payment disputes are governed by the applicable Purchase Terms and mandatory law.
+
+## 6. Restrictions
+
+Except where expressly authorized in writing by the Licensor or required by applicable law, the Licensee shall not, directly or indirectly:
+
+a. Copy, reproduce, republish, distribute, upload, transmit, share, or otherwise make the Software or unauthorized copies available to third parties.
+
+b. Sell, resell, rent, lease, sublicense, lend, or commercially distribute the Software or any copy of it.
+
+c. Modify, adapt, translate, patch, alter, or create derivative works based on the Software.
+
+d. Decompile, disassemble, reverse engineer, or otherwise attempt to discover the source code, algorithms, or internal implementation of the Software, except to the extent such restrictions are prohibited by applicable law.
+
+e. Remove, obscure, or alter copyright notices, proprietary notices, license notices, trademarks, or other ownership identifiers included in the Software.
+
+f. Claim authorship, ownership, or original development of the Software, or represent the Software as the Licensee's own work.
+
+g. Publish, distribute, sell, or otherwise make available modified versions, forks, or derivative versions of the Software.
+
+h. Circumvent, disable, bypass, or interfere with license verification, activation, payment mechanisms, access controls, or other technical protection measures implemented in the Software.
+
+i. Share, forge, reproduce, or misuse license keys, activation tokens, credentials, or other licensing information in violation of the applicable Purchase Terms.
+
+j. Use the Software in a manner that infringes the intellectual property rights of the Licensor or any third party.
+
+k. Transfer the Software or license to another person or organization except as expressly permitted in writing by the Licensor.
+
+Nothing in this Section prohibits acts that cannot lawfully be restricted under applicable mandatory law.
+
+## 7. Unauthorized Use and Distribution
+
+The Software may be sold, licensed, or distributed only by the Licensor or by parties expressly authorized by the Licensor in writing.
+
+Unauthorized copying, distribution, resale, circumvention of licensing controls, or commercial exploitation may constitute a breach of this License or an infringement of intellectual property rights, where prohibited by applicable law.
+
+The Licensor may use reasonable technical and legal measures to protect the Software, verify licenses, prevent unauthorized access, and enforce rights available under applicable law.
+
+No technical protection measure guarantees the complete prevention of unauthorized copying or use.
+
+## 8. Third-Party Components and Open-Source Materials
+
+The Software may include, depend on, or interact with third-party libraries, frameworks, tools, or other materials that are subject to separate licenses.
+
+Those materials remain subject to their applicable licenses. Nothing in this License removes, limits, or overrides rights granted to recipients under a valid third-party license.
+
+Where required by an applicable third-party license, the relevant license text, copyright notices, source code, or other materials shall be provided in accordance with that license.
+
+## 9. Previously Licensed Versions
+
+The Licensor may have previously distributed certain versions or portions of the Software under the MIT License or another open-source license.
+
+This License does not revoke, retroactively restrict, or replace rights validly granted to recipients under an earlier license for copies already distributed under that license.
+
+Recipients of those copies may continue exercising the rights granted under the applicable earlier license, subject to its terms.
+
+This License governs only those versions, components, and distributions for which the Licensor has the legal right to impose these terms and which are distributed under this License.
+
+The Licensor may distribute future versions under different licensing terms, provided that the Licensor owns or otherwise controls the rights necessary to do so.
+
+## 10. Updates and Support
+
+Unless expressly included in the applicable Purchase Terms, the purchase of the Software does not entitle the Licensee to updates, upgrades, maintenance, technical support, hosting, or continued availability of online services.
+
+The Licensor may release updates or new versions under the same or different licensing terms, subject to applicable law and any existing contractual obligations.
+
+## 11. Termination
+
+This License remains effective for the duration of the applicable license, unless terminated in accordance with this Section or applicable law.
+
+The Licensor may terminate the license for a material breach of this License, subject to any applicable notice, cure, and procedural requirements imposed by law or the applicable Purchase Terms.
+
+Upon termination, the Licensee must cease all use of the Software and, where legally required, uninstall and delete copies under the Licensee's control, except for copies that may lawfully be retained.
+
+Termination does not extinguish rights, obligations, or remedies that accrued before termination.
+
+A perpetual license may not be terminated arbitrarily solely because the Licensor changes the licensing terms for future versions, subject to this License and applicable law.
+
+## 12. Disclaimer of Warranty
+
+To the maximum extent permitted by applicable law, the Software is provided "AS IS" and "AS AVAILABLE", without warranties of any kind, whether express, implied, or statutory.
+
+To the extent legally permissible, the Licensor disclaims implied warranties of merchantability, fitness for a particular purpose, and non-infringement.
+
+Nothing in this Section excludes any warranty, consumer protection, or other right that cannot lawfully be excluded under applicable law.
+
+## 13. Limitation of Liability
+
+To the maximum extent permitted by applicable law, the Licensor shall not be liable for indirect, incidental, special, exemplary, or consequential damages, including loss of profits, revenue, data, business opportunities, or business interruption arising out of the use of or inability to use the Software.
+
+Nothing in this Section excludes or limits liability that cannot lawfully be excluded or limited.
+
+## 14. Governing Law and Disputes
+
+This License shall be governed by the laws of the Republic of Azerbaijan, subject to applicable mandatory legal protections and conflict-of-law rules.
+
+Disputes arising out of or in connection with this License shall be submitted to the competent courts of the Republic of Azerbaijan, subject to applicable law.
+
+## 15. Severability
+
+If any provision of this License is found invalid or unenforceable, that provision shall be limited or severed to the minimum extent necessary, and the remaining provisions shall continue in effect to the extent permitted by law.
+
+## 16. Amendments
+
+The Licensor may publish revised licensing terms for future releases or distributions of the Software.
+
+A revised version of this License does not automatically alter the terms of an existing perpetual license or revoke rights previously granted under an earlier license, unless a lawful agreement or applicable law provides otherwise.
+
+## 17. Contact and Written Permissions
+
+Requests for commercial permissions, redistribution rights, modification rights, or other exceptions must be submitted to:
+
+**Adil Hasanov**  
+Email: foreverforadil@gmail.com
+
+Any exception to this License must be expressly authorized in writing by the Licensor.
+
+## 18. Entire Agreement
+
+This License and the applicable Purchase Terms constitute the licensing terms for the Software, subject to any separately agreed written terms and applicable law.
+
+By installing, activating, or using the Software, the Licensee agrees to comply with this License to the extent such agreement is legally effective.
+
+---
+
+**Copyright (c) 2026 Adil Hasanov. All rights reserved, subject to applicable law and previously granted licenses.**
