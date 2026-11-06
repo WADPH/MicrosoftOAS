@@ -37,8 +37,18 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   background: var(--bg);
   color: var(--ink);
-  overflow-x: hidden;
+  overflow: hidden;
   height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Wrapper of the main page: must pass the viewport height down to .container,
+   otherwise .container grows with its content and the whole page scrolls. */
+.appScreen {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -47,8 +57,10 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   overflow: hidden;
   padding-inline: 14px;
+  padding-bottom: 14px;
   gap: 14px;
 }
 
@@ -201,6 +213,7 @@ body[data-theme="dark"] .iconBtn .moon {
   grid-template-columns: 1fr 2fr;
   gap: 14px;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -540,7 +553,6 @@ body[data-theme="dark"] .iconBtn .moon {
 }
 
 .details {
-  max-height: 90vh;
   overflow: auto;
   overflow-x: hidden;
 }
@@ -1929,6 +1941,18 @@ button.danger {
 
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  /* Stacked single-column layout doesn't fit one screen: let the page scroll. */
+  body {
+    overflow-y: auto;
+  }
+
+  .appScreen,
+  .container,
+  .layout {
+    flex: none;
+    overflow: visible;
   }
 
   .progressRoadmap {
