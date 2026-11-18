@@ -18,7 +18,8 @@ const { requireMainAccess, requireProgressAccess, requireProgressEditAccess, req
 const { startSnipeitAssignWorker, processPendingAssignTasks } = require("./services/snipeitAssignWorker");
 const { startReminderWorker, processDueReminders } = require("./services/reminderWorker");
 const { startObjectIdLookupWorker, processPendingLookups } = require("./services/objectIdLookupWorker");
-const { getTasksByType } = require("./services/taskStore");
+const csrfProtection = require("./middleware/csrfProtection");
+const { getTasksByType, toPublicTask } = require("./services/taskStore");
 const {
   getTaskAssetStatuses,
   getAssetStatus,
@@ -37,7 +38,16 @@ app.use(
     }
   })
 );
-app.use(express.urlencoded({ extended: true }));
+// No express.urlencoded: the app only accepts JSON, which also blocks cross-site form posts (CSRF).
+
+// Never send temporary passwords to the browser: every task object in any JSON response
+// is replaced with its public view (userTempPass removed, hasCustomPassword flag added).
+app.set("json replacer", (key, value) => {
+  if (value && typeof value === "object" && !Array.isArray(value) && Object.prototype.hasOwnProperty.call(value, "userTempPass")) {
+    return toPublicTask(value);
+  }
+  return value;
+});
 
 // Service-to-service API (API key, no session) - mounted before the session middleware
 app.use("/api/external", requireApiClient, externalRouter);
@@ -49,11 +59,16 @@ app.use(
     saveUninitialized: true,
     cookie: {
       httpOnly: true,
+      // "lax" (not "strict") so the session survives the top-level redirect back from Microsoft login
+      sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       maxAge: 24 * 60 * 60 * 1000
     }
   })
 );
+
+// Webhooks (HMAC-signed, no session) are exempt; every other state-changing route needs a same-origin JSON request
+app.use((req, res, next) => (req.path.startsWith("/webhook") ? next() : csrfProtection(req, res, next)));
 
 
 

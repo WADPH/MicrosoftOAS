@@ -2156,13 +2156,19 @@ function selectTask(id) {
   setInputValue("phone", task.phone || "");
   setInputValue("manager", task.manager || "");
   setInputValue("note", task.note || "");
-  setInputValue("userTempPass", task.userTempPass || "");
+  // The server never returns the password itself, only whether a per-task one is set
+  setInputValue("userTempPass", "");
   setInputValue("isResident", typeof task.isResident === "boolean" ? String(task.isResident) : "");
   setInputValue("fullNameAzerbaijani", task.fullNameAzerbaijani || "");
   setInputValue("leaveDate", task.leaveDate || "");
   const passInput = el("userTempPass");
   const passToggle = el("toggleUserTempPassBtn");
-  if (passInput) passInput.type = "password";
+  if (passInput) {
+    passInput.type = "password";
+    passInput.placeholder = task.hasCustomPassword
+      ? "Custom password set (leave empty to keep it)"
+      : "Default password (leave empty to use it)";
+  }
   if (passToggle) {
     passToggle.textContent = "Show";
     passToggle.setAttribute("aria-label", "Show password");
@@ -3472,6 +3478,10 @@ function buildPatchPayload() {
       tenant: group.tenant || getOnboardingTenantForGroups()
     }))
   };
+  // Empty field = keep the stored password (the browser never receives it, so it can't be echoed back)
+  if (!payload.userTempPass) {
+    delete payload.userTempPass;
+  }
   // The date picker can't show a non-ISO legacy value (e.g. unparsed webhook text); don't overwrite it with blank
   const storedStartDate = String(getCurrentTask()?.startDate || "").trim();
   if (!payload.startDate && storedStartDate && storedStartDate.toLowerCase() !== "not specified" && !/^\d{4}-\d{2}-\d{2}$/.test(storedStartDate)) {

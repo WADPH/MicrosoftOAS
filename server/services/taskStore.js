@@ -39,6 +39,22 @@ function normalizeString(value, fallback = NOT_SPECIFIED) {
   return clean || fallback;
 }
 
+// Only a per-task (custom) password is stored. The shared default stays in USER_TEMP_PASS
+// and is resolved at provisioning time in graph.createUser. Legacy tasks that had the
+// default copied in are cleaned up here.
+function normalizeTempPass(value) {
+  const clean = String(value ?? "").trim();
+  const defaultPass = String(process.env.USER_TEMP_PASS || "").trim();
+  return clean && clean !== defaultPass ? clean : "";
+}
+
+// Response-safe view of a task: never expose the temporary password, only whether a custom one is set.
+function toPublicTask(task) {
+  if (!task || typeof task !== "object") return task;
+  const { userTempPass, ...rest } = task;
+  return { ...rest, hasCustomPassword: Boolean(normalizeTempPass(userTempPass)) };
+}
+
 function normalizeDomain(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -164,7 +180,7 @@ function normalizeTask(task = {}) {
     phone: normalizeString(task.phone),
     manager: normalizeString(task.manager),
     note: String(task.note || "").trim(),
-    userTempPass: String(task.userTempPass ?? process.env.USER_TEMP_PASS ?? "").trim(),
+    userTempPass: normalizeTempPass(task.userTempPass),
     errorMessage: String(task.errorMessage || "").trim(),
     startDate: normalizeString(task.startDate),
     email: normalizeString(task.email),
@@ -381,6 +397,7 @@ module.exports = {
   updateTaskById,
   deleteTaskById,
   normalizeTask,
+  toPublicTask,
   NOT_SPECIFIED,
   ONBOARDING_STATUSES,
   TASK_TYPE_ONBOARDING,
